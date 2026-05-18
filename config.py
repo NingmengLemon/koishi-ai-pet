@@ -1,3 +1,9 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
 class Config:
     APP_NAME = "DeskPet"
     WINDOW_WIDTH = 200
@@ -8,11 +14,11 @@ class Config:
     LOG_LEVEL = "DEBUG"
 
     # AI Brains
-    BRAIN_TYPE = "openai"  # "openai" or "local"
-    OPENAI_API_KEY = "sk-d1e27c7c262145e0b9674bd701ff3d1a"
-    OPENAI_BASE_URL = "https://api.deepseek.com"
-    OPENAI_MODEL = "deepseek-v4-pro"
-    LOCAL_MODEL_PATH = ""
+    BRAIN_TYPE = os.getenv("BRAIN_TYPE", "openai")  # "openai" or "local"
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.deepseek.com")
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "deepseek-v4-pro")
+    LOCAL_MODEL_PATH = os.getenv("LOCAL_MODEL_PATH", "")
 
     # Skills
     SCREEN_READER_ENABLED = True
