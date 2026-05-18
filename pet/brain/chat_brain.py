@@ -8,13 +8,19 @@ from config import config
 class ChatBrain(BrainMixin):
     """对话 brain。
 
-    BRAIN=llm 调用 API，BRAIN=local 用内置回复库。
+    BRAIN=llm 调用 API，BRAIN=ollama 用本地 Ollama，BRAIN=local 用内置回复库。
     """
 
     def __init__(self):
         super().__init__()
         brain = config.CHAT_BRAIN or "local"
-        if brain == "llm" and config.CHAT_MODEL_KEY:
+        if brain == "ollama":
+            self._client = OpenAI(
+                api_key="ollama",
+                base_url=config.OLLAMA_BASE_URL,
+            )
+            self._model = config.CHAT_MODEL or "llama3.2"
+        elif brain == "llm" and config.CHAT_MODEL_KEY:
             self._client = OpenAI(
                 api_key=config.CHAT_MODEL_KEY,
                 base_url=config.CHAT_MODEL_URL or "",

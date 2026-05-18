@@ -7,12 +7,18 @@ from config import config
 class ActionBrain:
     """行为决策 brain。
 
-    BRAIN=local 用随机本地规则，BRAIN=llm 调用 API 决策。
+    BRAIN=local 用随机本地规则，BRAIN=llm 调用 API 决策，BRAIN=ollama 用本地 Ollama。
     """
 
     def __init__(self):
         brain = config.ACTION_BRAIN or "local"
-        if brain == "llm" and config.ACTION_MODEL_KEY:
+        if brain == "ollama":
+            self._client = OpenAI(
+                api_key="ollama",
+                base_url=config.OLLAMA_BASE_URL,
+            )
+            self._model = config.ACTION_MODEL or config.CHAT_MODEL or "llama3.2"
+        elif brain == "llm" and config.ACTION_MODEL_KEY:
             self._client = OpenAI(
                 api_key=config.ACTION_MODEL_KEY,
                 base_url=config.ACTION_MODEL_URL or "",

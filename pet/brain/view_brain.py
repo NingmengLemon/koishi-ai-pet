@@ -13,13 +13,20 @@ class ViewBrain:
     """屏幕分析 brain。
 
     接收 PIL Image 截图，base64 编码后发送给视觉模型。
-    BRAIN=llm 时调用 API，否则返回空字符串。
+    BRAIN=llm 时调用 API，BRAIN=ollama 时调用本地 Ollama vision 模型，否则返回空字符串。
     """
 
     def __init__(self):
         brain = config.VIEW_BRAIN or "local"
         print(f"[ViewBrain] __init__: BRAIN={brain}, KEY={'***' if config.VIEW_MODEL_KEY else 'EMPTY'}, URL={config.VIEW_MODEL_URL or '(empty)'}")
-        if brain == "llm" and config.VIEW_MODEL_KEY:
+        if brain == "ollama":
+            self._client = OpenAI(
+                api_key="ollama",
+                base_url=config.OLLAMA_BASE_URL,
+            )
+            self._model = config.VIEW_MODEL or config.CHAT_MODEL or "llama3.2-vision"
+            print(f"[ViewBrain] Client created (Ollama), model={self._model}")
+        elif brain == "llm" and config.VIEW_MODEL_KEY:
             self._client = OpenAI(
                 api_key=config.VIEW_MODEL_KEY,
                 base_url=config.VIEW_MODEL_URL or "",

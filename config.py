@@ -13,8 +13,11 @@ class Config:
     BUBBLE_FONT_SIZE = 14
     LOG_LEVEL = "DEBUG"
 
+    # ── Ollama 本地模型 ──
+    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+
     # ── 各用途 brain 配置 ──
-    # 每项包含：BRAIN（"local" 或 "llm"）、MODEL、MODEL_KEY、MODEL_URL、PROMPT
+    # 每项包含：BRAIN（"local" / "llm" / "ollama"）、MODEL、MODEL_KEY、MODEL_URL、PROMPT
 
     # ACTION：行为决策（动画、空闲动作）
     ACTION_BRAIN = os.getenv("ACTION_BRAIN", "local")
