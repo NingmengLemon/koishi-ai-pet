@@ -7,7 +7,6 @@ load_dotenv()
 class Config:
     
     APP_NAME = "DeskPet"
-    # ── 桌宠配置 ──
     PET_WIDTH = 200
     PET_HEIGHT = 200
     PET_FPS = 15
@@ -15,26 +14,38 @@ class Config:
     BUBBLE_FONT_SIZE = 14
     LOG_LEVEL = "DEBUG"
 
-    # ── Ollama 本地模型 ──
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 
-    # ── 各用途 brain 配置 ──
-    # 每项包含：BRAIN（"local" / "llm" / "ollama"）、MODEL、MODEL_KEY、MODEL_URL、PROMPT
+    BRAIN = os.getenv("BRAIN", "local")                  # local / llm / ollama
+    LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-v4-pro") # 模型名
+    LLM_KEY = os.getenv("LLM_KEY", "")                   # API Key
+    LLM_URL = os.getenv("LLM_URL", "")                   # API 地址
 
-    # ACTION：行为决策（动画、空闲动作）
-    ACTION_BRAIN = os.getenv("ACTION_BRAIN", "local")
-    ACTION_MODEL = os.getenv("ACTION_MODEL", "")
-    ACTION_MODEL_KEY = os.getenv("ACTION_MODEL_KEY", "")
-    ACTION_MODEL_URL = os.getenv("ACTION_MODEL_URL", "")
-    ACTION_PROMPT_DECIDE = os.getenv(
-        "ACTION_PROMPT_DECIDE",
-        "You are a virtual desktop pet. Based on the context, "
-        "choose ONE action from: {actions}.\n"
+    BEHAVIOR_PROMPT_SYSTEM = os.getenv(
+        "BEHAVIOR_PROMPT_SYSTEM",
+        "You are a cute desktop pet. Based on the context, "
+        "decide what action to perform and what to say.\n"
+        "Output format:\n"
+        "Action: <action name>\n"
+        "Speech: <your message or \"none\">",
+    )
+    BEHAVIOR_PROMPT_DECIDE = os.getenv(
+        "BEHAVIOR_PROMPT_DECIDE",
+        "Available actions: {actions}\n"
         "Context: {context}\n"
-        "Respond with only the action name, nothing else.",
+        "Respond with Action and Speech.",
     )
 
-    # VIEW：屏幕分析 / 视觉模型（需支持 vision 的模型，如 GPT-4o）
+    CHAT_PROMPT_SYSTEM = os.getenv(
+        "CHAT_PROMPT_SYSTEM",
+        "You are a cute desktop pet. "
+        "Keep responses brief and playful.",
+    )
+    CHAT_PROMPT_GREET = os.getenv(
+        "CHAT_PROMPT_GREET",
+        "Say a short, friendly greeting!",
+    )
+
     VIEW_BRAIN = os.getenv("VIEW_BRAIN", "local")
     VIEW_MODEL = os.getenv("VIEW_MODEL", "")
     VIEW_MODEL_KEY = os.getenv("VIEW_MODEL_KEY", "")
@@ -49,22 +60,6 @@ class Config:
         "请描述这张截图中的内容，用户可能在做什么？",
     )
 
-    # CHAT：对话交互 —— 主交互 brain
-    CHAT_BRAIN = os.getenv("CHAT_BRAIN", "llm")
-    CHAT_MODEL = os.getenv("CHAT_MODEL", "deepseek-v4-pro")
-    CHAT_MODEL_KEY = os.getenv("CHAT_MODEL_KEY", "")
-    CHAT_MODEL_URL = os.getenv("CHAT_MODEL_URL", "https://api.deepseek.com")
-    CHAT_PROMPT_SYSTEM = os.getenv(
-        "CHAT_PROMPT_SYSTEM",
-        "You are a cute desktop pet. "
-        "Keep responses brief and playful.",
-    )
-    CHAT_PROMPT_GREET = os.getenv(
-        "CHAT_PROMPT_GREET",
-        "Say a short, friendly greeting!",
-    )
-
-    # 技能开关
     SCREEN_READER_ENABLED = True
     SYSTEM_MONITOR_ENABLED = True
 

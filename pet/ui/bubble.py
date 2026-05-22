@@ -30,7 +30,6 @@ class SpeechBubble(QLabel):
         self._follow_timer.timeout.connect(self._follow_pet)
         self.hide()
 
-    # ── 绘制 ──
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -38,16 +37,14 @@ class SpeechBubble(QLabel):
         w, h = self.width(), self.height()
         body_h = h - TAIL_HEIGHT
 
-        # 气泡主体：圆角矩形
         body_rect = self.rect()
         body_rect.setHeight(body_h)
         painter.setBrush(QColor(255, 255, 255, 220))
         painter.setPen(QPen(QColor(200, 200, 200), 1))
         painter.drawRoundedRect(body_rect.adjusted(0, 0, -1, -1), 12, 12)
 
-        # 尾巴：指向下方的三角形
         cx = w // 2
-        tail_top = body_h - 1  # 略微重叠避免缝隙
+        tail_top = body_h - 1
         tail = QPolygon([
             QPoint(cx - 6, tail_top),
             QPoint(cx + 6, tail_top),
@@ -60,11 +57,25 @@ class SpeechBubble(QLabel):
         painter.end()
         super().paintEvent(event)
 
-    # ── 显示 ──
     def show_text(self, text, duration=5000, parent_pos=None):
         self.setText(text)
+
+        self.setMinimumWidth(80)
+        self.setMaximumWidth(config.BUBBLE_MAX_WIDTH)
+
+        metrics = self.fontMetrics()
+        avg_w = metrics.averageCharWidth()
+        target_w = int(avg_w * 28)
+        text_w  = metrics.horizontalAdvance(text) + 20
+        w = text_w if text_w <= target_w else target_w
+        w = max(w, self.minimumWidth())
+        w = min(w, self.maximumWidth())
+
+        self.setFixedWidth(w)
         self.adjustSize()
-        # 预留尾巴高度
+
+        self.setMinimumWidth(80)
+        self.setMaximumWidth(config.BUBBLE_MAX_WIDTH)
         self.resize(self.width(), self.height() + TAIL_HEIGHT)
 
         if parent_pos is not None:
@@ -77,7 +88,6 @@ class SpeechBubble(QLabel):
         self._follow_timer.stop()
         super().hide()
 
-    # ── 定位 ──
     def _position_above(self, target_pos):
         bubble_x = target_pos.x() - self.width() // 2
         bubble_y = target_pos.y() - self.height() - 15

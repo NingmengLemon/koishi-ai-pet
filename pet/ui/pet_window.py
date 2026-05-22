@@ -22,28 +22,22 @@ class PetWindow(TransparentWindow):
         self.pet_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.pet_label)
 
-        # 初始化桌宠动画播放器
         self.pet_anim = PetAnimator(self, self.pet_label, parent=self)
 
-        # 尝试播放 idle 动画，无素材时回退到 emoji
         if not self.pet_anim.play("idle"):
             self._use_emoji_fallback()
 
     def play_action(self, action: str, loop: bool = True) -> bool:
-        """播放指定动作动画，无素材时回退到 emoji。"""
         if self.pet_anim.play(action, loop=loop):
             return True
         self._use_emoji_fallback()
         return False
 
     def _use_emoji_fallback(self):
-        """无精灵素材时显示 emoji 占位。"""
         self.pet_label.setText("\U0001f436")
         font = self.pet_label.font()
         font.setPointSize(48)
         self.pet_label.setFont(font)
-
-    # ── 拖拽移动 ──────────────────────────────────────────
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:

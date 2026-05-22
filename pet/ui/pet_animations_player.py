@@ -39,7 +39,7 @@ class PetAnimator(QObject):
         # 存储运行中的 QPropertyAnimation，防止被 GC
         self._win_anims: list[QPropertyAnimation] = []
 
-    # ── 帧动画 ────────────────────────────────────────────
+    #  帧动画 
 
     def play(self, action: str, loop: bool = True, fps: int | None = None) -> bool:
         """播放指定动作的帧动画。"""
@@ -88,7 +88,7 @@ class PetAnimator(QObject):
     def is_playing(self) -> bool:
         return self._frame_timer.isActive()
 
-    # ── 窗口动画 ──────────────────────────────────────────
+    #  窗口动画 
 
     def move_to(self, start_pos, end_pos, duration=500, callback=None):
         """将窗口从 start_pos 移动到 end_pos。"""
@@ -157,7 +157,7 @@ class PetAnimator(QObject):
         timer.start(1000)
         return timer
 
-    # ── 内部方法 ──────────────────────────────────────────
+    #  内部方法 
 
     def _load_action(self, action: str) -> list[QPixmap]:
         """加载并缓存指定动作的所有帧，按文件名排序。"""

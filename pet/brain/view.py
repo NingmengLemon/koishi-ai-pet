@@ -1,6 +1,7 @@
 """屏幕分析 brain —— 接收屏幕截图，base64 编码后调用视觉模型分析。"""
 
 import base64
+from datetime import datetime
 import io
 import traceback
 
@@ -10,11 +11,6 @@ from config import config
 
 
 class ViewBrain:
-    """屏幕分析 brain。
-
-    接收 PIL Image 截图，base64 编码后发送给视觉模型。
-    BRAIN=llm 时调用 API，BRAIN=ollama 时调用本地 Ollama vision 模型，否则返回空字符串。
-    """
 
     def __init__(self):
         brain = config.VIEW_BRAIN or "local"
@@ -25,23 +21,17 @@ class ViewBrain:
                 base_url=config.OLLAMA_BASE_URL,
             )
             self._model = config.VIEW_MODEL or config.CHAT_MODEL or "llama3.2-vision"
-            print(f"[ViewBrain] Client created (Ollama), model={self._model}")
         elif brain == "llm" and config.VIEW_MODEL_KEY:
             self._client = OpenAI(
                 api_key=config.VIEW_MODEL_KEY,
                 base_url=config.VIEW_MODEL_URL or "",
             )
             self._model = config.VIEW_MODEL or config.CHAT_MODEL
-            print(f"[ViewBrain] Client created, model={self._model}")
         else:
             self._client = None
-            print(f"[ViewBrain] Client NOT created (BRAIN={brain}, KEY empty={not config.VIEW_MODEL_KEY})")
-
 
     def analyze(self, image: Image.Image, prompt: str = "") -> str:
-        """分析屏幕截图。"""
         if not self._client:
-            print("[ViewBrain.analyze] SKIP: client is None")
             return ""
         print(f"[ViewBrain.analyze] image={image.size}, prompt=\"{prompt[:50]}\"")
         base64_img = self._encode_base64(image)
@@ -60,14 +50,13 @@ class ViewBrain:
             traceback.print_exc()
             return ""
 
-
     def _encode_base64(self, image: Image.Image) -> str:
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")
         return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
     def _call_vision_api(self, base64_img: str, prompt: str) -> str:
-        """调用视觉模型 API 分析截图。"""
+        t = datetime.now().strftime("%H:%M:%S")
         try:
             messages = [
                 {"role": "system", "content": config.VIEW_PROMPT_SYSTEM},
@@ -82,38 +71,37 @@ class ViewBrain:
                     ],
                 },
             ]
-            print(f"[ViewBrain._call_vision_api] model={self._model}, prompt_len={len(prompt or config.VIEW_PROMPT_VISION)}")
+            print(f"[{t}] [ViewBrain] === LLM REQUEST (vision) ===")
+            print(f"[{t}] [ViewBrain]   model: {self._model}")
+            print(f"[{t}] [ViewBrain]   system: \"{config.VIEW_PROMPT_SYSTEM[:80]}...\"")
+            print(f"[{t}] [ViewBrain]   user.text: \"{(prompt or config.VIEW_PROMPT_VISION)[:80]}...\"")
+            print(f"[{t}] [ViewBrain]   user.image: base64, {len(base64_img)} bytes")
             resp = self._client.chat.completions.create(
                 model=self._model,
                 messages=messages,
                 max_tokens=500,
             )
-            # ── 全量打印响应 ──
-            print(f"[ViewBrain._call_vision_api] ===== RESPONSE FULL DUMP =====")
-            print(f"  id: {resp.id}")
-            print(f"  model: {resp.model}")
-            print(f"  created: {resp.created}")
-            print(f"  usage: {resp.usage}")
-            print(f"  choices count: {len(resp.choices)}")
+            print(f"[{t}] [ViewBrain] === LLM RESPONSE (vision) ===")
+            print(f"[{t}] [ViewBrain]   id: {resp.id}")
+            print(f"[{t}] [ViewBrain]   model: {resp.model}")
+            print(f"[{t}] [ViewBrain]   created: {resp.created}")
+            print(f"[{t}] [ViewBrain]   usage: {resp.usage}")
+            print(f"[{t}] [ViewBrain]   finish_reason: {resp.choices[0].finish_reason if resp.choices else 'N/A'}")
             if resp.choices:
                 choice = resp.choices[0]
-                print(f"  finish_reason: {choice.finish_reason}")
-                print(f"  message.role: {choice.message.role}")
-                print(f"  message.content: {repr(choice.message.content)}")
-                # 检查是否有 tool_calls、function_call 等其他字段
+                content = choice.message.content
+                print(f"[{t}] [ViewBrain]   raw: {content}")
                 if hasattr(choice.message, 'tool_calls') and choice.message.tool_calls:
-                    print(f"  tool_calls: {choice.message.tool_calls}")
-            print(f"[ViewBrain._call_vision_api] ===== END FULL DUMP =====")
+                    print(f"[{t}] [ViewBrain]   tool_calls: {choice.message.tool_calls}")
 
             content = resp.choices[0].message.content
-            # ── 校验内容是否为业务错误 ──
             if content is None:
-                print(f"[ViewBrain._call_vision_api] WARNING: content is None, finish_reason={resp.choices[0].finish_reason}")
+                print(f"[{t}] [ViewBrain] WARNING: content is None, finish_reason={resp.choices[0].finish_reason}")
                 return ""
             if resp.choices[0].finish_reason not in ("stop", "length", None):
-                print(f"[ViewBrain._call_vision_api] WARNING: unexpected finish_reason={resp.choices[0].finish_reason}")
+                print(f"[{t}] [ViewBrain] WARNING: unexpected finish_reason={resp.choices[0].finish_reason}")
             return content
         except Exception as e:
-            print(f"[ViewBrain._call_vision_api] EXCEPTION: {type(e).__name__}: {e}")
+            print(f"[{t}] [ViewBrain] EXCEPTION: {type(e).__name__}: {e}")
             traceback.print_exc()
             return ""
