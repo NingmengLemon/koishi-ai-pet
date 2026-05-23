@@ -90,7 +90,8 @@ class SpeechBubble(QLabel):
 
     def _position_above(self, target_pos):
         bubble_x = target_pos.x() - self.width() // 2
-        bubble_y = target_pos.y() - self.height() - 15
+        pet_top = target_pos.y() - config.PET_HEIGHT // 2
+        bubble_y = pet_top - self.height() - 15
         self.move(max(0, bubble_x), max(0, bubble_y))
 
     def _follow_pet(self):

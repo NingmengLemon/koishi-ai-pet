@@ -24,6 +24,15 @@ class PetWindow(TransparentWindow):
 
         self.pet_anim = PetAnimator(self, self.pet_label, parent=self)
 
+        # 初始位置：屏幕底部居中
+        from PySide6.QtWidgets import QApplication
+        screen = QApplication.primaryScreen()
+        if screen:
+            geo = screen.availableGeometry()
+            x = (geo.width() - config.PET_WIDTH) // 2
+            y = geo.bottom() - config.PET_HEIGHT
+            self.move(x, y)
+
         if not self.pet_anim.play("idle"):
             self._use_emoji_fallback()
 
@@ -42,6 +51,7 @@ class PetWindow(TransparentWindow):
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
             self._old_pos = event.globalPosition().toPoint()
+            self.pet_anim.enable_gravity(False)
 
     def mouseMoveEvent(self, event: QMouseEvent):
         if self._old_pos is not None:
@@ -51,3 +61,4 @@ class PetWindow(TransparentWindow):
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         self._old_pos = None
+        self.pet_anim.enable_gravity(True)

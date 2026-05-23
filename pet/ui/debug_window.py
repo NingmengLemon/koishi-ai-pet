@@ -12,7 +12,7 @@ from pet.ui.bubble import SpeechBubble
 from pet.brain.behavior import Behavior
 from pet.brain.view import ViewBrain
 from pet.skills.system_monitor import SystemMonitor
-from pet.skills.screen_reader import ScreenReader
+from pet.agent.screen_reader import ScreenReader
 from config import config
 
 
@@ -37,9 +37,11 @@ class DebugWindow(QWidget):
         if self.agent:
             self.agent.action_requested.connect(self._on_agent_action)
             self.agent.speak_requested.connect(self._on_agent_speech)
+            self.agent.view_ready.connect(self._on_view_ready)
+            self.agent.view_error.connect(self._on_view_error)
 
         self.setWindowTitle("DeskPet 调试面板")
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(680)
         self._setup_ui()
 
         self._stats_timer = QTimer(self)
@@ -47,7 +49,14 @@ class DebugWindow(QWidget):
         self._stats_timer.start(2000)
 
     def _setup_ui(self):
-        root = QVBoxLayout(self)
+        root = QHBoxLayout(self)
+
+        left = QVBoxLayout()
+        right = QVBoxLayout()
+        root.addLayout(left, 1)
+        root.addLayout(right, 1)
+
+        # ── 左栏 ──
 
         anim_group = QGroupBox("动画测试")
         anim_layout = QVBoxLayout(anim_group)
@@ -123,7 +132,9 @@ class DebugWindow(QWidget):
         move_row.addWidget(self.btn_move)
         anim_layout.addLayout(move_row)
 
-        root.addWidget(anim_group)
+        left.addWidget(anim_group)
+
+        # ── 右栏 ──
 
         bubble_group = QGroupBox("气泡测试")
         bubble_layout = QVBoxLayout(bubble_group)
@@ -138,7 +149,7 @@ class DebugWindow(QWidget):
         input_row.addWidget(self.btn_bubble)
         bubble_layout.addLayout(input_row)
 
-        root.addWidget(bubble_group)
+        right.addWidget(bubble_group)
 
         chat_group = QGroupBox("Chat 调试")
         chat_layout = QVBoxLayout(chat_group)
@@ -174,7 +185,7 @@ class DebugWindow(QWidget):
         self.chat_output.setFont(QFont("Microsoft YaHei", 10))
         chat_layout.addWidget(self.chat_output)
 
-        root.addWidget(chat_group)
+        right.addWidget(chat_group)
 
         decide_group = QGroupBox("Behavior 决策")
         decide_layout = QVBoxLayout(decide_group)
@@ -185,11 +196,11 @@ class DebugWindow(QWidget):
         decide_btn_row.addWidget(self.btn_decide)
         if self.agent:
             self.chk_tick = QCheckBox("Tick")
-            running = self.agent.scheduler.is_running()
-            self.chk_tick.setChecked(running)
+            self.agent.scheduler.stop()
+            self.chk_tick.setChecked(False)
             self.chk_tick.toggled.connect(self._toggle_tick)
             decide_btn_row.addWidget(self.chk_tick)
-            self.label_tick_state = QLabel("运行中" if running else "已停")
+            self.label_tick_state = QLabel("已停")
             decide_btn_row.addWidget(self.label_tick_state)
         decide_btn_row.addStretch()
         decide_layout.addLayout(decide_btn_row)
@@ -200,7 +211,21 @@ class DebugWindow(QWidget):
         self.decide_output.setFont(QFont("Consolas", 10))
         decide_layout.addWidget(self.decide_output)
 
-        root.addWidget(decide_group)
+        right.addWidget(decide_group)
+
+        stats_group = QGroupBox("系统监控")
+        stats_layout = QFormLayout(stats_group)
+        self.label_cpu = QLabel("--")
+        self.label_mem = QLabel("--")
+        self.label_pet_pos = QLabel("--")
+        self.label_pet_visible = QLabel("--")
+        stats_layout.addRow("CPU:", self.label_cpu)
+        stats_layout.addRow("内存:", self.label_mem)
+        stats_layout.addRow("宠物位置:", self.label_pet_pos)
+        stats_layout.addRow("宠物可见:", self.label_pet_visible)
+        right.addWidget(stats_group)
+
+        # ── 左栏（续）──
 
         view_group = QGroupBox("View 调试")
         view_layout = QVBoxLayout(view_group)
@@ -230,19 +255,7 @@ class DebugWindow(QWidget):
         self.view_output.setFont(QFont("Microsoft YaHei", 10))
         view_layout.addWidget(self.view_output)
 
-        root.addWidget(view_group)
-
-        stats_group = QGroupBox("系统监控")
-        stats_layout = QFormLayout(stats_group)
-        self.label_cpu = QLabel("--")
-        self.label_mem = QLabel("--")
-        self.label_pet_pos = QLabel("--")
-        self.label_pet_visible = QLabel("--")
-        stats_layout.addRow("CPU:", self.label_cpu)
-        stats_layout.addRow("内存:", self.label_mem)
-        stats_layout.addRow("宠物位置:", self.label_pet_pos)
-        stats_layout.addRow("宠物可见:", self.label_pet_visible)
-        root.addWidget(stats_group)
+        left.addWidget(view_group)
 
         log_group = QGroupBox("日志")
         log_layout = QVBoxLayout(log_group)
@@ -251,9 +264,7 @@ class DebugWindow(QWidget):
         self.log_output.setMaximumHeight(150)
         self.log_output.setFont(QFont("Consolas", 9))
         log_layout.addWidget(self.log_output)
-        root.addWidget(log_group)
-
-        root.addStretch()
+        left.addWidget(log_group)
 
     def _log(self, msg: str):
         ts = datetime.now().strftime("%H:%M:%S")
@@ -317,7 +328,7 @@ class DebugWindow(QWidget):
         self.label_pet_status.setText(f"播放中 · {fps} FPS · {mode}")
 
     def _test_bubble(self):
-        text = self.bubble_input.text().strip() or "汪汪！调试中..."
+        text = self.bubble_input.text().strip() or "调试中..."
         pet_center = self.pet.geometry().center()
         self._log(f"bubble: \"{text[:30]}\"")
         self.bubble.show_text(text, duration=4000, parent_pos=pet_center)
@@ -409,14 +420,21 @@ class DebugWindow(QWidget):
         self._log(f"view.analyze(\"{prompt[:30]}\")")
         self.view_output.clear()
         self.view_output.append("分析中...")
-        try:
+        if self.agent:
+            self.agent.trigger("view", image=self._last_screenshot, prompt=prompt)
+        else:
             reply = self.view_brain.analyze(self._last_screenshot, prompt)
-            self._log(f"  ↳ view: {reply[:80]}")
-            self.view_output.clear()
-            self.view_output.append(reply)
-        except Exception as e:
-            self._log(f"  ↳ VIEW ERROR: {e}")
-            self.view_output.append(f"[Error] {e}")
+            self._on_view_ready(reply)
+
+    def _on_view_ready(self, reply: str):
+        self._log(f"  ↳ view: {reply}")
+        self.view_output.clear()
+        self.view_output.append(reply)
+
+    def _on_view_error(self, msg: str):
+        self._log(f"  ↳ VIEW ERROR: {msg}")
+        self.view_output.clear()
+        self.view_output.append(f"[Error] {msg}")
 
     def _refresh_stats(self):
         try:

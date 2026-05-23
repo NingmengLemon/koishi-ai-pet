@@ -7,8 +7,8 @@ load_dotenv()
 class Config:
     
     APP_NAME = "DeskPet"
-    PET_WIDTH = 200
-    PET_HEIGHT = 200
+    PET_WIDTH = 100
+    PET_HEIGHT = 100
     PET_FPS = 15
     BUBBLE_MAX_WIDTH = 300
     BUBBLE_FONT_SIZE = 14

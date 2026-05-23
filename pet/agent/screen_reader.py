@@ -1,4 +1,4 @@
-"""屏幕阅读技能 —— 截取屏幕截图，供视觉 AI 分析。"""
+"""屏幕截图能力 —— 桌宠固有能力，供视觉 AI 分析。"""
 
 import logging
 from typing import Optional
@@ -16,25 +16,15 @@ class ScreenReader:
 
     def enable(self):
         self._enabled = True
-        logger.info("屏幕阅读已启用")
+        logger.info("屏幕截图已启用")
 
     def disable(self):
         self._enabled = False
-        logger.info("屏幕阅读已禁用")
-
-    # ── 截图 ──
+        logger.info("屏幕截图已禁用")
 
     def capture_fullscreen(self, all_screens: bool = False) -> Optional[Image.Image]:
-        """截取全屏并返回 PIL Image。
-
-        参数:
-            all_screens: True 捕获所有显示器（虚拟桌面），False 仅主显示器。
-
-        返回:
-            PIL Image 对象；失败或未启用时返回 None。
-        """
         if not self._enabled:
-            logger.warning("屏幕阅读已禁用，无法截图")
+            logger.warning("屏幕截图已禁用，无法截图")
             return None
         try:
             sct = self._get_sct()
@@ -48,18 +38,7 @@ class ScreenReader:
             logger.error(f"截图失败：{e}")
             return None
 
-    def capture_area(
-        self, x: int, y: int, width: int, height: int
-    ) -> Optional[Image.Image]:
-        """截取屏幕指定区域。
-
-        参数:
-            x, y: 区域左上角坐标。
-            width, height: 区域宽高。
-
-        返回:
-            PIL Image 对象；失败或未启用时返回 None。
-        """
+    def capture_area(self, x: int, y: int, width: int, height: int) -> Optional[Image.Image]:
         if not self._enabled:
             return None
         try:
@@ -72,8 +51,6 @@ class ScreenReader:
         except Exception as e:
             logger.error(f"区域截图失败：{e}")
             return None
-
-    # ── 内部 ──
 
     def _get_sct(self) -> mss.mss:
         """延迟初始化 mss 实例。"""

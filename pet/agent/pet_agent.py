@@ -7,6 +7,7 @@ from pet.brain.behavior import Behavior, BehaviorOutput
 from pet.brain.view import ViewBrain
 from pet.agent.scheduler import Scheduler
 from pet.agent.state import StateMachine
+from pet.agent.screen_reader import ScreenReader
 
 
 class BrainWorker(QObject):
@@ -41,11 +42,15 @@ class PetAgent(QObject):
     action_requested = Signal(str)
     speak_requested  = Signal(str, int)
     state_changed    = Signal(str)
+    view_ready       = Signal(str)
+    view_error       = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.behavior = Behavior()
         self.view_brain = ViewBrain()
+        self.screen_reader = ScreenReader()
+        self.screen_reader.enable()
         self.scheduler = Scheduler(self)
         self.state_machine = StateMachine()
 
@@ -66,6 +71,7 @@ class PetAgent(QObject):
             "decide": self._trigger_decide,
             "think":  self._trigger_think,
             "greet":  self._trigger_greet,
+            "view":   self._trigger_view,
         }
         handler = handlers.get(intent)
         if handler:
@@ -97,7 +103,14 @@ class PetAgent(QObject):
     def _trigger_greet(self):
         self._async_brain(self.behavior.greet)
 
-    def _async_brain(self, fn, *args):
+    def _trigger_view(self, image, prompt: str = ""):
+        self._async_brain(
+            self.view_brain.analyze, image, prompt,
+            on_result=self._on_view_result,
+            on_error=self._on_view_error,
+        )
+
+    def _async_brain(self, fn, *args, on_result=None, on_error=None):
         fn_name = getattr(fn, "__name__", repr(fn))
         ts = datetime.now().strftime("%H:%M:%S")
         print(f"[{ts}] [PetAgent] _async_brain: {fn_name}")
@@ -105,8 +118,8 @@ class PetAgent(QObject):
         self._thread = QThread(self)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
-        self._worker.finished.connect(self._on_brain_result)
-        self._worker.error.connect(self._on_brain_error)
+        self._worker.finished.connect(on_result or self._on_brain_result)
+        self._worker.error.connect(on_error or self._on_brain_error)
         self._worker.finished.connect(self._thread.quit)
         self._worker.finished.connect(self._worker.deleteLater)
         self._thread.finished.connect(self._thread.deleteLater)
@@ -126,3 +139,10 @@ class PetAgent(QObject):
 
     def _on_brain_error(self, msg: str):
         print(f"[PetAgent] ERROR: {msg}")
+
+    def _on_view_result(self, result):
+        if isinstance(result, str):
+            self.view_ready.emit(result)
+
+    def _on_view_error(self, msg: str):
+        self.view_error.emit(msg)
