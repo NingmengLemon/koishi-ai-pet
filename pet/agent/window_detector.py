@@ -16,6 +16,16 @@ def is_window_alive(hwnd: int) -> bool:
     return bool(user32.IsWindow(hwnd))
 
 
+def get_window_rect(hwnd: int) -> tuple[int, int, int, int] | None:
+    """O(1) 获取单个窗口的屏幕矩形，不可见或失败返回 None。"""
+    if not user32.IsWindowVisible(hwnd):
+        return None
+    rect = wintypes.RECT()
+    if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        return (rect.left, rect.top, rect.right, rect.bottom)
+    return None
+
+
 def get_visible_windows() -> list[dict]:
     """返回所有可见顶层窗口，过滤掉工具窗口和极小窗口。"""
     windows = []

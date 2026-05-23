@@ -106,7 +106,19 @@ class DebugWindow(QWidget):
         anim_layout.addWidget(sep)
 
         win_row = QHBoxLayout()
-        self.btn_bounce = QPushButton("弹跳 (Bounce)")
+        self.bounce_dx = QSpinBox()
+        self.bounce_dx.setRange(-3000, 3000)
+        self.bounce_dx.setValue(0)
+        self.bounce_dx.setPrefix("dx:")
+        self.bounce_dx.setFixedWidth(90)
+        win_row.addWidget(self.bounce_dx)
+        self.bounce_dy = QSpinBox()
+        self.bounce_dy.setRange(-3000, 3000)
+        self.bounce_dy.setValue(-150)
+        self.bounce_dy.setPrefix("dy:")
+        self.bounce_dy.setFixedWidth(90)
+        win_row.addWidget(self.bounce_dy)
+        self.btn_bounce = QPushButton("弹跳")
         self.btn_bounce.clicked.connect(self._test_bounce)
         win_row.addWidget(self.btn_bounce)
         self.btn_fade_in = QPushButton("淡入 (Fade In)")
@@ -131,6 +143,17 @@ class DebugWindow(QWidget):
         self.btn_move.clicked.connect(self._test_move)
         move_row.addWidget(self.btn_move)
         anim_layout.addLayout(move_row)
+
+        walk_row = QHBoxLayout()
+        walk_row.addWidget(QLabel("行走 X:"))
+        self.walk_x = QSpinBox()
+        self.walk_x.setRange(0, 3000)
+        self.walk_x.setValue(800)
+        walk_row.addWidget(self.walk_x)
+        self.btn_walk = QPushButton("行走")
+        self.btn_walk.clicked.connect(self._test_walk)
+        walk_row.addWidget(self.btn_walk)
+        anim_layout.addLayout(walk_row)
 
         left.addWidget(anim_group)
 
@@ -272,8 +295,9 @@ class DebugWindow(QWidget):
 
     def _test_bounce(self):
         self.pet.show()
-        self._log(f"bounce() from {self.pet.pos().toTuple()}")
-        self.pet.pet_anim.bounce()
+        dx, dy = self.bounce_dx.value(), self.bounce_dy.value()
+        self._log(f"bounce(dx={dx}, dy={dy})")
+        self.pet.pet_anim.bounce(dx=dx, dy=dy)
 
     def _test_fade_in(self):
         self.pet.setWindowOpacity(0.0)
@@ -287,13 +311,20 @@ class DebugWindow(QWidget):
 
     def _test_move(self):
         self.pet.show()
-        start = self.pet.pos().toTuple()
-        end = (self.move_x.value(), self.move_y.value())
-        self._log(f"move_to() from {start} → {end}")
-        self.pet.pet_anim.move_to(
-            self.pet.pos(),
-            QPoint(*end),
-        )
+        start = self.pet.pos()
+        end = QPoint(self.move_x.value(), self.move_y.value())
+        self._log(f"move_to() from ({start.x()},{start.y()}) → ({end.x()},{end.y()})")
+        self.pet.pet_anim.move_to(start, end)
+
+    def _test_walk(self):
+        self.pet.show()
+        start_x = self.pet.pos().x()
+        end_x = self.walk_x.value()
+        direction = "walk_right" if end_x > start_x else "walk_left" if end_x < start_x else "walk"
+        self._log(f"walk {direction} to x={end_x}")
+        self.pet.play_action(direction)
+        anim = self.pet.pet_anim.walk_to(end_x)
+        anim.finished.connect(lambda: self.pet.play_action("idle"))
 
     def _play_pet_anim(self, action: str):
         loop = self.pet_loop.isChecked()

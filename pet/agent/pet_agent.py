@@ -8,6 +8,7 @@ from pet.brain.view import ViewBrain
 from pet.agent.scheduler import Scheduler
 from pet.agent.state import StateMachine
 from pet.agent.screen_reader import ScreenReader
+from config import config
 
 
 class BrainWorker(QObject):
@@ -61,7 +62,11 @@ class PetAgent(QObject):
         self._worker: BrainWorker | None = None
 
     def start(self):
-        self.scheduler.start()
+        if config.SCHEDULER_AUTO_START:
+            self.scheduler.start()
+            print("[PetAgent] scheduler auto-started")
+        else:
+            print("[PetAgent] scheduler auto-start disabled (SCHEDULER_AUTO_START=false)")
 
     def stop(self):
         self.scheduler.stop()

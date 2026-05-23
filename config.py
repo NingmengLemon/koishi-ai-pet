@@ -62,6 +62,7 @@ class Config:
 
     SCREEN_READER_ENABLED = True
     SYSTEM_MONITOR_ENABLED = True
+    SCHEDULER_AUTO_START = os.getenv("SCHEDULER_AUTO_START", "true").lower() == "true"
 
 
 config = Config()

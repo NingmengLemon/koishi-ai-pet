@@ -5,7 +5,7 @@ from PySide6.QtCore import Qt, QPoint, QTimer, QPropertyAnimation, QEasingCurve,
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QLabel, QWidget
 from config import config
-from pet.agent.window_detector import get_visible_windows, is_window_alive
+from pet.agent.window_detector import get_visible_windows, get_window_rect
 
 _SUPPORTED_EXT = (".png", ".jpg", ".jpeg", ".bmp", ".webp")
 
@@ -48,7 +48,6 @@ class PetAnimator(QObject):
         self._cached_effective_bottom: int | None = None
         self._standing_hwnd: int = 0
         self._ALIVE_CHECK_INTERVAL = 15  # ~500ms 检查站立窗口是否存活
-        self._SCAN_INTERVAL = 3           # ~90ms 全量扫描一次
 
     def play(self, action: str, loop: bool = True, fps: int | None = None) -> bool:
         """播放指定动作的帧动画。"""
@@ -120,6 +119,8 @@ class PetAnimator(QObject):
     def _gravity_tick(self):
         if not self._gravity_enabled:
             return
+        if any(a.state() == QPropertyAnimation.State.Running for a in self._win_anims):
+            return
         self._scan_tick += 1
         old_y = self._window.y()
         new_y = old_y + self._gravity_step
@@ -136,50 +137,57 @@ class PetAnimator(QObject):
             screen_bottom = screen.availableGeometry().bottom() - h
             new_y = old_y + self._gravity_step
 
-            # 静止时：仅定时检查站立窗口是否存活
+            # 静止时：定时检查站立窗口是否存活或移动
             was_at_bottom = self._cached_effective_bottom is not None and old_y >= self._cached_effective_bottom
             if was_at_bottom and self._cached_effective_bottom is not None:
                 if self._standing_hwnd and self._scan_tick % self._ALIVE_CHECK_INTERVAL == 0:
-                    if not is_window_alive(self._standing_hwnd):
-                        print(f"[Gravity] standing window closed (hwnd={self._standing_hwnd})")
+                    rect = get_window_rect(self._standing_hwnd)
+                    if rect is None:
+                        print(f"[Gravity] standing window gone (hwnd={self._standing_hwnd})")
                         self._standing_hwnd = 0
                         self._cached_effective_bottom = None
-                else:
+                    else:
+                        new_top = rect[1]
+                        pet_x = self._window.x()
+                        pet_w = self._window.width()
+                        if (pet_x + pet_w <= rect[0] or pet_x >= rect[2]
+                                or new_top != self._cached_effective_bottom + h):
+                            print(f"[Gravity] standing window moved (hwnd={self._standing_hwnd})")
+                            self._standing_hwnd = 0
+                            self._cached_effective_bottom = None
+                if self._cached_effective_bottom is not None:
                     effective_bottom = self._cached_effective_bottom
                     at_bottom = True
                     new_y = effective_bottom
                     self._window.move(self._window.x(), new_y)
                     return
 
-            # 下落中：节流全量扫描
-            if self._cached_effective_bottom is None or self._scan_tick % self._SCAN_INTERVAL == 0:
-                old_pet_bottom = old_y + h
-                new_pet_bottom = new_y + h
-                pet_x = self._window.x()
-                pet_self = (pet_x, old_y, pet_x + w, old_y + h)
-                found_hwnd = 0
+            # 下落中：每 tick 全量扫描
+            old_pet_bottom = old_y + h
+            new_pet_bottom = new_y + h
+            pet_x = self._window.x()
+            pet_self = (pet_x, old_y, pet_x + w, old_y + h)
+            found_hwnd = 0
 
-                effective_bottom = screen_bottom
-                for win in get_visible_windows():
-                    left, top, right, bottom = win["rect"]
-                    if (left == pet_self[0] and top == pet_self[1]
-                            and right == pet_self[2] and bottom == pet_self[3]):
-                        continue
-                    if pet_x + w <= left or pet_x >= right:
-                        continue
-                    if old_pet_bottom <= top <= new_pet_bottom:
-                        landing = top - h
-                        if landing < effective_bottom:
-                            print(f"[Gravity] land on: \"{win['title'][:30]}\" top={top}")
-                            effective_bottom = landing
-                            found_hwnd = win["hwnd"]
-                self._cached_effective_bottom = effective_bottom
-                if found_hwnd:
-                    self._standing_hwnd = found_hwnd
-                elif effective_bottom == screen_bottom:
-                    self._standing_hwnd = 0
-            else:
-                effective_bottom = self._cached_effective_bottom
+            effective_bottom = screen_bottom
+            for win in get_visible_windows():
+                left, top, right, bottom = win["rect"]
+                if (left == pet_self[0] and top == pet_self[1]
+                        and right == pet_self[2] and bottom == pet_self[3]):
+                    continue
+                if pet_x + w <= left or pet_x >= right:
+                    continue
+                if old_pet_bottom <= top <= new_pet_bottom:
+                    landing = top - h
+                    if landing < effective_bottom:
+                        print(f"[Gravity] land on: \"{win['title'][:30]}\" top={top}")
+                        effective_bottom = landing
+                        found_hwnd = win["hwnd"]
+            self._cached_effective_bottom = effective_bottom
+            if found_hwnd:
+                self._standing_hwnd = found_hwnd
+            elif effective_bottom == screen_bottom:
+                self._standing_hwnd = 0
         except Exception:
             if self._cached_effective_bottom is None:
                 from PySide6.QtWidgets import QApplication as _QA
@@ -219,6 +227,33 @@ class PetAnimator(QObject):
         self._win_anims.append(anim)
         return anim
 
+    def walk_to(self, target_x: int, duration=2000, bounce=25):
+        """弹跳行走：匀速横向移动到 target_x，每 50px 弹跳一次。"""
+        self._cleanup_stopped_anims()
+        self.enable_gravity(False)
+
+        start = self._window.pos()
+        base_y = start.y()
+        dx = target_x - start.x()
+        steps = min(10, max(1, abs(dx) // 50))
+
+        anim = QPropertyAnimation(self._window, b"pos")
+        anim.setDuration(duration)
+        anim.setEasingCurve(QEasingCurve.Type.Linear)
+        for i in range(steps + 1):
+            t = i / steps
+            x = start.x() + dx * t
+            anim.setKeyValueAt(t, QPoint(int(x), base_y))
+            if i < steps:
+                t_mid = (i + 0.5) / steps
+                x_mid = start.x() + dx * t_mid
+                anim.setKeyValueAt(t_mid, QPoint(int(x_mid), base_y - bounce))
+
+        anim.finished.connect(lambda: self.enable_gravity(True))
+        anim.start()
+        self._win_anims.append(anim)
+        return anim
+
     def fade_in(self, duration=300):
         """窗口淡入。"""
         self._cleanup_stopped_anims()
@@ -243,20 +278,16 @@ class PetAnimator(QObject):
         self._win_anims.append(anim)
         return anim
 
-    def bounce(self, duration=600):
-        """窗口弹跳。"""
+    def bounce(self, dx=0, dy=-150, duration=500):
         self._cleanup_stopped_anims()
-        self.enable_gravity(False)
+        self.play("bounce", loop=True)
         original_pos = self._window.pos()
+        target = QPoint(original_pos.x() + dx, original_pos.y() + dy)
         anim = QPropertyAnimation(self._window, b"pos")
         anim.setDuration(duration)
-        anim.setKeyValueAt(0, original_pos)
-        anim.setKeyValueAt(0.3, QPoint(original_pos.x(), original_pos.y() - 40))
-        anim.setKeyValueAt(0.5, original_pos)
-        anim.setKeyValueAt(0.7, QPoint(original_pos.x(), original_pos.y() - 20))
-        anim.setKeyValueAt(1, original_pos)
-        anim.setEasingCurve(QEasingCurve.Type.OutBounce)
-        anim.finished.connect(lambda: self.enable_gravity(True))
+        anim.setStartValue(original_pos)
+        anim.setEndValue(target)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         anim.start()
         self._win_anims.append(anim)
         return anim
