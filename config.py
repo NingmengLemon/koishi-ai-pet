@@ -41,10 +41,6 @@ class Config:
         "You are a cute desktop pet. "
         "Keep responses brief and playful.",
     )
-    CHAT_PROMPT_GREET = os.getenv(
-        "CHAT_PROMPT_GREET",
-        "Say a short, friendly greeting!",
-    )
 
     VIEW_BRAIN = os.getenv("VIEW_BRAIN", "local")
     VIEW_MODEL = os.getenv("VIEW_MODEL", "")
@@ -63,6 +59,11 @@ class Config:
     SCREEN_READER_ENABLED = True
     SYSTEM_MONITOR_ENABLED = True
     SCHEDULER_AUTO_START = os.getenv("SCHEDULER_AUTO_START", "false").lower() == "true"
+    SCHEDULER_FAST_MS = int(os.getenv("SCHEDULER_FAST_MS", "1000"))
+    SCHEDULER_MID_MS = int(os.getenv("SCHEDULER_MID_MS", "30000"))
+    SCHEDULER_SLOW_MS = int(os.getenv("SCHEDULER_SLOW_MS", "300000"))
+
+    PET_PERSONALITY = os.getenv("PET_PERSONALITY", "")
 
 
 config = Config()

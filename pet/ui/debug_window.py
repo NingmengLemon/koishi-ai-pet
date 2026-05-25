@@ -161,6 +161,27 @@ class DebugWindow(QWidget):
         walk_row.addWidget(self.btn_walk)
         anim_layout.addLayout(walk_row)
 
+        pose_row = QHBoxLayout()
+        pose_row.addWidget(QLabel("姿势:"))
+        pose_row.addWidget(QLabel("时长:"))
+        self.pose_duration = QSpinBox()
+        self.pose_duration.setRange(1, 5)
+        self.pose_duration.setValue(5)
+        self.pose_duration.setSuffix("s")
+        self.pose_duration.setFixedWidth(70)
+        pose_row.addWidget(self.pose_duration)
+        self.btn_sit = QPushButton("sit")
+        self.btn_sit.clicked.connect(self._test_sit)
+        pose_row.addWidget(self.btn_sit)
+        self.btn_sleep = QPushButton("sleep")
+        self.btn_sleep.clicked.connect(self._test_sleep)
+        pose_row.addWidget(self.btn_sleep)
+        self.btn_idle = QPushButton("idle")
+        self.btn_idle.clicked.connect(self._test_idle)
+        pose_row.addWidget(self.btn_idle)
+        pose_row.addStretch()
+        anim_layout.addLayout(pose_row)
+
         left.addWidget(anim_group)
 
         # ── 队列调试 ──
@@ -218,9 +239,6 @@ class DebugWindow(QWidget):
         chat_layout.addLayout(chat_input_row)
 
         chat_btn_row = QHBoxLayout()
-        self.btn_chat_greet = QPushButton("问候")
-        self.btn_chat_greet.clicked.connect(self._test_chat_greet)
-        chat_btn_row.addWidget(self.btn_chat_greet)
         self.btn_chat_add_ctx = QPushButton("添加上下文")
         self.btn_chat_add_ctx.clicked.connect(self._chat_add_context)
         chat_btn_row.addWidget(self.btn_chat_add_ctx)
@@ -351,6 +369,24 @@ class DebugWindow(QWidget):
         self._log(f"↩ enqueue walk {direction} {distance}px")
         self.pet.queue_enqueue("walk", direction, distance)
 
+    def _test_sit(self):
+        self.pet.show()
+        t = self.pose_duration.value()
+        self._log(f"↩ enqueue sit({t}s)")
+        self.pet.queue_enqueue("sit", duration=t)
+
+    def _test_sleep(self):
+        self.pet.show()
+        t = self.pose_duration.value()
+        self._log(f"↩ enqueue sleep({t}s)")
+        self.pet.queue_enqueue("sleep", duration=t)
+
+    def _test_idle(self):
+        self.pet.show()
+        t = self.pose_duration.value()
+        self._log(f"↩ enqueue idle({t}s)")
+        self.pet.queue_enqueue("idle", duration=t)
+
     def _play_pet_anim(self, action: str):
         loop = self.pet_loop.isChecked()
         fps = self.pet_fps.value()
@@ -408,9 +444,15 @@ class DebugWindow(QWidget):
         self._log(f"bubble: \"{text[:30]}\"")
         self.bubble.show_text(text, duration=4000, parent_pos=pet_center)
 
-    def _on_agent_action(self, action: str):
-        self._log(f"Agent → action: {action}")
-        self.decide_output.append(f"Action: {action}")
+    def _on_agent_action(self, action: str, args=(), kwargs=None):
+        kwargs = kwargs or {}
+        params = ""
+        if args:
+            params += f" {', '.join(str(a) for a in args)}"
+        if kwargs:
+            params += f" {', '.join(f'{k}={v}' for k, v in kwargs.items())}"
+        self._log(f"Agent → action: {action}{params}")
+        self.decide_output.append(f"Action: {action}{params}")
 
     def _on_agent_speech(self, text: str, duration: int):
         self._log(f"Agent → speech: \"{text[:50]}\"")
@@ -428,15 +470,6 @@ class DebugWindow(QWidget):
             reply = self.brain.think(prompt)
             self.chat_output.append(f"<<< {reply}")
 
-    def _test_chat_greet(self):
-        self._log("chat.greet()")
-        self.chat_output.append(">>> greet()")
-        if self.agent:
-            self.agent.trigger("greet")
-        else:
-            reply = self.brain.greet()
-            self.chat_output.append(f"<<< {reply}")
-
     def _test_decide(self):
         self._log("behavior.decide()")
         self.decide_output.clear()
@@ -444,8 +477,9 @@ class DebugWindow(QWidget):
             self.agent.trigger("decide")
         else:
             result = self.brain.decide()
-            self._log(f"  ↳ action={result.action}, speech={result.speech}")
-            self.decide_output.append(f"Action: {result.action}")
+            action_str = result.actions[0].name if result.actions else "none"
+            self._log(f"  ↳ action={action_str}, speech={result.speech}")
+            self.decide_output.append(f"Action: {action_str}")
             self.decide_output.append(f"Speech: {result.speech or '(none)'}")
 
     def _toggle_tick(self, enabled: bool):
@@ -477,7 +511,9 @@ class DebugWindow(QWidget):
 
     def _test_view_capture(self):
         self._log("截取全屏...")
+        self.hide()
         self._last_screenshot = self.screen_reader.capture_fullscreen()
+        self.show()
         if self._last_screenshot:
             w, h = self._last_screenshot.size
             self.label_screenshot.setText(f"已截图: {w}×{h}")
@@ -535,4 +571,6 @@ class DebugWindow(QWidget):
 
     def closeEvent(self, event):
         self._stats_timer.stop()
+        self.monitor.disable()
+        self.screen_reader.disable()
         super().closeEvent(event)

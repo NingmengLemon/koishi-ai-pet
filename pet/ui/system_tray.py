@@ -63,8 +63,6 @@ class SystemTrayManager(QObject):
         self._debug_window.raise_()
 
     def _quit_app(self):
-        self.pet.close()
-        self.tray_icon.hide()
         self.app.quit()
 
     def _on_tray_activated(self, reason):

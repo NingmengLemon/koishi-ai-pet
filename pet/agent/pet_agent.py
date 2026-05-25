@@ -12,7 +12,6 @@ from config import config
 
 
 class BrainWorker(QObject):
-    """在 QThread 中执行单次 Brain 调用。"""
 
     finished = Signal(object)
     error    = Signal(str)
@@ -38,9 +37,9 @@ class BrainWorker(QObject):
 
 
 class PetAgent(QObject):
-    """Agent 调度层 —— 编排 Brain，通过 Signal 驱动 UI。"""
+    """Agent 调度层"""
 
-    action_requested = Signal(str)
+    action_requested = Signal(str, object, object)
     speak_requested  = Signal(str, int)
     state_changed    = Signal(str)
     view_ready       = Signal(str)
@@ -57,6 +56,7 @@ class PetAgent(QObject):
 
         self.scheduler.mid_tick.connect(self._on_mid_tick)
         self.scheduler.fast_tick.connect(self._on_fast_tick)
+        self.scheduler.slow_tick.connect(self._on_slow_tick)
 
         self._thread: QThread | None = None
         self._worker: BrainWorker | None = None
@@ -70,12 +70,16 @@ class PetAgent(QObject):
 
     def stop(self):
         self.scheduler.stop()
+        self.screen_reader.disable()
+        if self._thread and self._thread.isRunning():
+            self._thread.quit()
+            self._thread.wait(3000)
+        print("[PetAgent] stopped")
 
     def trigger(self, intent: str, **kwargs):
         handlers = {
             "decide": self._trigger_decide,
             "think":  self._trigger_think,
-            "greet":  self._trigger_greet,
             "view":   self._trigger_view,
         }
         handler = handlers.get(intent)
@@ -93,20 +97,47 @@ class PetAgent(QObject):
 
     def _on_mid_tick(self):
         ts = datetime.now().strftime("%H:%M:%S")
-        print(f"[{ts}] [PetAgent] [mid_tick] → decide()")
-        self._async_brain(self.behavior.decide, "")
+        if not self.state_machine.can_decide:
+            print(f"[{ts}] [PetAgent] [mid_tick] skipped (state={self.state_machine.state.value})")
+            return
+
+        if not self.view_brain._client:
+            print(f"[{ts}] [PetAgent] [mid_tick] no view client, fallback to decide()")
+            self._async_brain(self.behavior.decide, "")
+            return
+
+        image = self.screen_reader.capture_fullscreen()
+        if image is None:
+            print(f"[{ts}] [PetAgent] [mid_tick] screen capture failed, fallback to decide()")
+            self._async_brain(self.behavior.decide, "")
+            return
+
+        print(f"[{ts}] [PetAgent] [mid_tick] → capture→analyze→decide pipeline")
+        self._async_brain(
+            self.view_brain.analyze, image, "",
+            on_result=self._on_view_decide_result,
+            on_error=self._on_view_decide_error,
+        )
 
     def _on_fast_tick(self):
         pass
 
+    def _on_slow_tick(self):
+        from pet.agent.state import PetState
+        ts = datetime.now().strftime("%H:%M:%S")
+        print(f"[{ts}] [PetAgent] [slow_tick]")
+        if self.state_machine.state == PetState.SLEEPING:
+            self.state_machine.transition(PetState.IDLE)
+            self.state_changed.emit(PetState.IDLE.value)
+            print(f"[{ts}] [PetAgent] slow_tick: woke up, emitting stretch")
+        self.action_requested.emit("stretch", (), {})
+
+    # 用于调试的trigger
     def _trigger_decide(self, context: str = ""):
         self._async_brain(self.behavior.decide, context)
 
     def _trigger_think(self, prompt: str = ""):
         self._async_brain(self.behavior.think, prompt)
-
-    def _trigger_greet(self):
-        self._async_brain(self.behavior.greet)
 
     def _trigger_view(self, image, prompt: str = ""):
         self._async_brain(
@@ -134,12 +165,16 @@ class PetAgent(QObject):
         ts = datetime.now().strftime("%H:%M:%S")
         if isinstance(result, BehaviorOutput):
             print(f"[{ts}] [PetAgent] ← {result}")
-            if result.action:
-                self.action_requested.emit(result.action)
+            action_names = [a.name for a in result.actions]
+            self.behavior.add_context(
+                f"[{ts}] did {', '.join(action_names)}, said: {result.speech or '(silent)'}")
             if result.speech:
                 self.speak_requested.emit(result.speech, 4000)
+            for step in result.actions:
+                self.action_requested.emit(step.name, step.args, step.kwargs)
         elif isinstance(result, str):
             print(f"[{ts}] [PetAgent] ← \"{result[:60]}\"")
+            self.behavior.add_context(f"[{ts}] said: {result[:100]}")
             self.speak_requested.emit(result, 5000)
 
     def _on_brain_error(self, msg: str):
@@ -151,3 +186,20 @@ class PetAgent(QObject):
 
     def _on_view_error(self, msg: str):
         self.view_error.emit(msg)
+
+    def _on_view_decide_result(self, result):
+        ts = datetime.now().strftime("%H:%M:%S")
+        if isinstance(result, str):
+            self.view_ready.emit(result)
+            self.behavior.add_context(f"[{ts}] {result}")
+            print(f"[{ts}] [PetAgent] view result → chaining into decide()")
+            self._async_brain(self.behavior.decide, result)
+        else:
+            print(f"[{ts}] [PetAgent] view returned non-string, fallback to decide()")
+            self._async_brain(self.behavior.decide, "")
+
+    def _on_view_decide_error(self, msg: str):
+        ts = datetime.now().strftime("%H:%M:%S")
+        self.view_error.emit(msg)
+        print(f"[{ts}] [PetAgent] view error: {msg} → fallback to decide()")
+        self._async_brain(self.behavior.decide, "")

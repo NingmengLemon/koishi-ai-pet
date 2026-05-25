@@ -15,13 +15,14 @@ class ActionQueue(QObject):
         self._cursor = 0
         self._running = False
         self._stopped = False
+        self._paused = False
         self._active_anim: QPropertyAnimation | None = None
         self._next_timer: QTimer | None = None
 
     def enqueue(self, method_name: str, *args, **kwargs):
         self._queue.append((method_name, args, kwargs))
         self.changed.emit()
-        if not self._running and not self._stopped:
+        if not self._running and not self._stopped and not self._paused:
             self._run_next()
 
     def clear(self):
@@ -46,14 +47,28 @@ class ActionQueue(QObject):
         self._stopped = True
         self.changed.emit()
 
+    def pause(self):
+        self._disconnect_active()
+        self._running = False
+        self._paused = True
+        self.changed.emit()
+
+    def resume(self):
+        self._paused = False
+        self.changed.emit()
+        if self._cursor < len(self._queue):
+            self._run_next()
+
     def _run_next(self):
+        if self._paused:
+            return
         self._disconnect_active()
 
         if self._cursor >= len(self._queue):
             self._queue.clear()
             self._cursor = 0
             self._running = False
-            if not self._actions._gravity_falling:
+            if not self._actions.gravity.falling:
                 self._actions.idle()
             self.changed.emit()
             return
@@ -70,7 +85,9 @@ class ActionQueue(QObject):
 
         try:
             print(f"[ActionQueue] ▶ {self._format(name, args, kwargs)}")
-            result = method(*args, **kwargs)
+            duration = kwargs.get("duration", -1)
+            method_kwargs = {k: v for k, v in kwargs.items() if k != "duration"}
+            result = method(*args, **method_kwargs)
         except Exception as e:
             print(f"[ActionQueue] ✗ {name} failed: {e}")
             self._run_next()
@@ -81,7 +98,6 @@ class ActionQueue(QObject):
             result.finished.connect(self._on_action_done)
             return
 
-        duration = kwargs.get("duration", -1)
         if duration > 0:
             timer = QTimer(self)
             timer.setSingleShot(True)

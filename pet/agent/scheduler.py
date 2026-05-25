@@ -1,7 +1,8 @@
-"""多频率 Tick 调度器 — fast (1s)、mid (30s)、slow (5min)。"""
+"""多频率 Tick 调度器 — fast、mid、slow，间隔从 config 读取。"""
 
 from datetime import datetime
 from PySide6.QtCore import QObject, QTimer, Signal
+from config import config
 
 
 class Scheduler(QObject):
@@ -16,8 +17,11 @@ class Scheduler(QObject):
         self._timers: dict[str, QTimer] = {}
         print(f"[Scheduler] Created")
 
-    def start(self, fast_ms: int = 1000, mid_ms: int = 30000,
-              slow_ms: int = 300000):
+    def start(self, fast_ms: int | None = None, mid_ms: int | None = None,
+              slow_ms: int | None = None):
+        fast_ms = fast_ms if fast_ms is not None else config.SCHEDULER_FAST_MS
+        mid_ms = mid_ms if mid_ms is not None else config.SCHEDULER_MID_MS
+        slow_ms = slow_ms if slow_ms is not None else config.SCHEDULER_SLOW_MS
         self.stop()
         ts = datetime.now().strftime("%H:%M:%S")
         print(f"[{ts}] [Scheduler] start(fast={fast_ms}ms, mid={mid_ms}ms, slow={slow_ms}ms)")

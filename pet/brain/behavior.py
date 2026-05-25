@@ -1,5 +1,5 @@
 from datetime import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 from openai import OpenAI
@@ -8,8 +8,15 @@ from config import config
 
 
 @dataclass
+class ActionStep:
+    name: str
+    args: tuple = ()
+    kwargs: dict = field(default_factory=dict)
+
+
+@dataclass
 class BehaviorOutput:
-    action: str
+    actions: list = field(default_factory=list)
     speech: Optional[str] = None
 
 
@@ -22,11 +29,6 @@ class Behavior(BrainMixin):
         self._setup()
 
         self._responses = {
-            "greet": [
-                "Hello! Nice to see you!",
-                "Hi there! How are you?",
-                "Hey! Good to be here!",
-            ],
             "idle": [
                 "Just hanging out...",
                 "What a nice day!",
@@ -37,7 +39,7 @@ class Behavior(BrainMixin):
 
         self._actions = [
             "idle", "bounce", "walk", "look_around",
-            "stretch", "sit", "sleep", "greet_user",
+            "stretch", "sit", "sleep",
         ]
 
         t = datetime.now().strftime("%H:%M:%S")
@@ -84,12 +86,23 @@ class Behavior(BrainMixin):
         t = datetime.now().strftime("%H:%M:%S")
         print(f"[{t}] [Behavior] === LLM REQUEST (decide) ===")
         print(f"[{t}] [Behavior]   model: {self._model}")
+        print(f"[{t}] [Behavior]   context({len(context)} chars): \"{context[:80]}\"")
+        print(f"[{t}] [Behavior]   history: {len(self._context)} entries")
+
+        # 限制上下文条数
+        if len(self._context) > 10:
+            self._context[:] = self._context[-10:]
+
         prompt = config.BEHAVIOR_PROMPT_DECIDE.format(
             actions=", ".join(self._actions),
-            context=context or "no context",
+            context=(context or "no context")
+            + (f"\nRecent: {', '.join(self._context[-6:-1])}" if len(self._context) > 1 else ""),
         )
+        system_content = config.BEHAVIOR_PROMPT_SYSTEM
+        if config.PET_PERSONALITY:
+            system_content += f"\n\n=== 你的性格 ===\n{config.PET_PERSONALITY}"
         messages = [
-            {"role": "system", "content": config.BEHAVIOR_PROMPT_SYSTEM},
+            {"role": "system", "content": system_content},
             {"role": "user", "content": prompt},
         ]
         for i, m in enumerate(messages):
@@ -99,7 +112,7 @@ class Behavior(BrainMixin):
             resp = self._client.chat.completions.create(
                 model=self._model,
                 messages=messages,
-                max_tokens=150,
+                max_tokens=4000,
             )
             content = resp.choices[0].message.content or ""
             print(f"[{t}] [Behavior] === LLM RESPONSE ===")
@@ -118,7 +131,7 @@ class Behavior(BrainMixin):
             return self._decide_local()
 
     def _parse_behavior(self, content: str) -> BehaviorOutput:
-        action = "idle"
+        actions: list = []
         speech = None
         for line in content.split("\n"):
             line = line.strip()
@@ -126,17 +139,44 @@ class Behavior(BrainMixin):
                 continue
             lower = line.lower()
             if lower.startswith("action:"):
-                raw = line.split(":", 1)[1].strip().lower()
-                if raw in self._actions:
-                    action = raw
-                else:
-                    t = datetime.now().strftime("%H:%M:%S")
-                    print(f"[{t}] [Behavior]   ⚠ unknown action from LLM: {raw!r}, using 'idle'")
+                raw = line.split(":", 1)[1].strip()
+                step = self._parse_action_line(raw)
+                if step:
+                    actions.append(step)
             elif lower.startswith("speech:"):
                 raw = line.split(":", 1)[1].strip()
                 if raw.lower() not in ("none", "", "null"):
                     speech = raw
-        return BehaviorOutput(action=action, speech=speech)
+        if not actions:
+            actions.append(ActionStep("idle"))
+        return BehaviorOutput(actions=actions, speech=speech)
+
+    def _parse_action_line(self, raw: str) -> ActionStep | None:
+        parts = raw.split()
+        if not parts:
+            return None
+        name = parts[0].lower()
+        if name not in self._actions:
+            t = datetime.now().strftime("%H:%M:%S")
+            print(f"[{t}] [Behavior]   ⚠ unknown action: {name!r}, skipped")
+            return None
+        args: list = []
+        kwargs: dict = {}
+        for token in parts[1:]:
+            if "=" in token:
+                k, v = token.split("=", 1)
+                try:
+                    v = int(v)
+                except ValueError:
+                    pass
+                kwargs[k] = v
+            else:
+                try:
+                    token = int(token)
+                except ValueError:
+                    pass
+                args.append(token)
+        return ActionStep(name, tuple(args), kwargs)
 
     def _decide_local(self) -> BehaviorOutput:
         import random
@@ -149,18 +189,18 @@ class Behavior(BrainMixin):
             "stretch": "Ahh, that's better...",
             "sit": "Taking a little break.",
             "sleep": "Getting sleepy... zzz...",
-            "greet_user": "Hey, nice to see you!",
         }
         speech = action_speech.get(action, "...")
         t = datetime.now().strftime("%H:%M:%S")
         print(f"[{t}] [Behavior] _decide_local → {action} / {speech}")
         return BehaviorOutput(
-            action=action,
+            actions=[ActionStep(action)],
             speech=speech,
         )
 
     def decide_action(self, context: str = "") -> str:
-        return self.decide(context).action
+        result = self.decide(context)
+        return result.actions[0].name if result.actions else "idle"
 
     def think(self, prompt: str) -> str:
         t = datetime.now().strftime("%H:%M:%S")
@@ -170,16 +210,6 @@ class Behavior(BrainMixin):
         else:
             reply = self._think_local(prompt)
         print(f"[{t}] [Behavior] think → \"{reply[:60]}\"")
-        return reply
-
-    def greet(self) -> str:
-        t = datetime.now().strftime("%H:%M:%S")
-        print(f"[{t}] [Behavior] greet()")
-        if self._client:
-            reply = self.think(config.CHAT_PROMPT_GREET)
-        else:
-            reply = self._rotate("greet")
-        print(f"[{t}] [Behavior] greet → \"{reply[:60]}\"")
         return reply
 
     def _think_remote(self, prompt: str) -> str:
@@ -199,7 +229,7 @@ class Behavior(BrainMixin):
         response = self._client.chat.completions.create(
             model=self._model,
             messages=messages,
-            max_tokens=100,
+            max_tokens=4000,
         )
         content = response.choices[0].message.content or ""
         print(f"[{t}] [Behavior] === LLM RESPONSE ===")
@@ -211,10 +241,6 @@ class Behavior(BrainMixin):
 
     def _think_local(self, prompt: str) -> str:
         t = datetime.now().strftime("%H:%M:%S")
-        if "greet" in prompt.lower():
-            reply = self._rotate("greet")
-            print(f"[{t}] [Behavior] _think_local (greet match) → \"{reply}\"")
-            return reply
         reply = self._rotate("idle")
         print(f"[{t}] [Behavior] _think_local → \"{reply}\"")
         return reply

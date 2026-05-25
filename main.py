@@ -20,7 +20,7 @@ def main():
     window = PetWindow()
     bubble = SpeechBubble(window)
 
-    agent.action_requested.connect(window.play_action)
+    agent.action_requested.connect(window.queue_enqueue_action)
     agent.speak_requested.connect(bubble.show_text)
 
     window.show()
@@ -28,6 +28,16 @@ def main():
 
     tray = SystemTrayManager(app, window, agent)
     print(f"[{ts}] [Main] SystemTrayManager ready")
+
+    def _shutdown():
+        ts2 = datetime.now().strftime("%H:%M:%S")
+        print(f"[{ts2}] [Main] shutting down...")
+        agent.stop()
+        window.shutdown()
+        window.close()
+        tray.tray_icon.hide()
+
+    app.aboutToQuit.connect(_shutdown)
 
     print(f"[{ts}] [Main] Entering event loop")
     sys.exit(app.exec())

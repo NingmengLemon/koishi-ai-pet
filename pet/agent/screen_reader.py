@@ -20,6 +20,9 @@ class ScreenReader:
 
     def disable(self):
         self._enabled = False
+        if self._sct:
+            self._sct.close()
+            self._sct = None
         logger.info("屏幕截图已禁用")
 
     def capture_fullscreen(self, all_screens: bool = False) -> Optional[Image.Image]:
