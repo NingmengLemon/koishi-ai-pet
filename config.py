@@ -23,23 +23,9 @@ class Config:
 
     VISION_ENABLED = os.getenv("VISION_ENABLED", "false").lower() == "true"  # 模型是否支持 vision
 
-    OCR_ENABLED = os.getenv("OCR_ENABLED", "false").lower() == "true"
     OCR_LANGUAGES = os.getenv("OCR_LANGUAGES", "ch_sim,en").split(",")
 
-    BEHAVIOR_PROMPT_SYSTEM = os.getenv(
-        "BEHAVIOR_PROMPT_SYSTEM",
-        "You are a cute desktop pet. Based on the context, "
-        "decide what action to perform and what to say.\n"
-        "Output format:\n"
-        "Action: <action name>\n"
-        "Speech: <your message or \"none\">",
-    )
-    BEHAVIOR_PROMPT_DECIDE = os.getenv(
-        "BEHAVIOR_PROMPT_DECIDE",
-        "Available actions: {actions}\n"
-        "Context: {context}\n"
-        "Respond with Action and Speech.",
-    )
+    NON_VISION_PROMPT_EXTRA = os.getenv("NON_VISION_PROMPT_EXTRA", "")
 
     CHAT_PROMPT_SYSTEM = os.getenv(
         "CHAT_PROMPT_SYSTEM",
@@ -57,36 +43,7 @@ class Config:
         "请描述这张截图中的内容，用户可能在做什么？",
     )
 
-    # 合并视觉+行为的统一提示（当 VISION_ENABLED=true 时使用）
-    VISION_BEHAVIOR_PROMPT = os.getenv(
-        "VISION_BEHAVIOR_PROMPT",
-        "你是桌面宠物。你能看到用户的屏幕截图。"
-        "根据截图内容，决定你接下来要做什么动作、说什么话。\n\n"
-        "=== 可用动作 ===\n"
-        "动画驱动类（不需要 duration）：\n"
-        "  walk <left|right> [距离px]\n"
-        "  bounce [dx=偏移] [dy=偏移]\n"
-        "  fade_in\n"
-        "  fade_out\n"
-        "队列驱动类（必须写 duration=秒）：\n"
-        "  sit duration=秒\n"
-        "  sleep duration=秒\n"
-        "  idle duration=秒\n"
-        "  look_around duration=秒\n"
-        "  stretch duration=秒\n\n"
-        "=== 输出格式 ===\n"
-        "Speech: <台词，不超过20字>\n"
-        "Action: <动作1>\n"
-        "Action: <动作2>\n"
-        "Action: <动作3>\n\n"
-        "至少输出3个Action行和1个Speech行。",
-    )
-    VISION_BEHAVIOR_DECIDE = os.getenv(
-        "VISION_BEHAVIOR_DECIDE",
-        "请观察截图，输出完整的动作序列和台词。\n"
-        "Recent: {context}\n"
-        "避免重复刚做过的动作和台词。",
-    )
+    VISION_PROMPT_EXTRA = os.getenv("VISION_PROMPT_EXTRA", "")
 
     SCREEN_READER_ENABLED = True
     SYSTEM_MONITOR_ENABLED = True
