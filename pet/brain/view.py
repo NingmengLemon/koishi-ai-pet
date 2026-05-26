@@ -111,46 +111,41 @@ class ViewBrain:
 
 
 class OcrReader:
-    """EasyOCR 屏幕文字提取 —— 桌宠的 OCR 视觉能力。"""
+    """EasyOCR 屏幕文字提取 —— 桌宠的基本感知能力。"""
 
     def __init__(self, languages: list[str] = None):
         self._languages = languages or ["ch_sim", "en"]
         self._reader = None
-        self._enabled = False
-
-    def enable(self):
-        self._enabled = True
-        logger.info("[OcrReader] enabled")
-
-    def disable(self):
-        self._enabled = False
-        logger.info("[OcrReader] disabled")
-
-    @property
-    def is_enabled(self) -> bool:
-        return self._enabled
 
     def _get_reader(self):
-        """首次调用时才 import easyocr 并加载模型。"""
+        """首次调用时才 import easyocr 并加载模型。
+
+        失败时返回 None，不抛异常——OCR 是辅助功能，不应阻塞主流程。
+        """
         if self._reader is None:
-            import easyocr
-            self._reader = easyocr.Reader(self._languages, gpu=False)
-            logger.info(f"[OcrReader] model loaded, languages={self._languages}")
+            try:
+                import easyocr
+                self._reader = easyocr.Reader(self._languages, gpu=False)
+                logger.info(f"[OcrReader] model loaded, languages={self._languages}")
+            except ImportError:
+                logger.warning("[OcrReader] easyocr not installed, OCR disabled")
+            except Exception as e:
+                logger.warning(f"[OcrReader] model load failed: {e}")
         return self._reader
 
     def extract_text(self, image: Image.Image, min_confidence: float = 0.5) -> str:
-        """从 PIL Image 提取文字，返回拼接后的字符串。失败或禁用时返回空串。
+        """从 PIL Image 提取文字，返回拼接后的字符串。失败时返回空串。
 
         内置过滤：
           - 置信度低于 min_confidence 的丢弃
           - 纯符号/单字符非字母数字的丢弃
         """
-        if not self._enabled:
-            return ""
         try:
             import numpy as np
             img_array = np.array(image)
             reader = self._get_reader()
+            if reader is None:
+                return ""
             results = reader.readtext(img_array, detail=1)
 
             parts = []

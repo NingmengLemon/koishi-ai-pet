@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from PySide6.QtCore import QObject, QThread, QThreadPool, Signal
+from PySide6.QtCore import QObject, QThread, QThreadPool, QTimer, Signal
 
 from pet.brain.behavior import Behavior, BehaviorOutput
 from pet.brain.view import ViewBrain, OcrReader
@@ -55,8 +55,6 @@ class PetAgent(QObject):
         self.screen_reader = ScreenReader()
         self.screen_reader.enable()
         self.ocr_reader = OcrReader(languages=config.OCR_LANGUAGES)
-        if config.OCR_ENABLED:
-            self.ocr_reader.enable()
         self.scheduler = Scheduler(self)
         self.state_machine = StateMachine()
 
@@ -68,25 +66,28 @@ class PetAgent(QObject):
         self._worker: BrainWorker | None = None
 
         # 后台预加载 OCR 模型，避免首次 mid_tick 卡 UI
-        if config.OCR_ENABLED:
-            QThreadPool.globalInstance().start(
-                lambda: self.ocr_reader._get_reader()
-            )
+        QThreadPool.globalInstance().start(
+            lambda: self.ocr_reader._get_reader()
+        )
 
     def start(self):
         if config.SCHEDULER_AUTO_START:
             self.scheduler.start()
             logger.info("[PetAgent] scheduler auto-started")
+            # 启动后延迟 5 秒再触发首次决策
+            QTimer.singleShot(5000, self._on_mid_tick)
         else:
             logger.info("[PetAgent] scheduler auto-start disabled (SCHEDULER_AUTO_START=false)")
 
     def stop(self):
         self.scheduler.stop()
         self.screen_reader.disable()
-        self.ocr_reader.disable()
-        if self._thread and self._thread.isRunning():
-            self._thread.quit()
-            self._thread.wait(3000)
+        try:
+            if self._thread and self._thread.isRunning():
+                self._thread.quit()
+                self._thread.wait(3000)
+        except RuntimeError:
+            pass  # QThread C++ 对象可能已被 Qt 销毁
         logger.info("[PetAgent] stopped")
 
     def trigger(self, intent: str, **kwargs):
@@ -119,11 +120,11 @@ class PetAgent(QObject):
 
         # OCR 提取屏幕文字（模型未就绪时静默跳过）
         ocr_text = ""
-        if image and self.ocr_reader.is_enabled:
+        if image:
             try:
                 ocr_text = self.ocr_reader.extract_text(image)
                 if ocr_text:
-                    logger.info(f"[{ts}] [PetAgent] OCR: {len(ocr_text)} chars")
+                    logger.info(f"[{ts}] [PetAgent] OCR({len(ocr_text)} chars): {ocr_text[:100]}")
             except Exception as e:
                 logger.warning(f"[{ts}] [PetAgent] OCR failed, skipped: {e}")
 
@@ -171,6 +172,16 @@ class PetAgent(QObject):
         fn_name = getattr(fn, "__name__", repr(fn))
         ts = datetime.now().strftime("%H:%M:%S")
         logger.info(f"[{ts}] [PetAgent] _async_brain: {fn_name}")
+        # 如果有旧线程还在跑，先断开信号避免结果乱序
+        if self._worker is not None:
+            try:
+                self._worker.finished.disconnect()
+                self._worker.error.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+        if self._thread is not None and self._thread.isRunning():
+            self._thread.quit()
+            self._thread.wait(1000)
         self._worker = BrainWorker(fn, *args)
         self._thread = QThread(self)
         self._worker.moveToThread(self._thread)
