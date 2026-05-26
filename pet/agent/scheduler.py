@@ -18,7 +18,7 @@ class Scheduler(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._timers: dict[str, QTimer] = {}
-        logger.info("[Scheduler] Created")
+        logger.debug("[Scheduler] Created")
 
     def start(self, fast_ms: int | None = None, mid_ms: int | None = None,
               slow_ms: int | None = None):

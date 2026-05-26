@@ -4,6 +4,7 @@ import base64
 from datetime import datetime
 import io
 import logging
+import threading
 import traceback
 
 from PIL import Image
@@ -74,28 +75,23 @@ class ViewBrain:
                     ],
                 },
             ]
-            logger.info(f"[{t}] [ViewBrain] === LLM REQUEST (vision) ===")
-            logger.info(f"[{t}] [ViewBrain]   model: {self._model}")
-            logger.info(f"[{t}] [ViewBrain]   system: \"{config.VIEW_PROMPT_SYSTEM[:80]}...\"")
-            logger.info(f"[{t}] [ViewBrain]   user.text: \"{(prompt or config.VIEW_PROMPT_VISION)[:80]}...\"")
-            logger.info(f"[{t}] [ViewBrain]   user.image: base64, {len(base64_img)} bytes")
+            logger.info(f"[{t}] [ViewBrain] LLM REQ model={self._model} base64={len(base64_img)}b")
+            logger.debug(f"[{t}] [ViewBrain]   system: \"{config.VIEW_PROMPT_SYSTEM[:80]}...\"")
+            logger.debug(f"[{t}] [ViewBrain]   user.text: \"{(prompt or config.VIEW_PROMPT_VISION)[:80]}...\"")
             resp = self._client.chat.completions.create(
                 model=self._model,
                 messages=messages,
                 max_tokens=500,
             )
-            logger.info(f"[{t}] [ViewBrain] === LLM RESPONSE (vision) ===")
-            logger.info(f"[{t}] [ViewBrain]   id: {resp.id}")
-            logger.info(f"[{t}] [ViewBrain]   model: {resp.model}")
-            logger.info(f"[{t}] [ViewBrain]   created: {resp.created}")
-            logger.info(f"[{t}] [ViewBrain]   usage: {resp.usage}")
-            logger.info(f"[{t}] [ViewBrain]   finish_reason: {resp.choices[0].finish_reason if resp.choices else 'N/A'}")
+            logger.info(f"[{t}] [ViewBrain] LLM RESP finish={resp.choices[0].finish_reason if resp.choices else 'N/A'} "
+                        f"usage={resp.usage}")
+            logger.debug(f"[{t}] [ViewBrain]   id={resp.id} model={resp.model} created={resp.created}")
             if resp.choices:
                 choice = resp.choices[0]
                 content = choice.message.content
-                logger.info(f"[{t}] [ViewBrain]   raw: {content}")
+                logger.debug(f"[{t}] [ViewBrain]   raw: {content}")
                 if hasattr(choice.message, 'tool_calls') and choice.message.tool_calls:
-                    logger.info(f"[{t}] [ViewBrain]   tool_calls: {choice.message.tool_calls}")
+                    logger.debug(f"[{t}] [ViewBrain]   tool_calls: {choice.message.tool_calls}")
 
             content = resp.choices[0].message.content
             if content is None:
@@ -113,24 +109,42 @@ class ViewBrain:
 class OcrReader:
     """EasyOCR 屏幕文字提取 —— 桌宠的基本感知能力。"""
 
-    def __init__(self, languages: list[str] = None):
+    def __init__(self, languages: list[str] = None, gpu: bool = False):
         self._languages = languages or ["ch_sim", "en"]
+        self._gpu = gpu
         self._reader = None
+        self._loading = False          # 后台正在加载标志
+        self._lock = threading.Lock()  # 保护 _loading 读写
 
     def _get_reader(self):
-        """首次调用时才 import easyocr 并加载模型。
+        """获取已加载的 reader。首次调用触发模型加载（可被后台预加载）。
 
-        失败时返回 None，不抛异常——OCR 是辅助功能，不应阻塞主流程。
+        线程安全：后台线程加载时，主线程不会重复触发加载阻塞 UI。
         """
-        if self._reader is None:
-            try:
-                import easyocr
-                self._reader = easyocr.Reader(self._languages, gpu=False)
-                logger.info(f"[OcrReader] model loaded, languages={self._languages}")
-            except ImportError:
-                logger.warning("[OcrReader] easyocr not installed, OCR disabled")
-            except Exception as e:
-                logger.warning(f"[OcrReader] model load failed: {e}")
+        # 快速路径：已加载完成
+        if self._reader is not None:
+            return self._reader
+
+        with self._lock:
+            # 双重检查：获得锁后可能已经被加载
+            if self._reader is not None:
+                return self._reader
+            # 后台正在加载中，主线程返回 None，不阻塞 UI
+            if self._loading:
+                return None
+            self._loading = True
+
+        try:
+            import easyocr
+            self._reader = easyocr.Reader(self._languages, gpu=self._gpu)
+            logger.info(f"[OcrReader] model loaded, languages={self._languages}, gpu={self._gpu}")
+        except ImportError:
+            logger.warning("[OcrReader] easyocr not installed, OCR disabled")
+        except Exception as e:
+            logger.warning(f"[OcrReader] model load failed: {e}")
+        finally:
+            with self._lock:
+                self._loading = False
         return self._reader
 
     def extract_text(self, image: Image.Image, min_confidence: float = 0.5) -> str:
