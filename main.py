@@ -11,26 +11,14 @@ from config import config
 logger = logging.getLogger(__name__)
 
 
-class _Base64Filter(logging.Filter):
-    """全局过滤掉含 base64 图片编码的日志。"""
-    def filter(self, record):
-        msg = record.getMessage()
-        if "base64" in msg or "data:image" in msg:
-            return False
-        if record.name in ("httpx", "httpcore") and len(msg) > 500:
-            return False
-        return True
-
-
 def main():
     logging.basicConfig(
         level=getattr(logging, config.LOG_LEVEL, logging.INFO),
         format="[%(name)s] %(message)s",
     )
-    # 全局加 base64 过滤器，不管哪个 logger 输出只要含 base64 都拦截
-    root_filter = _Base64Filter()
-    for _lib in ("httpx", "httpcore", "openai", "urllib3", ""):
-        logging.getLogger(_lib).addFilter(root_filter)
+    # 静默 HTTP 库的 DEBUG 日志（它们会打印完整的 base64 图片数据）
+    for _lib in ("httpx", "httpcore", "openai", "urllib3"):
+        logging.getLogger(_lib).setLevel(logging.WARNING)
     logger.info(f"===== DeskPet 启动 =====")
     logger.info(f"BRAIN={config.BRAIN}, MODEL={config.LLM_MODEL}")
 
@@ -39,6 +27,7 @@ def main():
 
     agent = PetAgent()
     window = PetWindow()
+    agent.set_pet_window(window)  # 供窗口坐标探测用
     bubble = SpeechBubble(window)
 
     agent.action_requested.connect(window.queue_enqueue_action)

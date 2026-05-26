@@ -54,9 +54,10 @@ class PetAgent(QObject):
         self.view_brain = ViewBrain()
         self.screen_reader = ScreenReader()
         self.screen_reader.enable()
-        self.ocr_reader = OcrReader(languages=config.OCR_LANGUAGES)
+        self.ocr_reader = OcrReader(languages=config.OCR_LANGUAGES, gpu=config.OCR_GPU)
         self.scheduler = Scheduler(self)
         self.state_machine = StateMachine()
+        self._pet_window = None  # PetWindow 引用，用于获取桌宠当前位置
 
         self.scheduler.mid_tick.connect(self._on_mid_tick)
         self.scheduler.fast_tick.connect(self._on_fast_tick)
@@ -66,9 +67,13 @@ class PetAgent(QObject):
         self._worker: BrainWorker | None = None
 
         # 后台预加载 OCR 模型，避免首次 mid_tick 卡 UI
-        QThreadPool.globalInstance().start(
-            lambda: self.ocr_reader._get_reader()
-        )
+        if config.OCR_ENABLED:
+            QThreadPool.globalInstance().start(
+                lambda: self.ocr_reader._get_reader()
+            )
+
+    def set_pet_window(self, window):
+        self._pet_window = window
 
     def start(self):
         if config.SCHEDULER_AUTO_START:
@@ -117,26 +122,13 @@ class PetAgent(QObject):
             return
 
         image = self.screen_reader.capture_fullscreen()
-
-        # OCR 提取屏幕文字（模型未就绪时静默跳过）
-        ocr_text = ""
         if image:
-            try:
-                ocr_text = self.ocr_reader.extract_text(image)
-                if ocr_text:
-                    logger.info(f"[{ts}] [PetAgent] OCR({len(ocr_text)} chars): {ocr_text[:100]}")
-            except Exception as e:
-                logger.warning(f"[{ts}] [PetAgent] OCR failed, skipped: {e}")
-
-        # 视觉模式：截图 + OCR 文字一起送 LLM
-        if self.behavior.has_vision and image:
-            context = f"屏幕文字(OCR): {ocr_text[:500]}" if ocr_text else ""
-            self._async_brain(self.behavior.decide_with_vision, image, context)
-            return
-
-        # 纯文本 fallback：OCR 文字作为 context
-        context = f"屏幕文字(OCR): {ocr_text[:500]}" if ocr_text else ""
-        self._async_brain(self.behavior.decide, context)
+            # 主线程获取桌宠屏幕坐标，供后台线程计算窗口相对距离
+            pet_x, pet_y = 0, 0
+            if self._pet_window:
+                pet_x = self._pet_window.x()
+                pet_y = self._pet_window.y()
+            self._async_brain(self._decide_pipeline, image, pet_x, pet_y)
 
     def _on_fast_tick(self):
         pass
@@ -151,6 +143,86 @@ class PetAgent(QObject):
             logger.info(f"[{ts}] [PetAgent] slow_tick: woke up, emitting stretch")
         self.action_requested.emit("stretch", (), {})
 
+    def _decide_pipeline(self, image, pet_x=0, pet_y=0):
+        """后台线程中运行：窗口探测 + OCR 提取文字 + LLM 决策，不阻塞 UI。"""
+        ts = datetime.now().strftime("%H:%M:%S")
+
+        # ── Win32 窗口坐标探测 ──
+        window_context = self._build_window_context(pet_x, pet_y)
+
+        # ── OCR ──
+        ocr_text = ""
+        if config.OCR_ENABLED:
+            try:
+                ocr_text = self.ocr_reader.extract_text(image)
+                if ocr_text:
+                    logger.info(f"[{ts}] [PetAgent] OCR({len(ocr_text)} chars): {ocr_text[:100]}")
+            except Exception as e:
+                logger.warning(f"[{ts}] [PetAgent] OCR failed, skipped: {e}")
+
+        # ── 组装 context ──
+        parts = []
+        if window_context:
+            parts.append(window_context)
+        if ocr_text:
+            parts.append(f"屏幕文字(OCR): {ocr_text[:config.OCR_MAX_CHARS]}")
+        context = "\n\n".join(parts) if parts else ""
+
+        if self.behavior.has_vision:
+            return self.behavior.decide_with_vision(image, context)
+        else:
+            return self.behavior.decide(context)
+
+    def _build_window_context(self, pet_x: int, pet_y: int) -> str:
+        """用 Win32 API 枚举可见窗口，生成桌宠可用的跳转参考数据。"""
+        try:
+            from pet.brain.window_detector import get_visible_windows, is_window_occluded
+            windows = get_visible_windows()
+        except Exception:
+            return ""
+
+        pet_w, pet_h = 125, 125  # 桌宠尺寸
+        pet_hwnd = int(self._pet_window.winId()) if self._pet_window else 0
+        lines = [f"=== 窗口探测（系统 API，坐标精确） ==="]
+        lines.append(f"桌宠位置: 左{pet_x} 上{pet_y} (宽{pet_w} 高{pet_h})")
+
+        valid = 0
+        for win in windows:
+            left, top, right, bottom = win["rect"]
+            w, h = right - left, bottom - top
+            title = win["title"].strip()
+            if not title or len(title) > 50:
+                continue
+            # 排除桌宠自身和过小的窗口
+            if abs(left - pet_x) < 10 and abs(top - pet_y) < 10 and w == pet_w and h == pet_h:
+                continue
+            if w < 200 or h < 100:
+                continue
+            # 跳过被遮挡超过 80% 的窗口（后台线程中运行，不卡 UI）
+            if is_window_occluded(win["hwnd"], threshold=0.8, skip_hwnd=pet_hwnd):
+                continue
+
+            # 相对桌宠的距离
+            dx_walk = (left + w // 2) - pet_x           # 走到窗口中心需水平移动
+            dy_top = top - (pet_y + pet_h)                # 跳到窗口顶部需垂直移动（负=向上）
+            dy_bottom = bottom - pet_y                    # 跳到底部
+
+            direction = "右" if dx_walk > 0 else "左"
+            dist = abs(dx_walk)
+            reachable = "可跳" if abs(dy_top) < 800 else "需攀爬"
+
+            valid += 1
+            lines.append(
+                f"{valid}. \"{title}\" ｜ "
+                f"范围: 左{left} 上{top} 右{right} 下{bottom} (宽{w} 高{h}) ｜ "
+                f"相对桌宠: {direction}走{dist}px, 上跳{abs(dy_top)}px 到窗口顶 "
+                f"({reachable})"
+            )
+
+        if valid == 0:
+            lines.append("未发现适合跳转的窗口。")
+
+        return "\n".join(lines)
 
     def _trigger_decide(self, context: str = ""):
         self._async_brain(self.behavior.decide, context)
@@ -179,9 +251,13 @@ class PetAgent(QObject):
                 self._worker.error.disconnect()
             except (RuntimeError, TypeError):
                 pass
-        if self._thread is not None and self._thread.isRunning():
-            self._thread.quit()
-            self._thread.wait(1000)
+        if self._thread is not None:
+            try:
+                if self._thread.isRunning():
+                    self._thread.quit()
+                    self._thread.wait(1000)
+            except RuntimeError:
+                pass  # C++ 对象已被 Qt 提前销毁
         self._worker = BrainWorker(fn, *args)
         self._thread = QThread(self)
         self._worker.moveToThread(self._thread)
@@ -218,23 +294,5 @@ class PetAgent(QObject):
 
     def _on_view_error(self, msg: str):
         self.view_error.emit(msg)
-
-    # 保留方法（当前 mid_tick 不使用两步链，但保留供未来使用）
-    def _on_view_decide_result(self, result):
-        ts = datetime.now().strftime("%H:%M:%S")
-        if isinstance(result, str):
-            self.view_ready.emit(result)
-            self.behavior.add_context(f"[{ts}] {result}")
-            logger.info(f"[{ts}] [PetAgent] view result → chaining into decide()")
-            self._async_brain(self.behavior.decide, result)
-        else:
-            logger.info(f"[{ts}] [PetAgent] view returned non-string, fallback to decide()")
-            self._async_brain(self.behavior.decide, "")
-
-    def _on_view_decide_error(self, msg: str):
-        ts = datetime.now().strftime("%H:%M:%S")
-        self.view_error.emit(msg)
-        logger.error(f"[{ts}] [PetAgent] view error: {msg} → fallback to decide()")
-        self._async_brain(self.behavior.decide, "")
 
 
