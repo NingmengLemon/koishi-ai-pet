@@ -273,8 +273,21 @@ class DebugWindow(QWidget):
             decide_btn_row.addWidget(self.chk_tick)
             self.label_tick_state = QLabel("已停")
             decide_btn_row.addWidget(self.label_tick_state)
+        self.label_vision_mode = QLabel(
+            "📷 Vision" if (hasattr(self.brain, 'has_vision') and self.brain.has_vision) else "📝 Text"
+        )
+        decide_btn_row.addWidget(self.label_vision_mode)
         decide_btn_row.addStretch()
         decide_layout.addLayout(decide_btn_row)
+
+        vision_decide_row = QHBoxLayout()
+        self.btn_vision_decide = QPushButton("合并决策 decide_with_vision()")
+        has_vision = hasattr(self.brain, 'has_vision') and self.brain.has_vision
+        self.btn_vision_decide.setEnabled(has_vision)
+        self.btn_vision_decide.clicked.connect(self._test_vision_decide)
+        vision_decide_row.addWidget(self.btn_vision_decide)
+        vision_decide_row.addStretch()
+        decide_layout.addLayout(vision_decide_row)
 
         self.decide_output = QTextEdit()
         self.decide_output.setReadOnly(True)
@@ -477,6 +490,28 @@ class DebugWindow(QWidget):
             self.agent.trigger("decide")
         else:
             result = self.brain.decide()
+            action_str = result.actions[0].name if result.actions else "none"
+            self._log(f"  ↳ action={action_str}, speech={result.speech}")
+            self.decide_output.append(f"Action: {action_str}")
+            self.decide_output.append(f"Speech: {result.speech or '(none)'}")
+
+    def _test_vision_decide(self):
+        self._log("behavior.decide_with_vision()")
+        self.decide_output.clear()
+        # Hide debug window before capture
+        self.hide()
+        screenshot = self.screen_reader.capture_fullscreen()
+        self.show()
+        if screenshot is None:
+            self._log("⚠ 截图失败")
+            self.decide_output.append("截图失败")
+            return
+        w, h = screenshot.size
+        self._log(f"截图成功: {w}×{h}")
+        if self.agent:
+            self.agent.trigger("decide_with_vision", image=screenshot, context="")
+        else:
+            result = self.brain.decide_with_vision(screenshot, "")
             action_str = result.actions[0].name if result.actions else "none"
             self._log(f"  ↳ action={action_str}, speech={result.speech}")
             self.decide_output.append(f"Action: {action_str}")

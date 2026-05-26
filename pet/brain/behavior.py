@@ -1,8 +1,11 @@
+import base64
 from datetime import datetime
+import io
 import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
+from PIL import Image
 from openai import OpenAI
 from pet.brain.base import BrainMixin
 from config import config
@@ -74,6 +77,16 @@ class Behavior(BrainMixin):
             self._client = None
             logger.warning(f"[Behavior] No client (BRAIN={brain}, key empty={not bool(key)}) → local fallback")
 
+
+    @property
+    def has_vision(self) -> bool:
+        return self._client is not None and config.VISION_ENABLED
+
+    def _encode_base64(self, image: Image.Image) -> str:
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
     def decide(self, context: str = "") -> BehaviorOutput:
         t = datetime.now().strftime("%H:%M:%S")
         ctx_preview = context[:60] if context else "(empty)"
@@ -85,6 +98,87 @@ class Behavior(BrainMixin):
         logger.info(f"[{t}] [Behavior] decide → {result}")
         return result
 
+    def decide_with_vision(self, image: Image.Image, context: str = "") -> BehaviorOutput:
+        t = datetime.now().strftime("%H:%M:%S")
+        # 等比例缩放到 768px 边长，送视觉 LLM 前压缩
+        MAX_SIZE = 768
+        w, h = image.size
+        if max(w, h) > MAX_SIZE:
+            ratio = MAX_SIZE / max(w, h)
+            new_size = (int(w * ratio), int(h * ratio))
+            logger.info(f"[{t}] [Behavior] resize image {w}x{h} → {new_size[0]}x{new_size[1]}")
+            image = image.resize(new_size, Image.LANCZOS)
+        ctx_preview = context[:60] if context else "(empty)"
+        logger.info(f"[{t}] [Behavior] decide_with_vision(context={ctx_preview}, image={image.size})")
+        if not self.has_vision:
+            logger.info(f"[{t}] [Behavior]   no vision client → fallback to decide()")
+            return self.decide(context)
+        base64_img = self._encode_base64(image)
+        logger.info(f"[{t}] [Behavior]   base64 encoded, length={len(base64_img)}")
+        return self._decide_with_vision_remote(base64_img, context)
+
+    def _decide_with_vision_remote(self, base64_img: str, context: str) -> BehaviorOutput:
+        t = datetime.now().strftime("%H:%M:%S")
+        logger.info(f"[{t}] [Behavior] === LLM REQUEST (decide_with_vision) ===")
+        logger.info(f"[{t}] [Behavior]   model: {self._model}")
+        logger.info(f"[{t}] [Behavior]   context({len(context)} chars): \"{context[:80]}\"")
+        logger.info(f"[{t}] [Behavior]   history: {len(self._context)} entries")
+
+        if len(self._context) > 10:
+            self._context[:] = self._context[-10:]
+
+        system_content = config.VISION_BEHAVIOR_PROMPT
+        if config.PET_PERSONALITY:
+            system_content += f"\n\n=== 你的性格 ===\n{config.PET_PERSONALITY}"
+
+        context_str = (context or "no context") + (
+            f"\nRecent: {', '.join(self._context[-6:-1])}" if len(self._context) > 1 else ""
+        )
+        text_prompt = config.VISION_BEHAVIOR_DECIDE.format(context=context_str)
+
+        messages = [
+            {"role": "system", "content": system_content},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": text_prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{base64_img}"},
+                    },
+                ],
+            },
+        ]
+        for i, m in enumerate(messages):
+            if isinstance(m["content"], str):
+                preview = m["content"][:120].replace("\n", "\\n")
+                logger.info(f"[{t}] [Behavior]   msg[{i}] role={m['role']}: \"{preview}...\"")
+            else:
+                parts_desc = ", ".join(p["type"] for p in m["content"])
+                logger.info(f"[{t}] [Behavior]   msg[{i}] role={m['role']}: [{parts_desc}]")
+
+        try:
+            resp = self._client.chat.completions.create(
+                model=self._model,
+                messages=messages,
+                max_tokens=4000,
+            )
+            content = resp.choices[0].message.content or ""
+            logger.info(f"[{t}] [Behavior] === LLM RESPONSE (decide_with_vision) ===")
+            logger.info(f"[{t}] [Behavior]   finish_reason: {resp.choices[0].finish_reason}")
+            if hasattr(resp, 'usage') and resp.usage:
+                logger.info(f"[{t}] [Behavior]   usage: {resp.usage}")
+            logger.info(f"[{t}] [Behavior]   raw: {content}")
+            result = self._parse_behavior(content)
+            logger.info(f"[{t}] [Behavior]   parsed → {result}")
+            return result
+        except Exception as e:
+            logger.error(f"[{t}] [Behavior]   vision LLM call failed: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            logger.warning(f"[{t}] [Behavior]   falling back to local")
+            return self._decide_local()
+
     def _decide_remote(self, context: str) -> BehaviorOutput:
         t = datetime.now().strftime("%H:%M:%S")
         logger.info(f"[{t}] [Behavior] === LLM REQUEST (decide) ===")
@@ -92,7 +186,6 @@ class Behavior(BrainMixin):
         logger.info(f"[{t}] [Behavior]   context({len(context)} chars): \"{context[:80]}\"")
         logger.info(f"[{t}] [Behavior]   history: {len(self._context)} entries")
 
-        # 限制上下文条数
         if len(self._context) > 10:
             self._context[:] = self._context[-10:]
 
@@ -219,8 +312,11 @@ class Behavior(BrainMixin):
         t = datetime.now().strftime("%H:%M:%S")
         logger.info(f"[{t}] [Behavior] === LLM REQUEST (think) ===")
         logger.info(f"[{t}] [Behavior]   model: {self._model}, ctx_len={len(self._context)}")
+        system_content = config.CHAT_PROMPT_SYSTEM
+        if config.PET_PERSONALITY:
+            system_content += f"\n\n=== 你的性格 ===\n{config.PET_PERSONALITY}"
         messages = [
-            {"role": "system", "content": config.CHAT_PROMPT_SYSTEM},
+            {"role": "system", "content": system_content},
         ]
         for ctx in self._context:
             messages.append({"role": "user", "content": ctx})

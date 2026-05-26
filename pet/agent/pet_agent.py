@@ -2,10 +2,10 @@
 
 import logging
 from datetime import datetime
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, QThreadPool, Signal
 
 from pet.brain.behavior import Behavior, BehaviorOutput
-from pet.brain.view import ViewBrain
+from pet.brain.view import ViewBrain, OcrReader
 from pet.agent.scheduler import Scheduler
 from pet.agent.state import StateMachine
 from pet.agent.screen_reader import ScreenReader
@@ -54,6 +54,9 @@ class PetAgent(QObject):
         self.view_brain = ViewBrain()
         self.screen_reader = ScreenReader()
         self.screen_reader.enable()
+        self.ocr_reader = OcrReader(languages=config.OCR_LANGUAGES)
+        if config.OCR_ENABLED:
+            self.ocr_reader.enable()
         self.scheduler = Scheduler(self)
         self.state_machine = StateMachine()
 
@@ -63,6 +66,12 @@ class PetAgent(QObject):
 
         self._thread: QThread | None = None
         self._worker: BrainWorker | None = None
+
+        # 后台预加载 OCR 模型，避免首次 mid_tick 卡 UI
+        if config.OCR_ENABLED:
+            QThreadPool.globalInstance().start(
+                lambda: self.ocr_reader._get_reader()
+            )
 
     def start(self):
         if config.SCHEDULER_AUTO_START:
@@ -74,6 +83,7 @@ class PetAgent(QObject):
     def stop(self):
         self.scheduler.stop()
         self.screen_reader.disable()
+        self.ocr_reader.disable()
         if self._thread and self._thread.isRunning():
             self._thread.quit()
             self._thread.wait(3000)
@@ -81,9 +91,10 @@ class PetAgent(QObject):
 
     def trigger(self, intent: str, **kwargs):
         handlers = {
-            "decide": self._trigger_decide,
-            "think":  self._trigger_think,
-            "view":   self._trigger_view,
+            "decide":              self._trigger_decide,
+            "decide_with_vision":  self._trigger_vision_decide,
+            "think":               self._trigger_think,
+            "view":                self._trigger_view,
         }
         handler = handlers.get(intent)
         if handler:
@@ -104,23 +115,27 @@ class PetAgent(QObject):
             logger.info(f"[{ts}] [PetAgent] [mid_tick] skipped (state={self.state_machine.state.value})")
             return
 
-        if not self.view_brain._client:
-            logger.info(f"[{ts}] [PetAgent] [mid_tick] no view client, fallback to decide()")
-            self._async_brain(self.behavior.decide, "")
-            return
-
         image = self.screen_reader.capture_fullscreen()
-        if image is None:
-            logger.info(f"[{ts}] [PetAgent] [mid_tick] screen capture failed, fallback to decide()")
-            self._async_brain(self.behavior.decide, "")
+
+        # OCR 提取屏幕文字（模型未就绪时静默跳过）
+        ocr_text = ""
+        if image and self.ocr_reader.is_enabled:
+            try:
+                ocr_text = self.ocr_reader.extract_text(image)
+                if ocr_text:
+                    logger.info(f"[{ts}] [PetAgent] OCR: {len(ocr_text)} chars")
+            except Exception as e:
+                logger.warning(f"[{ts}] [PetAgent] OCR failed, skipped: {e}")
+
+        # 视觉模式：截图 + OCR 文字一起送 LLM
+        if self.behavior.has_vision and image:
+            context = f"屏幕文字(OCR): {ocr_text[:500]}" if ocr_text else ""
+            self._async_brain(self.behavior.decide_with_vision, image, context)
             return
 
-        logger.info(f"[{ts}] [PetAgent] [mid_tick] → capture→analyze→decide pipeline")
-        self._async_brain(
-            self.view_brain.analyze, image, "",
-            on_result=self._on_view_decide_result,
-            on_error=self._on_view_decide_error,
-        )
+        # 纯文本 fallback：OCR 文字作为 context
+        context = f"屏幕文字(OCR): {ocr_text[:500]}" if ocr_text else ""
+        self._async_brain(self.behavior.decide, context)
 
     def _on_fast_tick(self):
         pass
@@ -135,9 +150,12 @@ class PetAgent(QObject):
             logger.info(f"[{ts}] [PetAgent] slow_tick: woke up, emitting stretch")
         self.action_requested.emit("stretch", (), {})
 
-    # 用于调试的trigger
+
     def _trigger_decide(self, context: str = ""):
         self._async_brain(self.behavior.decide, context)
+
+    def _trigger_vision_decide(self, image, context: str = ""):
+        self._async_brain(self.behavior.decide_with_vision, image, context)
 
     def _trigger_think(self, prompt: str = ""):
         self._async_brain(self.behavior.think, prompt)
@@ -190,6 +208,7 @@ class PetAgent(QObject):
     def _on_view_error(self, msg: str):
         self.view_error.emit(msg)
 
+    # 保留方法（当前 mid_tick 不使用两步链，但保留供未来使用）
     def _on_view_decide_result(self, result):
         ts = datetime.now().strftime("%H:%M:%S")
         if isinstance(result, str):
@@ -206,3 +225,5 @@ class PetAgent(QObject):
         self.view_error.emit(msg)
         logger.error(f"[{ts}] [PetAgent] view error: {msg} → fallback to decide()")
         self._async_brain(self.behavior.decide, "")
+
+

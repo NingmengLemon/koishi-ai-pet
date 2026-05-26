@@ -16,20 +16,20 @@ logger = logging.getLogger(__name__)
 class ViewBrain:
 
     def __init__(self):
-        brain = config.VIEW_BRAIN or "local"
-        logger.info(f"[ViewBrain] __init__: BRAIN={brain}, KEY={'***' if config.VIEW_MODEL_KEY else 'EMPTY'}, URL={config.VIEW_MODEL_URL or '(empty)'}")
+        brain = config.BRAIN or "local"
+        logger.info(f"[ViewBrain] __init__: BRAIN={brain}, KEY={'***' if config.LLM_KEY else 'EMPTY'}, URL={config.LLM_URL or '(empty)'}")
         if brain == "ollama":
             self._client = OpenAI(
                 api_key="ollama",
                 base_url=config.OLLAMA_BASE_URL,
             )
-            self._model = config.VIEW_MODEL or config.CHAT_MODEL or "llama3.2-vision"
-        elif brain == "llm" and config.VIEW_MODEL_KEY:
+            self._model = config.LLM_MODEL or "llama3.2-vision"
+        elif brain == "llm" and config.LLM_KEY:
             self._client = OpenAI(
-                api_key=config.VIEW_MODEL_KEY,
-                base_url=config.VIEW_MODEL_URL or "",
+                api_key=config.LLM_KEY,
+                base_url=config.LLM_URL or "",
             )
-            self._model = config.VIEW_MODEL or config.CHAT_MODEL
+            self._model = config.LLM_MODEL
         else:
             self._client = None
 
@@ -107,4 +107,62 @@ class ViewBrain:
         except Exception as e:
             logger.error(f"[{t}] [ViewBrain] EXCEPTION: {type(e).__name__}: {e}")
             traceback.print_exc()
+            return ""
+
+
+class OcrReader:
+    """EasyOCR 屏幕文字提取 —— 桌宠的 OCR 视觉能力。"""
+
+    def __init__(self, languages: list[str] = None):
+        self._languages = languages or ["ch_sim", "en"]
+        self._reader = None
+        self._enabled = False
+
+    def enable(self):
+        self._enabled = True
+        logger.info("[OcrReader] enabled")
+
+    def disable(self):
+        self._enabled = False
+        logger.info("[OcrReader] disabled")
+
+    @property
+    def is_enabled(self) -> bool:
+        return self._enabled
+
+    def _get_reader(self):
+        """首次调用时才 import easyocr 并加载模型。"""
+        if self._reader is None:
+            import easyocr
+            self._reader = easyocr.Reader(self._languages, gpu=False)
+            logger.info(f"[OcrReader] model loaded, languages={self._languages}")
+        return self._reader
+
+    def extract_text(self, image: Image.Image, min_confidence: float = 0.5) -> str:
+        """从 PIL Image 提取文字，返回拼接后的字符串。失败或禁用时返回空串。
+
+        内置过滤：
+          - 置信度低于 min_confidence 的丢弃
+          - 纯符号/单字符非字母数字的丢弃
+        """
+        if not self._enabled:
+            return ""
+        try:
+            import numpy as np
+            img_array = np.array(image)
+            reader = self._get_reader()
+            results = reader.readtext(img_array, detail=1)
+
+            parts = []
+            for bbox, text, conf in results:
+                if conf < min_confidence:
+                    continue
+                text = text.strip()
+                if len(text) <= 1 and not text.isalnum():
+                    continue
+                parts.append(text)
+
+            return " ｜ ".join(parts)
+        except Exception as e:
+            logger.error(f"[OcrReader] extract failed: {e}")
             return ""
