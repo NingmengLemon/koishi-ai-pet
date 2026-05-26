@@ -12,7 +12,7 @@ class Config:
     PET_FPS = 15
     BUBBLE_MAX_WIDTH = 300
     BUBBLE_FONT_SIZE = 14
-    LOG_LEVEL = "DEBUG"
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
 
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 
@@ -22,8 +22,12 @@ class Config:
     LLM_URL = os.getenv("LLM_URL", "")                   # API 地址
 
     VISION_ENABLED = os.getenv("VISION_ENABLED", "false").lower() == "true"  # 模型是否支持 vision
+    VISION_SCALE = float(os.getenv("VISION_SCALE", "1"))                    # 截图缩放比例（1=不缩放，下限锁1536px，0.5=缩一半）
 
+    OCR_ENABLED = os.getenv("OCR_ENABLED", "true").lower() == "true"         # 是否启用 OCR 屏幕文字提取
+    OCR_GPU = os.getenv("OCR_GPU", "false").lower() == "true"                # OCR 是否使用 GPU 加速
     OCR_LANGUAGES = os.getenv("OCR_LANGUAGES", "ch_sim,en").split(",")
+    OCR_MAX_CHARS = int(os.getenv("OCR_MAX_CHARS", "500"))                  # OCR 文字送 LLM 的最大字符数
 
     NON_VISION_PROMPT_EXTRA = os.getenv("NON_VISION_PROMPT_EXTRA", "")
 
