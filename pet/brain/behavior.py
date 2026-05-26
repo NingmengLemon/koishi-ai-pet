@@ -1,10 +1,13 @@
 from datetime import datetime
+import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
 from openai import OpenAI
 from pet.brain.base import BrainMixin
 from config import config
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -44,7 +47,7 @@ class Behavior(BrainMixin):
 
         t = datetime.now().strftime("%H:%M:%S")
         client_type = "None (local)" if self._client is None else f"{type(self._client).__name__}(model={self._model})"
-        print(f"[{t}] [Behavior] init: {len(self._actions)} actions, client={client_type}")
+        logger.info(f"[{t}] [Behavior] init: {len(self._actions)} actions, client={client_type}")
 
     def _setup(self):
         brain = config.BRAIN or "local"
@@ -52,8 +55,8 @@ class Behavior(BrainMixin):
         url = config.LLM_URL
         model = config.LLM_MODEL
 
-        print(f"[Behavior] _setup: BRAIN={brain}, model={model}, "
-              f"key={'***' if key else 'EMPTY'}, URL={url or '(empty)'}")
+        logger.debug(f"[Behavior] _setup: BRAIN={brain}, model={model}, "
+                     f"key={'***' if key else 'EMPTY'}, URL={url or '(empty)'}")
 
         if brain == "ollama":
             self._client = OpenAI(
@@ -69,25 +72,25 @@ class Behavior(BrainMixin):
             self._model = model
         else:
             self._client = None
-            print(f"[Behavior] No client (BRAIN={brain}, key empty={not bool(key)}) → local fallback")
+            logger.warning(f"[Behavior] No client (BRAIN={brain}, key empty={not bool(key)}) → local fallback")
 
     def decide(self, context: str = "") -> BehaviorOutput:
         t = datetime.now().strftime("%H:%M:%S")
         ctx_preview = context[:60] if context else "(empty)"
-        print(f"[{t}] [Behavior] decide(context={ctx_preview})")
+        logger.info(f"[{t}] [Behavior] decide(context={ctx_preview})")
         if self._client:
             result = self._decide_remote(context)
         else:
             result = self._decide_local()
-        print(f"[{t}] [Behavior] decide → {result}")
+        logger.info(f"[{t}] [Behavior] decide → {result}")
         return result
 
     def _decide_remote(self, context: str) -> BehaviorOutput:
         t = datetime.now().strftime("%H:%M:%S")
-        print(f"[{t}] [Behavior] === LLM REQUEST (decide) ===")
-        print(f"[{t}] [Behavior]   model: {self._model}")
-        print(f"[{t}] [Behavior]   context({len(context)} chars): \"{context[:80]}\"")
-        print(f"[{t}] [Behavior]   history: {len(self._context)} entries")
+        logger.info(f"[{t}] [Behavior] === LLM REQUEST (decide) ===")
+        logger.info(f"[{t}] [Behavior]   model: {self._model}")
+        logger.info(f"[{t}] [Behavior]   context({len(context)} chars): \"{context[:80]}\"")
+        logger.info(f"[{t}] [Behavior]   history: {len(self._context)} entries")
 
         # 限制上下文条数
         if len(self._context) > 10:
@@ -107,7 +110,7 @@ class Behavior(BrainMixin):
         ]
         for i, m in enumerate(messages):
             preview = m["content"][:120].replace("\n", "\\n")
-            print(f"[{t}] [Behavior]   msg[{i}] role={m['role']}: \"{preview}...\"")
+            logger.info(f"[{t}] [Behavior]   msg[{i}] role={m['role']}: \"{preview}...\"")
         try:
             resp = self._client.chat.completions.create(
                 model=self._model,
@@ -115,19 +118,19 @@ class Behavior(BrainMixin):
                 max_tokens=4000,
             )
             content = resp.choices[0].message.content or ""
-            print(f"[{t}] [Behavior] === LLM RESPONSE ===")
-            print(f"[{t}] [Behavior]   finish_reason: {resp.choices[0].finish_reason}")
+            logger.info(f"[{t}] [Behavior] === LLM RESPONSE ===")
+            logger.info(f"[{t}] [Behavior]   finish_reason: {resp.choices[0].finish_reason}")
             if hasattr(resp, 'usage') and resp.usage:
-                print(f"[{t}] [Behavior]   usage: {resp.usage}")
-            print(f"[{t}] [Behavior]   raw: {content}")
+                logger.info(f"[{t}] [Behavior]   usage: {resp.usage}")
+            logger.info(f"[{t}] [Behavior]   raw: {content}")
             result = self._parse_behavior(content)
-            print(f"[{t}] [Behavior]   parsed → {result}")
+            logger.info(f"[{t}] [Behavior]   parsed → {result}")
             return result
         except Exception as e:
-            print(f"[{t}] [Behavior]   LLM call failed: {type(e).__name__}: {e}")
+            logger.error(f"[{t}] [Behavior]   LLM call failed: {type(e).__name__}: {e}")
             import traceback
             traceback.print_exc()
-            print(f"[{t}] [Behavior]   falling back to local")
+            logger.warning(f"[{t}] [Behavior]   falling back to local")
             return self._decide_local()
 
     def _parse_behavior(self, content: str) -> BehaviorOutput:
@@ -158,7 +161,7 @@ class Behavior(BrainMixin):
         name = parts[0].lower()
         if name not in self._actions:
             t = datetime.now().strftime("%H:%M:%S")
-            print(f"[{t}] [Behavior]   ⚠ unknown action: {name!r}, skipped")
+            logger.warning(f"[{t}] [Behavior]   ⚠ unknown action: {name!r}, skipped")
             return None
         args: list = []
         kwargs: dict = {}
@@ -192,7 +195,7 @@ class Behavior(BrainMixin):
         }
         speech = action_speech.get(action, "...")
         t = datetime.now().strftime("%H:%M:%S")
-        print(f"[{t}] [Behavior] _decide_local → {action} / {speech}")
+        logger.info(f"[{t}] [Behavior] _decide_local → {action} / {speech}")
         return BehaviorOutput(
             actions=[ActionStep(action)],
             speech=speech,
@@ -204,18 +207,18 @@ class Behavior(BrainMixin):
 
     def think(self, prompt: str) -> str:
         t = datetime.now().strftime("%H:%M:%S")
-        print(f"[{t}] [Behavior] think(prompt={prompt[:50]})")
+        logger.info(f"[{t}] [Behavior] think(prompt={prompt[:50]})")
         if self._client:
             reply = self._think_remote(prompt)
         else:
             reply = self._think_local(prompt)
-        print(f"[{t}] [Behavior] think → \"{reply[:60]}\"")
+        logger.info(f"[{t}] [Behavior] think → \"{reply[:60]}\"")
         return reply
 
     def _think_remote(self, prompt: str) -> str:
         t = datetime.now().strftime("%H:%M:%S")
-        print(f"[{t}] [Behavior] === LLM REQUEST (think) ===")
-        print(f"[{t}] [Behavior]   model: {self._model}, ctx_len={len(self._context)}")
+        logger.info(f"[{t}] [Behavior] === LLM REQUEST (think) ===")
+        logger.info(f"[{t}] [Behavior]   model: {self._model}, ctx_len={len(self._context)}")
         messages = [
             {"role": "system", "content": config.CHAT_PROMPT_SYSTEM},
         ]
@@ -224,7 +227,7 @@ class Behavior(BrainMixin):
         messages.append({"role": "user", "content": prompt})
         for i, m in enumerate(messages):
             preview = m["content"][:120].replace("\n", "\\n")
-            print(f"[{t}] [Behavior]   msg[{i}] role={m['role']}: \"{preview}...\"")
+            logger.info(f"[{t}] [Behavior]   msg[{i}] role={m['role']}: \"{preview}...\"")
 
         response = self._client.chat.completions.create(
             model=self._model,
@@ -232,17 +235,17 @@ class Behavior(BrainMixin):
             max_tokens=4000,
         )
         content = response.choices[0].message.content or ""
-        print(f"[{t}] [Behavior] === LLM RESPONSE ===")
-        print(f"[{t}] [Behavior]   finish_reason: {response.choices[0].finish_reason}")
+        logger.info(f"[{t}] [Behavior] === LLM RESPONSE ===")
+        logger.info(f"[{t}] [Behavior]   finish_reason: {response.choices[0].finish_reason}")
         if hasattr(response, 'usage') and response.usage:
-            print(f"[{t}] [Behavior]   usage: {response.usage}")
-        print(f"[{t}] [Behavior]   raw: {content}")
+            logger.info(f"[{t}] [Behavior]   usage: {response.usage}")
+        logger.info(f"[{t}] [Behavior]   raw: {content}")
         return content
 
     def _think_local(self, prompt: str) -> str:
         t = datetime.now().strftime("%H:%M:%S")
         reply = self._rotate("idle")
-        print(f"[{t}] [Behavior] _think_local → \"{reply}\"")
+        logger.info(f"[{t}] [Behavior] _think_local → \"{reply}\"")
         return reply
 
     def _rotate(self, key: str) -> str:

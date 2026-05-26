@@ -1,8 +1,11 @@
 """多频率 Tick 调度器 — fast、mid、slow，间隔从 config 读取。"""
 
+import logging
 from datetime import datetime
 from PySide6.QtCore import QObject, QTimer, Signal
 from config import config
+
+logger = logging.getLogger(__name__)
 
 
 class Scheduler(QObject):
@@ -15,7 +18,7 @@ class Scheduler(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._timers: dict[str, QTimer] = {}
-        print(f"[Scheduler] Created")
+        logger.info("[Scheduler] Created")
 
     def start(self, fast_ms: int | None = None, mid_ms: int | None = None,
               slow_ms: int | None = None):
@@ -24,7 +27,7 @@ class Scheduler(QObject):
         slow_ms = slow_ms if slow_ms is not None else config.SCHEDULER_SLOW_MS
         self.stop()
         ts = datetime.now().strftime("%H:%M:%S")
-        print(f"[{ts}] [Scheduler] start(fast={fast_ms}ms, mid={mid_ms}ms, slow={slow_ms}ms)")
+        logger.info(f"[{ts}] [Scheduler] start(fast={fast_ms}ms, mid={mid_ms}ms, slow={slow_ms}ms)")
 
         if fast_ms > 0:
             t = QTimer(self)
@@ -47,7 +50,7 @@ class Scheduler(QObject):
             t.start()
             self._timers["slow"] = t
 
-        print(f"[{ts}] [Scheduler] Total {len(self._timers)} timer(s) running")
+        logger.info(f"[{ts}] [Scheduler] Total {len(self._timers)} timer(s) running")
 
     def stop(self):
         if not self._timers:
@@ -58,7 +61,7 @@ class Scheduler(QObject):
             t.stop()
             t.deleteLater()
         self._timers.clear()
-        print(f"[{ts}] [Scheduler] stop() — stopped {names}")
+        logger.info(f"[{ts}] [Scheduler] stop() — stopped {names}")
 
     def is_running(self) -> bool:
         return bool(self._timers)

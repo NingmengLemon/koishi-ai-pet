@@ -1,9 +1,13 @@
 """桌宠行为动作模块 —— 复合行为（移动、弹跳等），通过 PetAnimator 播放帧动画。"""
 
+import logging
+
 from PySide6.QtCore import QPoint, QTimer, QPropertyAnimation, QEasingCurve, QObject
 from PySide6.QtWidgets import QWidget
 from config import config
 from pet.action.gravity import GravitySystem
+
+logger = logging.getLogger(__name__)
 
 
 class PetActions(QObject):
@@ -40,7 +44,7 @@ class PetActions(QObject):
         self._cleanup_stopped_anims()
         start_pos = self._clamp_pos(start_pos)
         end_pos = self._clamp_pos(end_pos)
-        print("from", start_pos, " move to:", end_pos)
+        logger.info(f"from {start_pos}  move to: {end_pos}")
         anim = QPropertyAnimation(self._window, b"pos")
         anim.setDuration(duration)
         anim.setStartValue(start_pos)

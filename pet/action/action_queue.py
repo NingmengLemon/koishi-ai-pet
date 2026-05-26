@@ -1,6 +1,9 @@
 
+import logging
 
 from PySide6.QtCore import QObject, QTimer, QPropertyAnimation, Signal
+
+logger = logging.getLogger(__name__)
 
 
 class ActionQueue(QObject):
@@ -84,12 +87,12 @@ class ActionQueue(QObject):
             return
 
         try:
-            print(f"[ActionQueue] ▶ {self._format(name, args, kwargs)}")
+            logger.info(f"[ActionQueue] ▶ {self._format(name, args, kwargs)}")
             duration = kwargs.get("duration", -1)
             method_kwargs = {k: v for k, v in kwargs.items() if k != "duration"}
             result = method(*args, **method_kwargs)
         except Exception as e:
-            print(f"[ActionQueue] ✗ {name} failed: {e}")
+            logger.error(f"[ActionQueue] ✗ {name} failed: {e}")
             self._run_next()
             return
 

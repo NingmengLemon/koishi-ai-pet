@@ -1,3 +1,4 @@
+import logging
 import sys
 from datetime import datetime
 from PySide6.QtWidgets import QApplication
@@ -7,11 +8,16 @@ from pet.ui.bubble import SpeechBubble
 from pet.agent import PetAgent
 from config import config
 
+logger = logging.getLogger(__name__)
+
 
 def main():
-    ts = datetime.now().strftime("%H:%M:%S")
-    print(f"[{ts}] [Main] ===== DeskPet 启动 =====")
-    print(f"[{ts}] [Main] BRAIN={config.BRAIN}, MODEL={config.LLM_MODEL}")
+    logging.basicConfig(
+        level=getattr(logging, config.LOG_LEVEL, logging.INFO),
+        format="[%(name)s] %(message)s",
+    )
+    logger.info(f"===== DeskPet 启动 =====")
+    logger.info(f"BRAIN={config.BRAIN}, MODEL={config.LLM_MODEL}")
 
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
@@ -27,11 +33,10 @@ def main():
     agent.start()
 
     tray = SystemTrayManager(app, window, agent)
-    print(f"[{ts}] [Main] SystemTrayManager ready")
+    logger.info(f"SystemTrayManager ready")
 
     def _shutdown():
-        ts2 = datetime.now().strftime("%H:%M:%S")
-        print(f"[{ts2}] [Main] shutting down...")
+        logger.info(f"shutting down...")
         agent.stop()
         window.shutdown()
         window.close()
@@ -39,7 +44,7 @@ def main():
 
     app.aboutToQuit.connect(_shutdown)
 
-    print(f"[{ts}] [Main] Entering event loop")
+    logger.info(f"Entering event loop")
     sys.exit(app.exec())
 
 
