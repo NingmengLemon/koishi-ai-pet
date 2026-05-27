@@ -93,6 +93,48 @@ class Behavior(BrainMixin):
             ctx += f"\nRecent: {', '.join(self._context[-6:-1])}"
         return ctx
 
+    def _trim_history(self):
+        if len(self._context) > 10:
+            self._context[:] = self._context[-10:]
+
+    def _append_personality(self, system_content: str) -> str:
+        if config.PET_PERSONALITY:
+            return system_content + f"\n\n=== 你的性格 ===\n{config.PET_PERSONALITY}"
+        return system_content
+
+    def _log_messages(self, t: str, messages: list):
+        for i, m in enumerate(messages):
+            if isinstance(m["content"], str):
+                preview = m["content"][:120].replace("\n", "\\n")
+                logger.debug(f"[{t}] [Behavior]   msg[{i}] role={m['role']}: \"{preview}...\"")
+            else:
+                parts_desc = ", ".join(p["type"] for p in m["content"])
+                logger.debug(f"[{t}] [Behavior]   msg[{i}] role={m['role']}: [{parts_desc}]")
+
+    def _call_llm_and_parse(self, messages: list, system_content: str, tag: str) -> BehaviorOutput:
+        """统一的 LLM 调用 + 响应日志 + Tool 解析 + 异常 fallback。"""
+        t = datetime.now().strftime("%H:%M:%S")
+        self._log_messages(t, messages)
+        try:
+            resp = self._client.chat.completions.create(
+                model=self._model,
+                messages=messages,
+                max_tokens=4000,
+            )
+            content = resp.choices[0].message.content or ""
+            logger.info(f"[{t}] [Behavior] === LLM RESPONSE ({tag}) ===")
+            logger.info(f"[{t}] [Behavior]   finish_reason: {resp.choices[0].finish_reason}")
+            if hasattr(resp, 'usage') and resp.usage:
+                logger.info(f"[{t}] [Behavior]   usage: {resp.usage}")
+            logger.debug(f"[{t}] [Behavior]   raw: {content}")
+            result = self._execute_with_tools(content, system_content)
+            logger.info(f"[{t}] [Behavior]   parsed → {result}")
+            return result
+        except Exception as e:
+            logger.exception(f"[{t}] [Behavior]   {tag} LLM call failed: {type(e).__name__}: {e}")
+            logger.warning(f"[{t}] [Behavior]   falling back to local")
+            return self._decide_local()
+
     def decide(self, context: str = "") -> BehaviorOutput:
         t = datetime.now().strftime("%H:%M:%S")
         ctx_preview = context[:60] if context else "(empty)"
@@ -133,12 +175,8 @@ class Behavior(BrainMixin):
         logger.info(f"[{t}] [Behavior]   context({len(context)} chars): \"{context[:80]}\"")
         logger.info(f"[{t}] [Behavior]   history: {len(self._context)} entries")
 
-        if len(self._context) > 10:
-            self._context[:] = self._context[-10:]
-
-        system_content = prompts.vision_system_prompt()
-        if config.PET_PERSONALITY:
-            system_content += f"\n\n=== 你的性格 ===\n{config.PET_PERSONALITY}"
+        self._trim_history()
+        system_content = self._append_personality(prompts.vision_system_prompt())
 
         context_str = self._build_context_str(context)
         text_prompt = prompts.vision_decide_prompt(context_str)
@@ -158,35 +196,7 @@ class Behavior(BrainMixin):
                 ],
             },
         ]
-        for i, m in enumerate(messages):
-            if isinstance(m["content"], str):
-                preview = m["content"][:120].replace("\n", "\\n")
-                logger.debug(f"[{t}] [Behavior]   msg[{i}] role={m['role']}: \"{preview}...\"")
-            else:
-                parts_desc = ", ".join(p["type"] for p in m["content"])
-                logger.debug(f"[{t}] [Behavior]   msg[{i}] role={m['role']}: [{parts_desc}]")
-
-        try:
-            resp = self._client.chat.completions.create(
-                model=self._model,
-                messages=messages,
-                max_tokens=4000,
-            )
-            content = resp.choices[0].message.content or ""
-            logger.info(f"[{t}] [Behavior] === LLM RESPONSE (vision) ===")
-            logger.info(f"[{t}] [Behavior]   finish_reason: {resp.choices[0].finish_reason}")
-            if hasattr(resp, 'usage') and resp.usage:
-                logger.info(f"[{t}] [Behavior]   usage: {resp.usage}")
-            logger.debug(f"[{t}] [Behavior]   raw: {content}")
-            result = self._execute_with_tools(content, system_content)
-            logger.info(f"[{t}] [Behavior]   parsed → {result}")
-            return result
-        except Exception as e:
-            logger.error(f"[{t}] [Behavior]   vision LLM call failed: {type(e).__name__}: {e}")
-            import traceback
-            traceback.print_exc()
-            logger.warning(f"[{t}] [Behavior]   falling back to local")
-            return self._decide_local()
+        return self._call_llm_and_parse(messages, system_content, "vision")
 
     def _decide_non_vision(self, context: str) -> BehaviorOutput:
         t = datetime.now().strftime("%H:%M:%S")
@@ -195,44 +205,17 @@ class Behavior(BrainMixin):
         logger.info(f"[{t}] [Behavior]   context({len(context)} chars): \"{context[:80]}\"")
         logger.info(f"[{t}] [Behavior]   history: {len(self._context)} entries")
 
-        if len(self._context) > 10:
-            self._context[:] = self._context[-10:]
-
+        self._trim_history()
         context_str = self._build_context_str(context)
         prompt = prompts.non_vision_decide_prompt(context_str)
         if config.NON_VISION_PROMPT_EXTRA:
             prompt += "\n\n" + config.NON_VISION_PROMPT_EXTRA.replace("{context}", context_str)
-        system_content = prompts.non_vision_system_prompt()
-        if config.PET_PERSONALITY:
-            system_content += f"\n\n=== 你的性格 ===\n{config.PET_PERSONALITY}"
+        system_content = self._append_personality(prompts.non_vision_system_prompt())
         messages = [
             {"role": "system", "content": system_content},
             {"role": "user", "content": prompt},
         ]
-        for i, m in enumerate(messages):
-            preview = m["content"][:120].replace("\n", "\\n")
-            logger.debug(f"[{t}] [Behavior]   msg[{i}] role={m['role']}: \"{preview}...\"")
-        try:
-            resp = self._client.chat.completions.create(
-                model=self._model,
-                messages=messages,
-                max_tokens=4000,
-            )
-            content = resp.choices[0].message.content or ""
-            logger.info(f"[{t}] [Behavior] === LLM RESPONSE (non_vision) ===")
-            logger.info(f"[{t}] [Behavior]   finish_reason: {resp.choices[0].finish_reason}")
-            if hasattr(resp, 'usage') and resp.usage:
-                logger.info(f"[{t}] [Behavior]   usage: {resp.usage}")
-            logger.debug(f"[{t}] [Behavior]   raw: {content}")
-            result = self._execute_with_tools(content, system_content)
-            logger.info(f"[{t}] [Behavior]   parsed → {result}")
-            return result
-        except Exception as e:
-            logger.error(f"[{t}] [Behavior]   LLM call failed: {type(e).__name__}: {e}")
-            import traceback
-            traceback.print_exc()
-            logger.warning(f"[{t}] [Behavior]   falling back to local")
-            return self._decide_local()
+        return self._call_llm_and_parse(messages, system_content, "non_vision")
 
     def _parse_behavior(self, content: str) -> BehaviorOutput:
         actions: list = []
@@ -297,11 +280,10 @@ class Behavior(BrainMixin):
         result_text = executor.format_results(results)
 
         # 二次调用 LLM（带工具结果）
-        from pet.brain.prompts import tool_result_user_prompt
         messages = [
             {"role": "system", "content": system_content},
             {"role": "assistant", "content": first_content},
-            {"role": "user", "content": tool_result_user_prompt(result_text)},
+            {"role": "user", "content": prompts.tool_result_user_prompt(result_text)},
         ]
         try:
             resp = self._client.chat.completions.create(
@@ -317,8 +299,7 @@ class Behavior(BrainMixin):
 
     def _decide_local(self) -> BehaviorOutput:
         import random
-        if len(self._context) > 10:
-            self._context[:] = self._context[-10:]
+        self._trim_history()
         action = random.choice(self._actions)
         action_speech = {
             "idle": "Just hanging out...",
@@ -355,21 +336,16 @@ class Behavior(BrainMixin):
         t = datetime.now().strftime("%H:%M:%S")
         logger.info(f"[{t}] [Behavior] === LLM REQUEST (think) ===")
         logger.info(f"[{t}] [Behavior]   model: {self._model}, ctx_len={len(self._context)}")
-        system_content = config.CHAT_PROMPT_SYSTEM
-        if config.PET_PERSONALITY:
-            system_content += f"\n\n=== 你的性格 ===\n{config.PET_PERSONALITY}"
+        system_content = self._append_personality(config.CHAT_PROMPT_SYSTEM)
         messages = [
             {"role": "system", "content": system_content},
         ]
         # 仅保留最近 10 条历史，避免上下文窗口溢出
-        if len(self._context) > 10:
-            self._context[:] = self._context[-10:]
+        self._trim_history()
         for ctx in self._context:
             messages.append({"role": "user", "content": ctx})
         messages.append({"role": "user", "content": prompt})
-        for i, m in enumerate(messages):
-            preview = m["content"][:120].replace("\n", "\\n")
-            logger.debug(f"[{t}] [Behavior]   msg[{i}] role={m['role']}: \"{preview}...\"")
+        self._log_messages(t, messages)
 
         response = self._client.chat.completions.create(
             model=self._model,
@@ -413,13 +389,8 @@ class Behavior(BrainMixin):
         t = datetime.now().strftime("%H:%M:%S")
         logger.info(f"[{t}] [Behavior] === LLM REQUEST (chat_decide) ===")
 
-        if len(self._context) > 10:
-            self._context[:] = self._context[-10:]
-
-        from pet.brain import prompts
-        system_content = prompts.chat_decide_system_prompt()
-        if config.PET_PERSONALITY:
-            system_content += f"\n\n=== 你的性格 ===\n{config.PET_PERSONALITY}"
+        self._trim_history()
+        system_content = self._append_personality(prompts.chat_decide_system_prompt())
 
         # 构建对话历史（包含最近条目，不跳过最后一条）
         history = ""

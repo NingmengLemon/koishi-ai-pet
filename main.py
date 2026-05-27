@@ -1,6 +1,5 @@
 import logging
 import sys
-from datetime import datetime
 from PySide6.QtWidgets import QApplication
 from pet.ui.pet_window import PetWindow
 from pet.ui.system_tray import SystemTrayManager
@@ -22,7 +21,7 @@ def main():
     # 静默 HTTP 库的 DEBUG 日志（它们会打印完整的 base64 图片数据）
     for _lib in ("httpx", "httpcore", "openai", "urllib3"):
         logging.getLogger(_lib).setLevel(logging.WARNING)
-    logger.info(f"===== DeskPet 启动 =====")
+    logger.info("===== DeskPet 启动 =====")
     logger.info(f"BRAIN={config.BRAIN}, MODEL={config.LLM_MODEL}")
 
     # 启动时加载技能插件
@@ -50,10 +49,10 @@ def main():
     agent.start()
 
     tray = SystemTrayManager(app, window, agent)
-    logger.info(f"SystemTrayManager ready")
+    logger.info("SystemTrayManager ready")
 
     def _shutdown():
-        logger.info(f"shutting down...")
+        logger.info("shutting down...")
         try:
             agent.stop()
             window.shutdown()
@@ -64,7 +63,7 @@ def main():
 
     app.aboutToQuit.connect(_shutdown)
 
-    logger.info(f"Entering event loop")
+    logger.info("Entering event loop")
     sys.exit(app.exec())
 
 

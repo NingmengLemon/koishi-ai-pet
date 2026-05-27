@@ -146,7 +146,7 @@ class ActionQueue(QObject):
         elif name == "bounce":
             parts.append(f"dx={kwargs.get('dx',0)} dy={kwargs.get('dy',-150)}")
         elif name in ("sit", "sleep", "look_around", "stretch", "thinking"):
-            d = kwargs.get("duration", -1)
-            if d > 0:
-                parts.append(f"{d}s")
+            duration = kwargs.get("duration", -1)
+            if duration > 0:
+                parts.append(f"{duration}s")
         return " ".join(parts)

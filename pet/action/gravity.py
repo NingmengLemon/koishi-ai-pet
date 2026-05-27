@@ -3,7 +3,7 @@
 import logging
 
 from PySide6.QtCore import QTimer, QObject, Signal, QPropertyAnimation, QPoint
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget, QApplication
 
 from pet.brain.window_detector import get_visible_windows, get_window_rect, is_window_occluded
 
@@ -62,8 +62,6 @@ class GravitySystem(QObject):
 
     def _clamp_pos(self, pos):
         """将坐标限制在屏幕可用范围内。"""
-        from PySide6.QtWidgets import QApplication
-        from PySide6.QtCore import QPoint
         screen = QApplication.primaryScreen()
         if not screen:
             return pos
@@ -83,7 +81,6 @@ class GravitySystem(QObject):
         new_y = old_y + self._step
 
         try:
-            from PySide6.QtWidgets import QApplication
             screen = QApplication.primaryScreen()
             if screen is None:
                 return
@@ -156,9 +153,9 @@ class GravitySystem(QObject):
             elif effective_bottom == screen_bottom:
                 self._standing_hwnd = 0
         except Exception:
+            logger.exception("[Gravity] _tick scan failed")
             if self._cached_effective_bottom is None:
-                from PySide6.QtWidgets import QApplication as _QA
-                s = _QA.primaryScreen()
+                s = QApplication.primaryScreen()
                 fb = s.availableGeometry().bottom() - self._window.height() if s else new_y
                 self._cached_effective_bottom = fb
                 effective_bottom = fb
