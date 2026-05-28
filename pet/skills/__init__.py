@@ -4,16 +4,13 @@ import importlib
 import logging
 from pathlib import Path
 
-from pet.skills.registry import TOOL_REGISTRY
+from pet.skills.registry import SKILL_REGISTRY
 
 logger = logging.getLogger(__name__)
 
-# 排除的文件名（非插件）
-_SKIP_FILES = {"__init__", "registry", "executor", "context"}
-
 
 def load_skills(enabled: list[str]):
-    """扫描 skills 目录，按配置加载启用的插件。
+    """扫描 skills/plugins/ 目录，按配置加载启用的插件。
 
     Args:
         enabled: 启用列表。["*"] 表示全部启用，[] 表示全部禁用。
@@ -22,16 +19,20 @@ def load_skills(enabled: list[str]):
         logger.info("[SkillLoader] No skills enabled")
         return
 
-    skills_dir = Path(__file__).parent
+    plugins_dir = Path(__file__).parent / "plugins"
+    if not plugins_dir.is_dir():
+        logger.warning("[SkillLoader] plugins directory not found")
+        return
+
     loaded = []
 
-    for py_file in sorted(skills_dir.glob("*.py")):
+    for py_file in sorted(plugins_dir.glob("*.py")):
         module_name = py_file.stem
-        if module_name in _SKIP_FILES:
+        if module_name.startswith("_"):
             continue
 
         try:
-            module = importlib.import_module(f"pet.skills.{module_name}")
+            module = importlib.import_module(f"pet.skills.plugins.{module_name}")
         except Exception as e:
             logger.warning(f"[SkillLoader] Failed to import {module_name}: {e}")
             continue
@@ -50,10 +51,10 @@ def load_skills(enabled: list[str]):
             continue
 
         try:
-            register_fn(TOOL_REGISTRY)
+            register_fn(SKILL_REGISTRY)
             loaded.append(skill_name)
-            logger.info(f"[SkillLoader] \u2713 Loaded skill: {skill_name}")
+            logger.info(f"[SkillLoader] Loaded skill: {skill_name}")
         except Exception as e:
-            logger.error(f"[SkillLoader] \u2717 Failed to register {skill_name}: {e}")
+            logger.error(f"[SkillLoader] Failed to register {skill_name}: {e}")
 
     logger.info(f"[SkillLoader] {len(loaded)} skills loaded: {loaded}")

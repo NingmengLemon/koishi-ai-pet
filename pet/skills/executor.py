@@ -1,71 +1,71 @@
-"""工具执行器 — 解析 LLM 输出中的 Tool JSON，路由执行，返回结果。"""
+"""技能执行器 — 解析 LLM 输出中的 Skill JSON，路由执行，返回结果。"""
 
 import json
 import logging
 from dataclasses import dataclass
 from typing import Any
 
-from pet.skills.registry import TOOL_REGISTRY
+from pet.skills.registry import SKILL_REGISTRY
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ToolCall:
+class SkillCall:
     name: str
     args: dict
 
 
 @dataclass
-class ToolResult:
+class SkillResult:
     name: str
     success: bool
     data: Any = None
     error: str = ""
 
 
-class ToolExecutor:
-    """串行执行工具调用，架构可扩展为并行。"""
+class SkillExecutor:
+    """串行执行技能调用，架构可扩展为并行。"""
 
-    def execute(self, calls: list[ToolCall]) -> list[ToolResult]:
+    def execute(self, calls: list[SkillCall]) -> list[SkillResult]:
         results = []
         for call in calls:
             results.append(self._execute_one(call))
         return results
 
-    def _execute_one(self, call: ToolCall) -> ToolResult:
-        handler = TOOL_REGISTRY.get_handler(call.name)
+    def _execute_one(self, call: SkillCall) -> SkillResult:
+        handler = SKILL_REGISTRY.get_handler(call.name)
         if handler is None:
-            logger.warning(f"[ToolExecutor] unknown tool: {call.name}")
-            return ToolResult(name=call.name, success=False, error="unknown tool")
+            logger.warning(f"[SkillExecutor] unknown skill: {call.name}")
+            return SkillResult(name=call.name, success=False, error="unknown skill")
         try:
             data = handler(**call.args)
-            logger.info(f"[ToolExecutor] \u2713 {call.name} \u2192 {str(data)[:100]}")
-            return ToolResult(name=call.name, success=True, data=data)
+            logger.info(f"[SkillExecutor] ✓ {call.name} → {str(data)[:100]}")
+            return SkillResult(name=call.name, success=True, data=data)
         except Exception as e:
-            logger.error(f"[ToolExecutor] \u2717 {call.name} failed: {e}")
-            return ToolResult(name=call.name, success=False, error=str(e))
+            logger.error(f"[SkillExecutor] ✗ {call.name} failed: {e}")
+            return SkillResult(name=call.name, success=False, error=str(e))
 
     @staticmethod
-    def parse_tool_lines(content: str) -> list[ToolCall]:
+    def parse_skill_lines(content: str) -> list[SkillCall]:
         calls = []
         for line in content.split("\n"):
             line = line.strip()
-            if line.lower().startswith("tool:"):
+            if line.lower().startswith("skill:"):
                 raw = line.split(":", 1)[1].strip()
                 try:
                     obj = json.loads(raw)
-                    calls.append(ToolCall(
+                    calls.append(SkillCall(
                         name=obj.get("name", ""),
                         args=obj.get("args", {}),
                     ))
                 except json.JSONDecodeError:
-                    logger.warning(f"[ToolExecutor] invalid JSON: {raw[:80]}")
+                    logger.warning(f"[SkillExecutor] invalid JSON: {raw[:80]}")
         return calls
 
     @staticmethod
     def _normalize(data: Any) -> str:
-        """统一格式化工具返回值：dict 支持 summary 键，兼容 str/基本类型。"""
+        """统一格式化返回值：dict 支持 summary 键，兼容 str/基本类型。"""
         if isinstance(data, dict):
             summary = data.pop("summary", None)
             json_str = json.dumps(data, ensure_ascii=False)
@@ -75,11 +75,11 @@ class ToolExecutor:
         return str(data)
 
     @classmethod
-    def format_results(cls, results: list[ToolResult]) -> str:
+    def format_results(cls, results: list[SkillResult]) -> str:
         lines = []
         for r in results:
             if r.success:
-                lines.append(f"[\u2713 {r.name}]\n{cls._normalize(r.data)}")
+                lines.append(f"[✓ {r.name}]\n{cls._normalize(r.data)}")
             else:
-                lines.append(f"[\u2717 {r.name}] \u5931\u8d25: {r.error}")
+                lines.append(f"[✗ {r.name}] 失败: {r.error}")
         return "\n\n".join(lines)

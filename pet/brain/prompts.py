@@ -1,7 +1,7 @@
 ﻿"""系统提示词和决策提示词"""
 
 from pet.action.registry import generate_action_section
-from pet.skills.registry import TOOL_REGISTRY
+from pet.skills.registry import SKILL_REGISTRY
 
 
 # ── 窗口互动指南（两个模式共用）──
@@ -31,36 +31,38 @@ _WINDOW_GUIDE = """=== 窗口互动方法 ===
 
 
 
-# ── 公共尾部（两个模式共用）──
+# 公共尾部（自动纯文本、自动视觉模式共用）──
 _COMMON_TAIL = """=== 输出格式 ===
-Speech 行 + 至少4个 Action 行，缺一不可：
+必须按以下顺序输出：Summary 行 → Speech 行 → 至少4个 Action 行，缺一不可：
 
+  Summary: <本次观察到的屏幕内容和行为决策，50字以内>
   Speech: 又有新窗口了，我过去看看
   Action: walk right 800
   Action: look_around duration=5
   Action: walk left 600
   Action: sit duration=10
-  Tool: {"name": "tool.method", "args": {...}}   ← 可选，需要获取信息时使用
+  Skill: {"name": "skill.method", "args": {...}}   ← 可选，需要获取信息时使用
 
 === 硬性约束 ===
-1. 最少 4 个 Action，序列总时长约 30 秒
-2. 队列驱动类动作必须带 duration=秒（≥5 秒，常用 8-15 秒）
-3. walk 必须指定 left/right，距离 500-1000px
-4. fade_out / fade_in 必须成对出现（先 out 后 in），且在同一序列内配对，out和in之间必须有其他动作
-5. 必须说话，Speech 不能是 none，不超过 20 字
-6. 动作名只能是上方列出的动作之一
-7. 避免重复 Recent 中最近的行为和台词
-8. 你的台词、动作选择、互动方式，全部由你的人格描述决定"""
+1. Summary 行必须放在输出最前面，50字以内
+2. 最少 4 个 Action，序列总时长约 30 秒
+3. 队列驱动类动作必须带 duration=秒（≥5 秒，常用 8-15 秒）
+4. walk 必须指定 left/right，距离 500-1000px
+5. fade_out / fade_in 必须成对出现（先 out 后 in），且在同一序列内配对，out和in之间必须有其他动作
+6. 必须说话，Speech 不能是 none，不超过 20 字
+7. 动作名只能是上方列出的动作之一
+8. 避免重复 Recent 中最近的行为和台词
+9. 你的台词、动作选择、互动方式，全部由你的人格描述决定"""
 
 
 # ── 视觉模式专用约束（追加到视觉 prompt 尾部）──
-_VISION_ONLY_CONSTRAINTS = """9. walk 距离和方向基于截图中的实际距离估算，不要随意编造
-10. 先在截图中定位自己，再观察窗口，两者结合规划动作
-11. bounce 必须有明确的窗口目标，基于窗口在截图中的位置估算参数"""
+_VISION_ONLY_CONSTRAINTS = """10. walk 距离和方向基于截图中的实际距离估算，不要随意编造
+11. 先在截图中定位自己，再观察窗口，两者结合规划动作
+12. bounce 必须有明确的窗口目标，基于窗口在截图中的位置估算参数"""
 
 
 def non_vision_system_prompt() -> str:
-    """纯文本模式的系统提示词。"""
+    """自动-纯文本模式的系统提示词。"""
     actions = generate_action_section()
     return (
         "你是桌面宠物。你能行走、跳跃、坐下、睡觉、张望、伸展、淡入淡出。"
@@ -78,11 +80,11 @@ def non_vision_system_prompt() -> str:
         f"\n\n{_WINDOW_GUIDE}"
         f"\n\n{actions}"
         f"\n\n{_COMMON_TAIL}"
-    ) + (f"\n\n{TOOL_REGISTRY.generate_prompt_section()}" if TOOL_REGISTRY.generate_prompt_section() else "")
+    ) + (f"\n\n{SKILL_REGISTRY.generate_prompt_section()}" if SKILL_REGISTRY.generate_prompt_section() else "")
 
 
 def vision_system_prompt() -> str:
-    """视觉模式的系统提示词。"""
+    """自动-视觉模式的系统提示词。"""
     actions = generate_action_section()
     return (
         "你是桌面宠物。你能看到用户的屏幕截图。"
@@ -103,11 +105,11 @@ def vision_system_prompt() -> str:
         f"\n\n{actions}"
         f"\n\n{_COMMON_TAIL}"
         f"\n{_VISION_ONLY_CONSTRAINTS}"
-    ) + (f"\n\n{TOOL_REGISTRY.generate_prompt_section()}" if TOOL_REGISTRY.generate_prompt_section() else "")
+    ) + (f"\n\n{SKILL_REGISTRY.generate_prompt_section()}" if SKILL_REGISTRY.generate_prompt_section() else "")
 
 
 def non_vision_decide_prompt(context: str) -> str:
-    """纯文本模式的决策提示。"""
+    """自动-纯文本模式的决策提示。"""
     has_content = context and not context.startswith("no context")
     if has_content:
         return (
@@ -129,7 +131,7 @@ def non_vision_decide_prompt(context: str) -> str:
 
 
 def vision_decide_prompt(context: str) -> str:
-    """视觉模式的决策提示。"""
+    """自动-视觉模式的决策提示。"""
     return (
         f"{context}\n\n"
         "根据窗口探测数据和截图，输出完整的动作序列。\n"
@@ -139,12 +141,13 @@ def vision_decide_prompt(context: str) -> str:
         "• 无窗口 → 巡视桌面、找地方坐下\n"
         "• bounce 的 dy 使用探测数据中的「上跳_N_px」值，不要乱写\n"
         "• 用你的人格语气评论窗口内容\n"
-        "• 避免重复 Recent 中的行为"
+        "• 避免重复 Recent 中的行为\n"
+        "• Summary 必须基于截图和窗口探测数据，描述实际看到的内容"
     )
 
 
 def chat_decide_system_prompt() -> str:
-    """对话决策模式的系统提示词。"""
+    """对话驱动-决策模式的系统提示词。"""
     actions = generate_action_section()
     return (
         "你是桌面宠物，用户正在和你直接对话。"
@@ -152,29 +155,33 @@ def chat_decide_system_prompt() -> str:
         "\n\n=== 对话模式指南 ==="
         "\n- 用户可能给你指令（如「跳到那个窗口上」「往右走」「坐下休息」）→ 生成对应动作"
         "\n- 用户可能和你闲聊（如「你在干嘛」「今天好累」）→ 用语言回应 + 配合表情动作"
+        "\n- 用户可能让你使用skill，如「我想知道系统的内存使用率」 → 在可用技能查找对应技能并使用"
         "\n- 用户可能让你评论屏幕内容 → 参考 OCR/窗口数据回应"
         "\n- 如果用户指令涉及具体方向/距离，参考「窗口探测」数据精确执行"
         "\n- 如果用户没有具体动作指令，可以自由选择 1-2 个配合语境的动作"
         f"\n\n{actions}"
         "\n\n=== 输出格式 ==="
-        "\nSpeech 行 + Action 行（至少 1 个 Action）："
-        "\n"
+        "\n必须按以下顺序输出：Summary 行 → Speech 行 → Action 行（至少 1 个）-> Skill 行（看用户输入判断是否输出）："
+        "\n  例："
+        "\n  Summary: <对话内容和行为决策的简要记录，50字以内>"
         "\n  Speech: 好嘞，我跳过去看看！"
         "\n  Action: walk right 600"
-        "\n  Action: bounce dx=200 dy=-300"
+        "\n  Skill: {\"name\": \"skill.method\", \"args\": {}}   ← 需要查询信息时使用"
         "\n"
         "\n=== 硬性约束 ==="
-        "\n1. 至少 1 个 Action（可以少于 4 个，根据用户指令灵活调整）"
-        "\n2. 队列驱动类动作必须带 duration=秒"
-        "\n3. 必须有 Speech 回应用户"
-        "\n4. Speech 用你的性格语气，不超过 30 字"
-        "\n5. 动作名只能是上方列出的动作之一"
-        "\n6. 参考「近期对话/行为记录」保持对话连贯，记住用户之前说过的话"
-    ) + (f"\n\n{TOOL_REGISTRY.generate_prompt_section()}" if TOOL_REGISTRY.generate_prompt_section() else "")
+        "\n1. Summary 行必须放在输出最前面，50字以内"
+        "\n2. 至少 1 个 Action（可以少于 4 个，根据用户指令灵活调整）"
+        "\n3. 队列驱动类动作必须带 duration=秒"
+        "\n4. 必须有 Speech 回应用户"
+        "\n5. Speech 用你的性格语气，不超过 30 字"
+        "\n6. 动作名只能是上方列出的动作之一"
+        "\n7. 参考「近期对话/行为记录」保持对话连贯，记住用户之前说过的话"
+        "\n8. 假如用户让你使用某技能，在=== 可用技能 === 后面搜索，搜索到了必须调用，如果搜索不到，则按照人格设定回复暂时不会该技能"
+    ) + (f"\n\n{SKILL_REGISTRY.generate_prompt_section()}" if SKILL_REGISTRY.generate_prompt_section() else "")
 
 
 def chat_decide_user_prompt(user_message: str, context: str) -> str:
-    """对话决策模式的用户提示。"""
+    """对话驱动-决策模式的用户提示。"""
     return (
         f"=== 用户对你说 ===\n{user_message}\n\n"
         f"{context}\n\n"
@@ -183,17 +190,17 @@ def chat_decide_user_prompt(user_message: str, context: str) -> str:
     )
 
 
-def tool_result_user_prompt(tool_results: str) -> str:
+def skill_result_user_prompt(skill_results: str) -> str:
     """工具执行结果 → 二次 LLM 调用的 user message。
 
-    由 behavior._execute_with_tools() 调用，
+    由 behavior._execute_with_skills() 调用，
     将 executor.format_results() 的输出包装为规范化的 prompt。
     """
     return (
-        "以下是你请求的工具执行结果：\n\n"
-        f"{tool_results}\n\n"
+        "以下是你请求的技能执行结果：\n\n"
+        f"{skill_results}\n\n"
         "请基于以上信息，输出最终回复。格式要求：\n"
         "Speech: <你想说的话>\n"
         "Action: <动作名>\n\n"
-        "注意：不要再调用工具。"
+        "注意：不要再调用技能。"
     )

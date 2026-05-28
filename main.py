@@ -1,5 +1,7 @@
 import logging
+import os
 import sys
+from logging.handlers import TimedRotatingFileHandler
 from PySide6.QtWidgets import QApplication
 from pet.ui.pet_window import PetWindow
 from pet.ui.system_tray import SystemTrayManager
@@ -21,6 +23,24 @@ def main():
     # 静默 HTTP 库的 DEBUG 日志（它们会打印完整的 base64 图片数据）
     for _lib in ("httpx", "httpcore", "openai", "urllib3"):
         logging.getLogger(_lib).setLevel(logging.WARNING)
+
+    # 文件日志：按天切分，保留 7 天
+    _log_dir = "logs"
+    os.makedirs(_log_dir, exist_ok=True)
+    _file_handler = TimedRotatingFileHandler(
+        filename=os.path.join(_log_dir, "deskpet.log"),
+        when="midnight",
+        interval=1,
+        backupCount=7,
+        encoding="utf-8",
+    )
+    _file_handler.setFormatter(logging.Formatter(
+        "[%(asctime)s] [%(name)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    ))
+    _file_handler.setLevel(logging.DEBUG)
+    logging.getLogger().addHandler(_file_handler)
+
     logger.info("===== DeskPet 启动 =====")
     logger.info(f"BRAIN={config.BRAIN}, MODEL={config.LLM_MODEL}")
 
@@ -44,6 +64,9 @@ def main():
 
     agent.action_requested.connect(window.queue_enqueue_action)
     agent.speak_requested.connect(bubble.show_text)
+    agent.speak_stream_start.connect(bubble.start_stream)
+    agent.speak_stream_chunk.connect(bubble.append_stream)
+    agent.speak_stream_end.connect(bubble.end_stream)
 
     window.show()
     agent.start()

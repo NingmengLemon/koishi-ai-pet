@@ -11,6 +11,7 @@ from pet.brain.base import BrainMixin
 from pet.brain import prompts
 from pet.action.registry import ACTION_NAMES
 from config import config
+from pet.brain.llm_retry import llm_retry
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,8 @@ class ActionStep:
 class BehaviorOutput:
     actions: list = field(default_factory=list)
     speech: Optional[str] = None
+    speech_streamed: bool = False
+    summary: Optional[str] = None
 
 
 class Behavior(BrainMixin):
@@ -64,12 +67,14 @@ class Behavior(BrainMixin):
             self._client = OpenAI(
                 api_key="ollama",
                 base_url=config.OLLAMA_BASE_URL,
+                timeout=config.LLM_TIMEOUT,
             )
             self._model = model or "llama3.2"
         elif brain == "llm" and key:
             self._client = OpenAI(
                 api_key=key,
                 base_url=url or "",
+                timeout=config.LLM_TIMEOUT,
             )
             self._model = model
         else:
@@ -102,32 +107,56 @@ class Behavior(BrainMixin):
             return system_content + f"\n\n=== 你的性格 ===\n{config.PET_PERSONALITY}"
         return system_content
 
-    def _log_messages(self, t: str, messages: list):
+    def _dump_context(self, tag: str, messages: list):
+        """输出完整上下文到日志（调试用）。"""
+        t = datetime.now().strftime("%H:%M:%S")
+        logger.info(f"[{t}] [Behavior] ====== FULL CONTEXT ({tag}) ======")
         for i, m in enumerate(messages):
             if isinstance(m["content"], str):
-                preview = m["content"][:120].replace("\n", "\\n")
-                logger.debug(f"[{t}] [Behavior]   msg[{i}] role={m['role']}: \"{preview}...\"")
+                logger.info(f"[{t}] [Behavior] --- msg[{i}] role={m['role']} ---\n{m['content']}")
             else:
-                parts_desc = ", ".join(p["type"] for p in m["content"])
-                logger.debug(f"[{t}] [Behavior]   msg[{i}] role={m['role']}: [{parts_desc}]")
+                for j, part in enumerate(m["content"]):
+                    if part["type"] == "text":
+                        logger.info(f"[{t}] [Behavior] --- msg[{i}] role={m['role']} part[{j}] text ---\n{part['text']}")
+                    else:
+                        logger.info(f"[{t}] [Behavior] --- msg[{i}] role={m['role']} part[{j}] {part['type']} len={len(str(part))} --- (binary omitted)")
+        logger.info(f"[{t}] [Behavior] ====== END CONTEXT ({tag}) ======")
 
-    def _call_llm_and_parse(self, messages: list, system_content: str, tag: str) -> BehaviorOutput:
-        """统一的 LLM 调用 + 响应日志 + Tool 解析 + 异常 fallback。"""
-        t = datetime.now().strftime("%H:%M:%S")
-        self._log_messages(t, messages)
-        try:
-            resp = self._client.chat.completions.create(
+    @llm_retry(tag="Behavior")
+    def _llm_call(self, messages: list, max_tokens: int = 4000):
+        """带重试的非流式 LLM 调用。"""
+        return self._client.chat.completions.create(
+            model=self._model,
+            messages=messages,
+            max_tokens=max_tokens,
+        )
+
+    def _llm_call_stream(self, messages: list, max_tokens: int = 4000):
+        """带重试的流式 LLM 调用（仅连接阶段重试）。"""
+        from pet.brain.llm_retry import llm_stream_with_retry
+        return llm_stream_with_retry(
+            lambda: self._client.chat.completions.create(
                 model=self._model,
                 messages=messages,
-                max_tokens=4000,
-            )
+                max_tokens=max_tokens,
+                stream=True,
+            ),
+            tag="Behavior.stream",
+        )
+
+    def _call_llm_and_parse(self, messages: list, system_content: str, tag: str) -> BehaviorOutput:
+        """统一的 LLM 调用 + 响应日志 + Skill 解析 + 异常 fallback。"""
+        t = datetime.now().strftime("%H:%M:%S")
+        self._dump_context(tag, messages)
+        try:
+            resp = self._llm_call(messages)
             content = resp.choices[0].message.content or ""
             logger.info(f"[{t}] [Behavior] === LLM RESPONSE ({tag}) ===")
             logger.info(f"[{t}] [Behavior]   finish_reason: {resp.choices[0].finish_reason}")
             if hasattr(resp, 'usage') and resp.usage:
                 logger.info(f"[{t}] [Behavior]   usage: {resp.usage}")
             logger.debug(f"[{t}] [Behavior]   raw: {content}")
-            result = self._execute_with_tools(content, system_content)
+            result = self._execute_with_skills(content, system_content)
             logger.info(f"[{t}] [Behavior]   parsed → {result}")
             return result
         except Exception as e:
@@ -174,29 +203,8 @@ class Behavior(BrainMixin):
         logger.info(f"[{t}] [Behavior]   model: {self._model}")
         logger.info(f"[{t}] [Behavior]   context({len(context)} chars): \"{context[:80]}\"")
         logger.info(f"[{t}] [Behavior]   history: {len(self._context)} entries")
-
-        self._trim_history()
-        system_content = self._append_personality(prompts.vision_system_prompt())
-
-        context_str = self._build_context_str(context)
-        text_prompt = prompts.vision_decide_prompt(context_str)
-        if config.VISION_PROMPT_EXTRA:
-            text_prompt += "\n\n" + config.VISION_PROMPT_EXTRA.replace("{context}", context_str)
-
-        messages = [
-            {"role": "system", "content": system_content},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": text_prompt},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{base64_img}"},
-                    },
-                ],
-            },
-        ]
-        return self._call_llm_and_parse(messages, system_content, "vision")
+        messages = self._build_decide_messages(context, vision=True, base64_img=base64_img)
+        return self._call_llm_and_parse(messages, messages[0]["content"], "vision")
 
     def _decide_non_vision(self, context: str) -> BehaviorOutput:
         t = datetime.now().strftime("%H:%M:%S")
@@ -204,22 +212,13 @@ class Behavior(BrainMixin):
         logger.info(f"[{t}] [Behavior]   model: {self._model}")
         logger.info(f"[{t}] [Behavior]   context({len(context)} chars): \"{context[:80]}\"")
         logger.info(f"[{t}] [Behavior]   history: {len(self._context)} entries")
-
-        self._trim_history()
-        context_str = self._build_context_str(context)
-        prompt = prompts.non_vision_decide_prompt(context_str)
-        if config.NON_VISION_PROMPT_EXTRA:
-            prompt += "\n\n" + config.NON_VISION_PROMPT_EXTRA.replace("{context}", context_str)
-        system_content = self._append_personality(prompts.non_vision_system_prompt())
-        messages = [
-            {"role": "system", "content": system_content},
-            {"role": "user", "content": prompt},
-        ]
-        return self._call_llm_and_parse(messages, system_content, "non_vision")
+        messages = self._build_decide_messages(context, vision=False)
+        return self._call_llm_and_parse(messages, messages[0]["content"], "non_vision")
 
     def _parse_behavior(self, content: str) -> BehaviorOutput:
         actions: list = []
         speech = None
+        summary = None
         for line in content.split("\n"):
             line = line.strip()
             if not line:
@@ -234,9 +233,29 @@ class Behavior(BrainMixin):
                 raw = line.split(":", 1)[1].strip()
                 if raw.lower() not in ("none", "", "null"):
                     speech = raw
+            elif lower.startswith("summary:"):
+                summary = line.split(":", 1)[1].strip()
         if not actions:
             actions.append(ActionStep("idle"))
-        return BehaviorOutput(actions=actions, speech=speech)
+        return BehaviorOutput(actions=actions, speech=speech, summary=summary)
+
+    def _finish_line(self, buffer, actions, speech_parts, skill_lines, summary_holder=None):
+        """归档一个完成的行。"""
+        line = buffer.strip()
+        if not line:
+            return
+        lower = line.lower()
+        if lower.startswith("speech:"):
+            speech_parts.append(line.split(":", 1)[1].strip())
+        elif lower.startswith("action:"):
+            step = self._parse_action_line(line.split(":", 1)[1].strip())
+            if step:
+                actions.append(step)
+        elif lower.startswith("skill:"):
+            skill_lines.append(line)
+        elif lower.startswith("summary:"):
+            if summary_holder is not None:
+                summary_holder.append(line.split(":", 1)[1].strip())
 
     def _parse_action_line(self, raw: str) -> ActionStep | None:
         parts = raw.split()
@@ -265,12 +284,12 @@ class Behavior(BrainMixin):
                 args.append(token)
         return ActionStep(name, tuple(args), kwargs)
 
-    def _execute_with_tools(self, first_content: str, system_content: str) -> BehaviorOutput:
-        """解析 LLM 输出，若含 Tool 调用则执行工具并进行二次调用。"""
-        from pet.skills.executor import ToolExecutor
+    def _execute_with_skills(self, first_content: str, system_content: str, on_chunk=None) -> BehaviorOutput:
+        """解析 LLM 输出，若含 Skill 调用则执行技能并进行二次调用。"""
+        from pet.skills.executor import SkillExecutor
 
-        executor = ToolExecutor()
-        tool_calls = executor.parse_tool_lines(first_content)
+        executor = SkillExecutor()
+        tool_calls = executor.parse_skill_lines(first_content)
 
         if not tool_calls:
             return self._parse_behavior(first_content)
@@ -283,18 +302,19 @@ class Behavior(BrainMixin):
         messages = [
             {"role": "system", "content": system_content},
             {"role": "assistant", "content": first_content},
-            {"role": "user", "content": prompts.tool_result_user_prompt(result_text)},
+            {"role": "user", "content": prompts.skill_result_user_prompt(result_text)},
         ]
+        self._dump_context("skill_pass2", messages)
         try:
-            resp = self._client.chat.completions.create(
-                model=self._model,
-                messages=messages,
-                max_tokens=4000,
-            )
-            final_content = resp.choices[0].message.content or ""
-            return self._parse_behavior(final_content)
+            if on_chunk:
+                # 流式二次调用，speech 逐字推送到气泡
+                return self._stream_and_parse(messages, on_chunk=on_chunk, tag="skill_pass2")
+            else:
+                resp = self._llm_call(messages)
+                final_content = resp.choices[0].message.content or ""
+                return self._parse_behavior(final_content)
         except Exception as e:
-            logger.error(f"[Behavior] tool second-pass failed: {e}")
+            logger.error(f"[Behavior] skill second-pass failed: {e}")
             return self._parse_behavior(first_content)
 
     def _decide_local(self) -> BehaviorOutput:
@@ -317,6 +337,244 @@ class Behavior(BrainMixin):
             actions=[ActionStep(action)],
             speech=speech,
         )
+
+    # ── 流式调用方法 ──
+
+    def _build_decide_messages(self, context: str, vision: bool = False, base64_img: str = None) -> list:
+        self._trim_history()
+        context_str = self._build_context_str(context)
+        if vision:
+            system_content = self._append_personality(prompts.vision_system_prompt())
+            text_prompt = prompts.vision_decide_prompt(context_str)
+            if config.VISION_PROMPT_EXTRA:
+                text_prompt += "\n\n" + config.VISION_PROMPT_EXTRA.replace("{context}", context_str)
+            return [
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": [
+                    {"type": "text", "text": text_prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_img}"}},
+                ]},
+            ]
+        else:
+            system_content = self._append_personality(prompts.non_vision_system_prompt())
+            prompt = prompts.non_vision_decide_prompt(context_str)
+            if config.NON_VISION_PROMPT_EXTRA:
+                prompt += "\n\n" + config.NON_VISION_PROMPT_EXTRA.replace("{context}", context_str)
+            return [
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": prompt},
+            ]
+
+    def _build_chat_messages(self, user_message: str, context: str) -> list:
+        self._trim_history()
+        system_content = self._append_personality(prompts.chat_decide_system_prompt())
+        history = ""
+        if self._context:
+            recent = self._context[-9:-1] if len(self._context) > 1 else []
+            if recent:
+                history = "\n\n=== 近期对话/行为记录 ===\n" + "\n".join(recent)
+        user_content = prompts.chat_decide_user_prompt(user_message, context + history)
+        return [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": user_content},
+        ]
+
+    def _stream_and_parse(self, messages: list, on_chunk=None, on_stream_end=None, tag: str = "") -> BehaviorOutput:
+        """流式 LLM 调用的核心：逐行状态机解析，Speech 行逐字推送。"""
+        self._dump_context(tag, messages)
+        try:
+            stream = self._llm_call_stream(messages)
+
+            buffer = ""
+            actions = []
+            speech_parts = []
+            skill_lines = []
+            summary_holder = []
+            speech_streamed = False
+            line_type = None
+            speech_prefix_consumed = False
+
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content
+                if delta is None:
+                    continue
+
+                delta_speech = ""
+                for char in delta:
+                    if char == "\n":
+                        self._finish_line(buffer, actions, speech_parts, skill_lines, summary_holder)
+                        buffer = ""
+                        line_type = None
+                        speech_prefix_consumed = False
+                    else:
+                        buffer += char
+
+                        if line_type is None:
+                            stripped = buffer.lstrip()
+                            lower = stripped.lower()
+                            if lower.startswith("speech:"):
+                                line_type = "speech"
+                            elif lower.startswith("action:"):
+                                line_type = "action"
+                            elif lower.startswith("skill:"):
+                                line_type = "skill"
+                            elif lower.startswith("summary:"):
+                                line_type = "summary"
+                            elif len(stripped) >= 8:
+                                line_type = "other"
+
+                        if line_type == "speech":
+                            stripped = buffer.lstrip()
+                            if not speech_prefix_consumed:
+                                prefix = "Speech: "
+                                if len(stripped) > len(prefix):
+                                    speech_prefix_consumed = True
+                                    delta_speech += stripped[len(prefix):]
+                            else:
+                                delta_speech += char
+
+                if delta_speech and on_chunk:
+                    on_chunk(delta_speech)
+                    speech_streamed = True
+
+            # 最后一行
+            if buffer.strip():
+                self._finish_line(buffer, actions, speech_parts, skill_lines, summary_holder)
+
+            # Skill 调用 → 二次非流式调用
+            if skill_lines:
+                if on_stream_end:
+                    on_stream_end()
+                full_content = "\n".join(
+                    [f"Speech: {s}" for s in speech_parts] +
+                    [f"Action: {a.name} {' '.join(map(str, a.args))}" for a in actions] +
+                    skill_lines
+                )
+                logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] === LLM RESPONSE ({tag}) ===")
+                logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {full_content}")
+                return self._execute_with_skills(full_content, messages[0]["content"], on_chunk=on_chunk)
+
+            raw = "\n".join(
+                ([f"Summary: {summary_holder[0]}"] if summary_holder else []) +
+                [f"Speech: {s}" for s in speech_parts] +
+                [f"Action: {a.name} {' '.join(map(str, a.args))}" for a in actions] +
+                skill_lines
+            )
+            logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] === LLM RESPONSE ({tag}) ===")
+            logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {raw}")
+
+            return BehaviorOutput(
+                actions=actions,
+                speech=" ".join(speech_parts),
+                speech_streamed=speech_streamed,
+                summary=summary_holder[0] if summary_holder else None,
+            )
+
+        except Exception as e:
+            logger.exception(f"[{tag}] stream failed: {type(e).__name__}: {e}")
+            return self._decide_local()
+
+    def decide_stream(self, context: str, on_chunk=None, on_stream_end=None) -> BehaviorOutput:
+        """流式决策（无视觉）。"""
+        if not self._client:
+            return self._decide_local()
+        messages = self._build_decide_messages(context, vision=False)
+        return self._stream_and_parse(messages, on_chunk=on_chunk, on_stream_end=on_stream_end, tag="decide_stream")
+
+    def decide_with_vision_stream(self, image: Image.Image, context: str, on_chunk=None, on_stream_end=None) -> BehaviorOutput:
+        """流式决策（含视觉截图）。"""
+        if not self.has_vision:
+            return self.decide_stream(context, on_chunk=on_chunk, on_stream_end=on_stream_end)
+        scale = config.VISION_SCALE
+        if scale < 1.0:
+            w, h = image.size
+            new_w, new_h = int(w * scale), int(h * scale)
+            MIN_PX = 1536
+            if max(new_w, new_h) < MIN_PX:
+                ratio = MIN_PX / max(new_w, new_h)
+                new_w, new_h = int(new_w * ratio), int(new_h * ratio)
+            image = image.resize((new_w, new_h), Image.LANCZOS)
+        base64_img = self._encode_base64(image)
+        messages = self._build_decide_messages(context, vision=True, base64_img=base64_img)
+        return self._stream_and_parse(messages, on_chunk=on_chunk, on_stream_end=on_stream_end, tag="decide_vision_stream")
+
+    def _chat_decide_local(self, user_message: str) -> BehaviorOutput:
+        return BehaviorOutput(
+            actions=[ActionStep("look_around", kwargs={"duration": 5})],
+            speech=f"（听到了：{user_message[:10]}...但我还不会回应）",
+        )
+
+    def chat_decide_stream(self, user_message: str, context: str, on_chunk=None, on_stream_end=None) -> BehaviorOutput:
+        """流式对话决策。"""
+        if not self._client:
+            return self._chat_decide_local(user_message)
+        messages = self._build_chat_messages(user_message, context)
+        self._dump_context("chat_stream", messages)
+        try:
+            stream = self._llm_call_stream(messages)
+            full_content = ""
+            line_buffer = ""
+            in_speech = False
+            prefix_consumed = False
+            speech_streamed = False
+
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content
+                if delta is None:
+                    continue
+                full_content += delta
+
+                delta_speech = ""
+                for char in delta:
+                    if char == "\n":
+                        line_buffer = ""
+                        in_speech = False
+                        prefix_consumed = False
+                    else:
+                        line_buffer += char
+                        if not in_speech:
+                            stripped = line_buffer.lstrip()
+                            if stripped.lower().startswith("speech:"):
+                                in_speech = True
+                                prefix = "Speech: "
+                                if len(stripped) > len(prefix):
+                                    prefix_consumed = True
+                                    delta_speech += stripped[len(prefix):]
+                            elif len(stripped) >= 8:
+                                pass
+                        else:
+                            if not prefix_consumed:
+                                stripped = line_buffer.lstrip()
+                                prefix = "Speech: "
+                                if len(stripped) > len(prefix):
+                                    prefix_consumed = True
+                                    delta_speech += stripped[len(prefix):]
+                            else:
+                                delta_speech += char
+
+                if delta_speech and on_chunk:
+                    on_chunk(delta_speech)
+                    speech_streamed = True
+
+            logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] === LLM RESPONSE (chat_stream) ===")
+            logger.debug(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {full_content}")
+
+            if "skill:" in full_content.lower():
+                if on_stream_end:
+                    on_stream_end()
+                system_content = messages[0]["content"]
+                result = self._execute_with_skills(full_content, system_content, on_chunk=on_chunk)
+                return result
+
+            result = self._parse_behavior(full_content)
+            result.speech_streamed = speech_streamed
+            return result
+        except Exception as e:
+            logger.error(f"[Behavior] chat_decide_stream failed: {type(e).__name__}: {e}")
+            return BehaviorOutput(
+                actions=[ActionStep("look_around", kwargs={"duration": 5})],
+                speech="喔...我好像没听清",
+            )
 
     def decide_action(self, context: str = "") -> str:
         result = self.decide(context)
@@ -345,13 +603,13 @@ class Behavior(BrainMixin):
         for ctx in self._context:
             messages.append({"role": "user", "content": ctx})
         messages.append({"role": "user", "content": prompt})
-        self._log_messages(t, messages)
+        self._dump_context("think", messages)
 
-        response = self._client.chat.completions.create(
-            model=self._model,
-            messages=messages,
-            max_tokens=4000,
-        )
+        try:
+            response = self._llm_call(messages)
+        except Exception as e:
+            logger.error(f"[Behavior] think failed after retries: {type(e).__name__}: {e}")
+            return "抱歉，我现在脑子有点转不过来..."
         content = response.choices[0].message.content or ""
         logger.info(f"[{t}] [Behavior] === LLM RESPONSE ===")
         logger.info(f"[{t}] [Behavior]   finish_reason: {response.choices[0].finish_reason}")
@@ -406,12 +664,9 @@ class Behavior(BrainMixin):
             {"role": "user", "content": user_content},
         ]
 
+        self._dump_context("chat_decide", messages)
         try:
-            resp = self._client.chat.completions.create(
-                model=self._model,
-                messages=messages,
-                max_tokens=4000,
-            )
+            resp = self._llm_call(messages)
             content = resp.choices[0].message.content or ""
             logger.info(f"[{t}] [Behavior] === LLM RESPONSE (chat_decide) ===")
             logger.debug(f"[{t}] [Behavior]   raw: {content}")

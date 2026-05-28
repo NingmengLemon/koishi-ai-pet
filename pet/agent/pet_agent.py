@@ -5,7 +5,7 @@ from datetime import datetime
 from PySide6.QtCore import QObject, QThread, QThreadPool, QTimer, Signal
 
 from pet.brain.behavior import Behavior, BehaviorOutput
-from pet.brain.view import ViewBrain, OcrReader
+from pet.brain.view import View, OcrReader
 from pet.agent.scheduler import Scheduler
 from pet.agent.state import StateMachine
 from pet.agent.screen_reader import ScreenReader
@@ -47,11 +47,14 @@ class PetAgent(QObject):
     state_changed    = Signal(str)
     view_ready       = Signal(str)
     view_error       = Signal(str)
+    speak_stream_start = Signal()
+    speak_stream_chunk = Signal(str)
+    speak_stream_end   = Signal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.behavior = Behavior()
-        self.view_brain = ViewBrain()
+        self.view_brain = View()
         self.screen_reader = ScreenReader()
         self.screen_reader.enable()
         self.ocr_reader = OcrReader(languages=config.OCR_LANGUAGES, gpu=config.OCR_GPU)
@@ -92,7 +95,7 @@ class PetAgent(QObject):
                 self._thread.quit()
                 self._thread.wait(3000)
         except RuntimeError:
-            pass  # QThread C++ 对象可能已被 Qt 销毁
+            pass
         logger.info("[PetAgent] stopped")
 
     def trigger(self, intent: str, **kwargs):
@@ -169,10 +172,29 @@ class PetAgent(QObject):
             parts.append(f"屏幕文字(OCR): {ocr_text[:config.OCR_MAX_CHARS]}")
         context = "\n\n".join(parts) if parts else ""
 
+        stream_started = False
+
+        def on_chunk(delta: str):
+            nonlocal stream_started
+            if not stream_started:
+                self.speak_stream_start.emit()
+                stream_started = True
+            self.speak_stream_chunk.emit(delta)
+
+        def on_stream_end():
+            nonlocal stream_started
+            if stream_started:
+                self.speak_stream_end.emit(5000)
+                stream_started = False
+
         if self.behavior.has_vision:
-            return self.behavior.decide_with_vision(image, context)
+            result = self.behavior.decide_with_vision_stream(image, context, on_chunk=on_chunk, on_stream_end=on_stream_end)
         else:
-            return self.behavior.decide(context)
+            result = self.behavior.decide_stream(context, on_chunk=on_chunk, on_stream_end=on_stream_end)
+
+        if stream_started:
+            self.speak_stream_end.emit(5000)
+        return result
 
     def _build_window_context(self, pet_x: int, pet_y: int) -> str:
         """用 Win32 API 枚举可见窗口，生成桌宠可用的跳转参考数据。"""
@@ -262,7 +284,7 @@ class PetAgent(QObject):
         self._async_brain(self._chat_pipeline, message, pet_x, pet_y)
 
     def _chat_pipeline(self, message: str, pet_x: int, pet_y: int):
-        """后台线程：构建上下文 + 对话决策。"""
+        """后台线程：构建上下文 + 对话决策（流式）。"""
         ts = datetime.now().strftime("%H:%M:%S")
         self.behavior.add_context(f"[{ts}] [user] {message}")
 
@@ -287,7 +309,26 @@ class PetAgent(QObject):
             parts.append(f"屏幕文字(OCR): {ocr_text[:config.OCR_MAX_CHARS]}")
         context = "\n\n".join(parts) if parts else "当前无特殊环境信息"
 
-        return self.behavior.chat_decide(message, context)
+        stream_started = False
+
+        def on_chunk(delta: str):
+            nonlocal stream_started
+            if not stream_started:
+                self.speak_stream_start.emit()
+                stream_started = True
+            self.speak_stream_chunk.emit(delta)
+
+        def on_stream_end():
+            nonlocal stream_started
+            if stream_started:
+                self.speak_stream_end.emit(8000)
+                stream_started = False
+
+        result = self.behavior.chat_decide_stream(message, context, on_chunk=on_chunk, on_stream_end=on_stream_end)
+
+        if stream_started:
+            self.speak_stream_end.emit(8000)
+        return result
 
     def _async_brain(self, fn, *args, on_result=None, on_error=None):
         fn_name = getattr(fn, "__name__", repr(fn))
@@ -306,7 +347,7 @@ class PetAgent(QObject):
                     self._thread.quit()
                     self._thread.wait(1000)
             except RuntimeError:
-                pass  # C++ 对象已被 Qt 提前销毁
+                pass
         self._worker = BrainWorker(fn, *args)
         self._thread = QThread(self)
         self._worker.moveToThread(self._thread)
@@ -331,8 +372,12 @@ class PetAgent(QObject):
             action_names = [a.name for a in result.actions]
             self.behavior.add_context(
                 f"[{ts}] did {', '.join(action_names)}, said: {result.speech or '(silent)'}")
-            if result.speech:
-                self.speak_requested.emit(result.speech, 4000)
+            if result.speech and not result.speech_streamed:
+                self.speak_stream_start.emit()
+                self.speak_stream_chunk.emit(result.speech)
+                self.speak_stream_end.emit(4000)
+            if result.summary:
+                self.behavior.add_context(f"[{ts}] [summary] {result.summary}")
             for step in result.actions:
                 self.action_requested.emit(step.name, step.args, step.kwargs)
         elif isinstance(result, str):

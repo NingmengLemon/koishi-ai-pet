@@ -29,6 +29,14 @@ class SpeechBubble(QLabel):
         self._follow_timer = QTimer(self)
         self._follow_timer.timeout.connect(self._follow_pet)
         self._anim_group: QParallelAnimationGroup | None = None
+
+        # 打字机效果相关
+        self._stream_buffer = ""
+        self._char_queue: list[str] = []
+        self._type_timer = QTimer(self)
+        self._type_timer.timeout.connect(self._type_next_char)
+        self._type_interval = 35  # 每字符间隔（ms），可调节
+
         self.hide()
 
     def paintEvent(self, event):
@@ -58,33 +66,44 @@ class SpeechBubble(QLabel):
         painter.end()
         super().paintEvent(event)
 
-    def show_text(self, text, duration=5000, parent_pos=None):
-        self.setText(text)
-
+    def _resize_to_text(self):
+        """根据当前文本重新计算气泡尺寸。"""
+        text = self.text()
         self.setMinimumWidth(80)
         self.setMaximumWidth(config.BUBBLE_MAX_WIDTH)
-
         metrics = self.fontMetrics()
         avg_w = metrics.averageCharWidth()
         target_w = int(avg_w * 28)
-        text_w  = metrics.horizontalAdvance(text) + 20
+        text_w = metrics.horizontalAdvance(text) + 20
         w = text_w if text_w <= target_w else target_w
         w = max(w, self.minimumWidth())
         w = min(w, self.maximumWidth())
-
         self.setFixedWidth(w)
         self.adjustSize()
-
-        self.setMinimumWidth(80)
-        self.setMaximumWidth(config.BUBBLE_MAX_WIDTH)
         self.resize(self.width(), self.height() + TAIL_HEIGHT)
 
-        # 如果未传位置，从父窗口（桌宠窗口）获取
+    def _reposition(self):
+        """根据当前父窗口位置重新定位气泡。"""
+        pet = self.parent()
+        if isinstance(pet, QWidget) and self.isVisible():
+            target = pet.geometry().center()
+            final = self._final_position(target)
+            self.move(final)
+
+    def _start_tracking(self):
+        self._follow_timer.start(50)
+
+    def _start_hide_timer_ms(self, duration: int):
+        self._hide_timer.start(duration)
+
+    def show_text(self, text, duration=5000, parent_pos=None):
+        self.setText(text)
+        self._resize_to_text()
+
         if parent_pos is None and isinstance(self.parent(), QWidget):
             parent_pos = self.parent().geometry().center()
 
         if parent_pos is not None:
-            # 将气泡置于桌宠头部（窗口上 1/3），透明度 0 → 从头部弹出
             start_pos = self._head_position(parent_pos)
             self.move(start_pos)
             self.setWindowOpacity(0.0)
@@ -112,10 +131,76 @@ class SpeechBubble(QLabel):
             self._anim_group.finished.connect(self._on_anim_finished)
             self._anim_group.start()
         else:
-            self._follow_timer.start(50)
+            self._start_tracking()
 
-        # 显示时长 = 传入 duration，动画不占用显示时间
-        self._hide_timer.start(duration)
+        self._start_hide_timer_ms(duration)
+
+    def start_stream(self, parent_pos=None):
+        """开始流式 - 显示空气泡并开始跟随桌宠。"""
+        self._stream_buffer = ""
+        self._char_queue.clear()
+        self._type_timer.stop()
+        self.setText("")
+        self._resize_to_text()
+
+        if parent_pos is None and isinstance(self.parent(), QWidget):
+            parent_pos = self.parent().geometry().center()
+
+        if parent_pos is not None:
+            pos = self._final_position(parent_pos)
+            self.move(pos)
+
+        self.show()
+        self._start_tracking()
+
+    def append_stream(self, chunk: str):
+        """追加文本片段到队列，由定时器逐字显示（打字机效果）。"""
+        self._char_queue.extend(chunk)
+        if not self._type_timer.isActive():
+            self._type_timer.start(self._type_interval)
+
+    def _type_next_char(self):
+        """定时器回调：从队列取一个字符显示。"""
+        if self._char_queue:
+            char = self._char_queue.pop(0)
+            self._stream_buffer += char
+            self.setText(self._stream_buffer)
+            self._resize_to_text()
+            self._reposition()
+        else:
+            self._type_timer.stop()
+
+    def end_stream(self, duration: int = 5000):
+        """结束流式：队列打完后再启动自动隐藏。"""
+        self._end_stream_duration = duration
+        if self._char_queue:
+            self._type_timer.timeout.disconnect(self._type_next_char)
+            self._type_timer.timeout.connect(self._type_next_char_then_hide)
+        else:
+            self._type_timer.stop()
+            self._finish_stream()
+
+    def _type_next_char_then_hide(self):
+        """打字 + 打完后触发隐藏。"""
+        if self._char_queue:
+            char = self._char_queue.pop(0)
+            self._stream_buffer += char
+            self.setText(self._stream_buffer)
+            self._resize_to_text()
+            self._reposition()
+        else:
+            self._type_timer.stop()
+            self._type_timer.timeout.disconnect(self._type_next_char_then_hide)
+            self._type_timer.timeout.connect(self._type_next_char)
+            self._finish_stream()
+
+    def _finish_stream(self):
+        """流式结束后的收尾。"""
+        if self._anim_group:
+            self._anim_group.stop()
+            self._anim_group = None
+            self.setWindowOpacity(1.0)
+        self._start_hide_timer_ms(self._end_stream_duration)
 
     def _head_position(self, target_pos: QPoint) -> QPoint:
         """气泡起始位置：桌宠头部（窗口上 1/3），气泡底部对齐头部下沿。"""

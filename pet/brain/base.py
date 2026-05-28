@@ -1,5 +1,5 @@
 class BrainMixin:
-    """轻量级上下文管理 mixin — 按需混入具体 brain 类。"""
+    """轻量级上下文管理 mixin"""
 
     def __init__(self):
         self._context: list[str] = []

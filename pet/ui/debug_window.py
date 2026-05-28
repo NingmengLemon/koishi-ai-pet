@@ -10,8 +10,7 @@ from PySide6.QtGui import QFont
 
 from pet.ui.bubble import SpeechBubble
 from pet.brain.behavior import Behavior
-from pet.brain.view import ViewBrain
-from pet.skills.system_monitor import SystemMonitor
+from pet.brain.view import View
 from pet.agent.screen_reader import ScreenReader
 from config import config
 
@@ -28,9 +27,7 @@ class DebugWindow(QWidget):
             self.view_brain = agent.view_brain
         else:
             self.brain = Behavior()
-            self.view_brain = ViewBrain()
-        self.monitor = SystemMonitor()
-        self.monitor.enable()
+            self.view_brain = View()
         self.screen_reader = ScreenReader()
         self.screen_reader.enable()
 
@@ -44,9 +41,13 @@ class DebugWindow(QWidget):
         self.setMinimumWidth(680)
         self._setup_ui()
 
-        self._stats_timer = QTimer(self)
-        self._stats_timer.timeout.connect(self._refresh_stats)
-        self._stats_timer.start(2000)
+        self._pos_timer = QTimer(self)
+        self._pos_timer.timeout.connect(self._refresh_pos)
+        self._pos_timer.start(1000)
+
+    def _refresh_pos(self):
+        pos = self.pet.pos()
+        self.label_pet_pos.setText(f"({pos.x()}, {pos.y()})")
 
     def _setup_ui(self):
         root = QHBoxLayout(self)
@@ -94,8 +95,10 @@ class DebugWindow(QWidget):
         status_row = QFormLayout()
         self.label_pet_action = QLabel("—")
         self.label_pet_status = QLabel("—")
+        self.label_pet_pos = QLabel("—")
         status_row.addRow("当前动作:", self.label_pet_action)
         status_row.addRow("播放状态:", self.label_pet_status)
+        status_row.addRow("宠物位置:", self.label_pet_pos)
         anim_layout.addLayout(status_row)
 
         self.pet.pet_anim.animation_finished.connect(self._on_pet_anim_finished)
@@ -296,18 +299,6 @@ class DebugWindow(QWidget):
         decide_layout.addWidget(self.decide_output)
 
         right.addWidget(decide_group)
-
-        stats_group = QGroupBox("系统监控")
-        stats_layout = QFormLayout(stats_group)
-        self.label_cpu = QLabel("--")
-        self.label_mem = QLabel("--")
-        self.label_pet_pos = QLabel("--")
-        self.label_pet_visible = QLabel("--")
-        stats_layout.addRow("CPU:", self.label_cpu)
-        stats_layout.addRow("内存:", self.label_mem)
-        stats_layout.addRow("宠物位置:", self.label_pet_pos)
-        stats_layout.addRow("宠物可见:", self.label_pet_visible)
-        right.addWidget(stats_group)
 
         # ── 左栏（续）──
 
@@ -581,30 +572,7 @@ class DebugWindow(QWidget):
         self.view_output.clear()
         self.view_output.append(f"[Error] {msg}")
 
-    def _refresh_stats(self):
-        try:
-            cpu = self.monitor.get_cpu_usage()
-            self.label_cpu.setText(f"{cpu:.1f}%")
-        except Exception:
-            self.label_cpu.setText("N/A")
-
-        try:
-            mem = self.monitor.get_memory_usage()
-            self.label_mem.setText(f"{mem:.1f}%")
-        except Exception:
-            self.label_mem.setText("N/A")
-
-        pos = self.pet.pos()
-        self.label_pet_pos.setText(f"({pos.x()}, {pos.y()})")
-        self.label_pet_visible.setText("是" if self.pet.isVisible() else "否")
-
-        if self.agent and hasattr(self, 'chk_tick'):
-            running = self.agent.scheduler.is_running()
-            self.chk_tick.setChecked(running)
-            self.label_tick_state.setText("运行中" if running else "已停")
-
     def closeEvent(self, event):
-        self._stats_timer.stop()
-        self.monitor.disable()
+        self._pos_timer.stop()
         self.screen_reader.disable()
         super().closeEvent(event)

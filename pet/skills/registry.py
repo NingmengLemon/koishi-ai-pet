@@ -1,11 +1,11 @@
-"""工具注册表 — 自动发现、注册、描述可用工具。"""
+"""技能注册表 — 自动发现、注册、描述可用技能。"""
 
 from dataclasses import dataclass, field
 from typing import Callable, Any
 
 
 @dataclass
-class ToolMethod:
+class SkillMethod:
     name: str
     description: str
     args: dict = field(default_factory=dict)
@@ -13,27 +13,27 @@ class ToolMethod:
 
 
 @dataclass
-class ToolDef:
+class SkillDef:
     name: str
     description: str
-    methods: dict[str, ToolMethod] = field(default_factory=dict)
+    methods: dict[str, SkillMethod] = field(default_factory=dict)
 
 
-class ToolRegistry:
-    """全局工具注册表。"""
+class SkillRegistry:
+    """全局技能注册表。"""
 
     def __init__(self):
-        self._tools: dict[str, ToolDef] = {}
+        self._skills: dict[str, SkillDef] = {}
 
-    def register(self, tool_name: str, description: str) -> "ToolDef":
-        tool = ToolDef(name=tool_name, description=description)
-        self._tools[tool_name] = tool
-        return tool
+    def register(self, skill_name: str, description: str) -> "SkillDef":
+        skill = SkillDef(name=skill_name, description=description)
+        self._skills[skill_name] = skill
+        return skill
 
-    def add_method(self, tool_name: str, method_name: str,
+    def add_method(self, skill_name: str, method_name: str,
                    description: str, handler: Callable, args: dict = None):
-        tool = self._tools[tool_name]
-        tool.methods[method_name] = ToolMethod(
+        skill = self._skills[skill_name]
+        skill.methods[method_name] = SkillMethod(
             name=method_name, description=description,
             args=args or {}, handler=handler,
         )
@@ -42,35 +42,36 @@ class ToolRegistry:
         parts = full_name.split(".", 1)
         if len(parts) != 2:
             return None
-        tool_name, method_name = parts
-        tool = self._tools.get(tool_name)
-        if not tool:
+        skill_name, method_name = parts
+        skill = self._skills.get(skill_name)
+        if not skill:
             return None
-        method = tool.methods.get(method_name)
+        method = skill.methods.get(method_name)
         return method.handler if method else None
 
     def generate_prompt_section(self) -> str:
-        """生成注入 LLM prompt 的工具描述段。"""
-        if not self._tools:
+        """生成注入 LLM prompt 的技能描述段。"""
+        if not self._skills:
             return ""
-        lines = ["=== 可用工具 ===",
-                 "当你需要调用工具。输出格式：",
-                 '  Tool: {"name": "tool.method", "args": {}}',
+        lines = ["=== 可用技能 ===",
+                 "以上是你能调用的全部技能，禁止编造不存在的技能名。",
+                 "输出格式：",
+                 '  Skill: {"name": "skill.method", "args": {}}',
                  "",
-                 "可用工具列表："]
-        for tool in self._tools.values():
-            lines.append(f"\n【{tool.name}】{tool.description}")
-            for m in tool.methods.values():
+                 "可用技能列表："]
+        for skill in self._skills.values():
+            lines.append(f"\n【{skill.name}】{skill.description}")
+            for m in skill.methods.values():
                 args_desc = ", ".join(f"{k}: {v}" for k, v in m.args.items())
                 args_part = f"  参数: {{{args_desc}}}" if args_desc else "  无参数"
-                lines.append(f"  - {tool.name}.{m.name}: {m.description}")
+                lines.append(f"  - {skill.name}.{m.name}: {m.description}")
                 lines.append(f"    {args_part}")
         return "\n".join(lines)
 
     @property
-    def tool_names(self) -> list[str]:
-        return list(self._tools.keys())
+    def skill_names(self) -> list[str]:
+        return list(self._skills.keys())
 
 
 # 全局单例
-TOOL_REGISTRY = ToolRegistry()
+SKILL_REGISTRY = SkillRegistry()

@@ -49,6 +49,12 @@ class Config:
 
     VISION_PROMPT_EXTRA = os.getenv("VISION_PROMPT_EXTRA", "")
 
+    # LLM 超时与重试
+    LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "30"))
+    LLM_MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "3"))
+    LLM_RETRY_DELAY = float(os.getenv("LLM_RETRY_DELAY", "1"))
+    LLM_RETRY_MAX_DELAY = float(os.getenv("LLM_RETRY_MAX_DELAY", "8"))
+
     SCREEN_READER_ENABLED = True
     SYSTEM_MONITOR_ENABLED = True
     SCHEDULER_AUTO_START = os.getenv("SCHEDULER_AUTO_START", "false").lower() == "true"
