@@ -254,9 +254,9 @@ class PetAgent(QObject):
             direction = "右" if dx_walk > 0 else "左"
             dist = abs(dx_walk)
             jump_px = abs(dy_top)
-            if jump_px <= 500:
+            if jump_px <= 400:
                 reachable = "可跳"
-            elif jump_px <= 900:
+            elif jump_px <= 800:
                 reachable = "勉强可跳"
             else:
                 reachable = "禁止跳跃（距离过高）"
@@ -373,15 +373,18 @@ class PetAgent(QObject):
         fn_name = getattr(fn, "__name__", repr(fn))
         ts = datetime.now().strftime("%H:%M:%S")
         logger.info(f"[{ts}] [PetAgent] _async_brain: {fn_name}")
+        # 保存旧引用，避免 _cleanup_thread 误操作新线程
+        old_thread = self._thread
+        old_worker = self._worker
         # 取消旧任务，等待线程退出
-        if self._thread is not None and self._thread.isRunning():
+        if old_thread is not None and old_thread.isRunning():
             self._cancel_flag = True
             try:
-                self._thread.quit()
-                if not self._thread.wait(2000):
+                old_thread.quit()
+                if not old_thread.wait(2000):
                     logger.warning(f"[{ts}] [PetAgent] old brain thread timeout, force terminate")
-                    self._thread.terminate()
-                    self._thread.wait(500)
+                    old_thread.terminate()
+                    old_thread.wait(500)
                     # 强制终止后，RLock 可能被死线程持有，需重建避免死锁
                     import threading
                     if hasattr(self, 'behavior') and hasattr(self.behavior, '_lock'):
@@ -390,21 +393,19 @@ class PetAgent(QObject):
             except RuntimeError:
                 pass
         # 彻底断开旧 thread 和 worker 的所有信号，防止已入队的 finished 信号破坏新对象
-        if self._thread is not None:
+        if old_thread is not None:
             try:
-                self._thread.finished.disconnect()
+                old_thread.finished.disconnect()
             except (RuntimeError, TypeError):
                 pass
-            self._thread.deleteLater()
-            self._thread = None
-        if self._worker is not None:
+            old_thread.deleteLater()
+        if old_worker is not None:
             try:
-                self._worker.finished.disconnect()
-                self._worker.error.disconnect()
+                old_worker.finished.disconnect()
+                old_worker.error.disconnect()
             except (RuntimeError, TypeError):
                 pass
-            self._worker.deleteLater()
-            self._worker = None
+            old_worker.deleteLater()
         self._cancel_flag = False
         self._worker = BrainWorker(fn, *args)
         self._thread = QThread(self)
@@ -417,8 +418,12 @@ class PetAgent(QObject):
         self._thread.start()
 
     def _cleanup_thread(self):
-        """线程完成后清理引用，避免访问已销毁的 C++ 对象。"""
-        if self._thread is not None:
+        """线程完成后清理引用，避免访问已销毁的 C++ 对象。
+        
+        仅当 sender 是当前活跃线程时才清理，防止旧线程延迟信号误删新线程。
+        """
+        sender = self.sender()
+        if self._thread is not None and self._thread is sender:
             self._thread.deleteLater()
             self._thread = None
         if self._worker is not None:
