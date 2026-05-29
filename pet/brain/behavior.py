@@ -105,17 +105,17 @@ class Behavior(BrainMixin):
     def _dump_context(self, tag: str, messages: list):
         """输出完整上下文到日志（调试用）。"""
         t = datetime.now().strftime("%H:%M:%S")
-        logger.info(f"[{t}] [Behavior] ====== FULL CONTEXT ({tag}) ======")
+        logger.debug(f"[{t}] [Behavior] ====== FULL CONTEXT ({tag}) ======")
         for i, m in enumerate(messages):
             if isinstance(m["content"], str):
-                logger.info(f"[{t}] [Behavior] --- msg[{i}] role={m['role']} ---\n{m['content']}")
+                logger.debug(f"[{t}] [Behavior] --- msg[{i}] role={m['role']} ---\n{m['content']}")
             else:
                 for j, part in enumerate(m["content"]):
                     if part["type"] == "text":
-                        logger.info(f"[{t}] [Behavior] --- msg[{i}] role={m['role']} part[{j}] text ---\n{part['text']}")
+                        logger.debug(f"[{t}] [Behavior] --- msg[{i}] role={m['role']} part[{j}] text ---\n{part['text']}")
                     else:
-                        logger.info(f"[{t}] [Behavior] --- msg[{i}] role={m['role']} part[{j}] {part['type']} len={len(str(part))} --- (binary omitted)")
-        logger.info(f"[{t}] [Behavior] ====== END CONTEXT ({tag}) ======")
+                        logger.debug(f"[{t}] [Behavior] --- msg[{i}] role={m['role']} part[{j}] {part['type']} len={len(str(part))} --- (binary omitted)")
+        logger.debug(f"[{t}] [Behavior] ====== END CONTEXT ({tag}) ======")
 
     @llm_retry(tag="Behavior")
     def _llm_call(self, messages: list, max_tokens: int = 4000):
@@ -150,7 +150,7 @@ class Behavior(BrainMixin):
             logger.info(f"[{t}] [Behavior]   finish_reason: {resp.choices[0].finish_reason}")
             if hasattr(resp, 'usage') and resp.usage:
                 logger.info(f"[{t}] [Behavior]   usage: {resp.usage}")
-            logger.debug(f"[{t}] [Behavior]   raw: {content}")
+            logger.info(f"[{t}] [Behavior]   raw: {content}")
             result = self._execute_with_skills(content, system_content)
             logger.info(f"[{t}] [Behavior]   parsed → {result}")
             return result

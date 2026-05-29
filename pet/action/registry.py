@@ -8,6 +8,15 @@ from dataclasses import dataclass, field
 from typing import List
 
 
+# 循环类动作默认时长（秒）—— LLM 未传 duration 时避免动作无限循环阻塞后续队列
+DEFAULT_ACTION_DURATIONS = {
+    "stretch": 5,
+    "look_around": 5,
+    "sit": 10,
+    "thinking": 5,
+    "sleep": 30,
+}
+
 @dataclass
 class ActionDef:
     """动作定义。"""

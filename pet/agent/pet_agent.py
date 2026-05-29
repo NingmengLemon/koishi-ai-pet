@@ -10,10 +10,10 @@ from pet.agent.scheduler import Scheduler
 from pet.agent.state import StateMachine
 from pet.agent.screen_reader import ScreenReader
 from pet.agent.memory_store import MemoryStore
+from pet.action.registry import DEFAULT_ACTION_DURATIONS
 from config import config
 
 logger = logging.getLogger(__name__)
-
 
 class BrainWorker(QObject):
 
@@ -121,6 +121,14 @@ class PetAgent(QObject):
         self.state_machine.force(st)
         self.state_changed.emit(st.value)
 
+    def _emit_action(self, name: str, args, kwargs):
+        """发射 action_requested 之前统一补上默认 duration，避免循环动作阻塞队列。"""
+        kw = dict(kwargs) if kwargs else {}
+        if "duration" not in kw and name in DEFAULT_ACTION_DURATIONS:
+            kw["duration"] = DEFAULT_ACTION_DURATIONS[name]
+            logger.debug(f"[PetAgent] backfill default duration for '{name}': {kw['duration']}s")
+        self.action_requested.emit(name, args or (), kw)
+
     def _on_mid_tick(self):
         ts = datetime.now().strftime("%H:%M:%S")
         if not self.state_machine.can_decide:
@@ -151,7 +159,7 @@ class PetAgent(QObject):
             self.state_machine.transition(PetState.IDLE)
             self.state_changed.emit(PetState.IDLE.value)
             logger.info(f"[{ts}] [PetAgent] slow_tick: woke up, emitting stretch")
-        self.action_requested.emit("stretch", (), {})
+        self._emit_action("stretch", (), {})
 
     def _decide_pipeline(self, image, pet_x=0, pet_y=0):
         """子线程运行：窗口探测 + OCR 提取文字 + LLM 决策"""
@@ -367,21 +375,29 @@ class PetAgent(QObject):
                     logger.warning(f"[{ts}] [PetAgent] old brain thread timeout, force terminate")
                     self._thread.terminate()
                     self._thread.wait(500)
-                    # 强制终止后恢复状态，防止卡死
-                    from pet.agent.state import PetState
-                    if self.state_machine.state in (PetState.INTERACTING, PetState.TALKING):
-                        self.state_machine.transition(PetState.IDLE)
-                        self.state_changed.emit(PetState.IDLE.value)
-                        logger.info(f"[PetAgent] state recovered to IDLE after thread terminate")
+                    # 强制终止后，RLock 可能被死线程持有，需重建避免死锁
+                    import threading
+                    if hasattr(self, 'behavior') and hasattr(self.behavior, '_lock'):
+                        self.behavior._lock = threading.RLock()
+                        logger.warning(f"[PetAgent] behavior._lock rebuilt after thread terminate")
             except RuntimeError:
                 pass
-        # 断开旧 worker 信号
+        # 彻底断开旧 thread 和 worker 的所有信号，防止已入队的 finished 信号破坏新对象
+        if self._thread is not None:
+            try:
+                self._thread.finished.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._thread.deleteLater()
+            self._thread = None
         if self._worker is not None:
             try:
                 self._worker.finished.disconnect()
                 self._worker.error.disconnect()
             except (RuntimeError, TypeError):
                 pass
+            self._worker.deleteLater()
+            self._worker = None
         self._cancel_flag = False
         self._worker = BrainWorker(fn, *args)
         self._thread = QThread(self)
@@ -394,6 +410,7 @@ class PetAgent(QObject):
         self._thread.start()
 
     def _cleanup_thread(self):
+        """线程完成后清理引用，避免访问已销毁的 C++ 对象。"""
         if self._thread is not None:
             self._thread.deleteLater()
             self._thread = None
@@ -421,7 +438,7 @@ class PetAgent(QObject):
             if result.summary:
                 self.behavior.add_context(f"[{ts}] [summary] {result.summary}")
             for step in result.actions:
-                self.action_requested.emit(step.name, step.args, step.kwargs)
+                self._emit_action(step.name, step.args, step.kwargs)
         elif isinstance(result, str):
             logger.info(f"[{ts}] [PetAgent] ← \"{result[:60]}\"")
             self.behavior.add_context(f"[{ts}] said: {result[:100]}")

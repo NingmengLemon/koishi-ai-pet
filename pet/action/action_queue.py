@@ -1,7 +1,9 @@
 
 import logging
 
-from PySide6.QtCore import QObject, QPropertyAnimation, Signal
+from PySide6.QtCore import QObject, QPropertyAnimation, QTimer, Signal
+
+from config import config
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,10 @@ class ActionQueue(QObject):
         self._paused = False
         self._active_anim: QPropertyAnimation | None = None
         self._waiting_anim_finished: bool = False
+        # 超时保护：防止循环动作永不发 animation_finished 导致队列永久阻塞
+        self._timeout_timer = QTimer(self)
+        self._timeout_timer.setSingleShot(True)
+        self._timeout_timer.timeout.connect(self._on_action_timeout)
 
     def enqueue(self, method_name: str, *args, **kwargs):
         self._queue.append((method_name, args, kwargs))
@@ -103,12 +109,30 @@ class ActionQueue(QObject):
         # 时间驱动：监听 PetAnimator.animation_finished
         self._actions._anim.animation_finished.connect(self._on_action_done)
         self._waiting_anim_finished = True
+        # 启动超时定时器（仅针对时间驱动动作，如 LLM 未提供 duration 则可能循环播放）
+        timeout_ms = max(1000, int(getattr(config, "ACTION_TIMEOUT_MS", 15000)))
+        self._timeout_timer.start(timeout_ms)
 
     def _on_action_done(self, *args):
         self._disconnect_active()
         self._run_next()
 
+    def _on_action_timeout(self):
+        """动作超时保护"""
+        if not self._waiting_anim_finished and self._active_anim is None:
+            return
+        cur = self._queue[self._cursor - 1] if 0 < self._cursor <= len(self._queue) else None
+        name = cur[0] if cur else "<unknown>"
+        logger.warning(
+            f"[ActionQueue] ⚠ action '{name}' timed out after "
+            f"{self._timeout_timer.interval()}ms, advancing to next"
+        )
+        self._disconnect_active()
+        self._run_next()
+
     def _disconnect_active(self):
+        if self._timeout_timer.isActive():
+            self._timeout_timer.stop()
         if self._active_anim is not None:
             try:
                 self._active_anim.finished.disconnect(self._on_action_done)
