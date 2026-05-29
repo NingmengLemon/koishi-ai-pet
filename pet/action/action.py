@@ -160,13 +160,6 @@ class PetActions(QObject):
         QTimer.singleShot(15000, self._fade_in_safety_check)
         return anim
     
-    def _fade_in_safety_check(self):
-        try:
-            if self._window.windowOpacity() < 0.1:
-                logger.warning("[PetActions] fade_out safety net triggered, forcing fade_in")
-                self.fade_in()
-        except RuntimeError:
-            pass
 
     def bounce(self, dx=0, dy=-150, duration=500):
         self._cleanup_stopped_anims()
@@ -212,4 +205,13 @@ class PetActions(QObject):
     def caught(self):
         self._cleanup_stopped_anims()
         self._anim.play("caught")
+        
+        
+    def _fade_in_safety_check(self):
+        try:
+            if self._window.windowOpacity() < 0.1:
+                logger.warning("[PetActions] fade_out safety net triggered, forcing fade_in")
+                self.fade_in()
+        except RuntimeError:
+            pass    
 
