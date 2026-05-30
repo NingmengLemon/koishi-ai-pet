@@ -153,7 +153,10 @@ def register(registry):
         SKILL_NAME, "get_top_processes",
         "获取占用CPU最高的前N个进程",
         handler=_get_top_processes,
-        args={"count": "返回进程数量(int, 默认5, 最大20)"},
+        args={
+            "count": {"type": "int", "required": False, "default": 5,
+                      "desc": "返回进程数量（1-20）"},
+        },
     )
     registry.add_method(
         SKILL_NAME, "get_memory_detail",

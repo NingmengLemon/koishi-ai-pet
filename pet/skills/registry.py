@@ -1,4 +1,10 @@
-"""技能注册表 — 自动发现、注册、描述可用技能。"""
+"""技能注册表 — 自动发现、注册、描述可用技能。
+
+args 参数格式：
+  {"name": {"type": "int", "required": False, "default": 5, "desc": "说明"}}
+  type 支持: int / float / str / bool / list / dict
+  required=True 表示必选，缺少时校验不通并返回错误给 LLM。
+"""
 
 from dataclasses import dataclass, field
 from typing import Callable, Any
@@ -57,16 +63,32 @@ class SkillRegistry:
                  "以上是你能调用的全部技能，禁止编造不存在的技能名。",
                  "输出格式：",
                  '  Skill: {"name": "skill.method", "args": {}}',
+                 "可一次输出多个 Skill 行；工具结果返回后你可以继续输出新的 Skill 行（多轮调用，最多 3 轮）。",
                  "",
                  "可用技能列表："]
         for skill in self._skills.values():
             lines.append(f"\n【{skill.name}】{skill.description}")
             for m in skill.methods.values():
-                args_desc = ", ".join(f"{k}: {v}" for k, v in m.args.items())
-                args_part = f"  参数: {{{args_desc}}}" if args_desc else "  无参数"
+                args_desc = self._format_args(m.args)
+                args_part = f"  参数: {args_desc}" if args_desc else "  无参数"
                 lines.append(f"  - {skill.name}.{m.name}: {m.description}")
                 lines.append(f"    {args_part}")
         return "\n".join(lines)
+
+    @staticmethod
+    def _format_args(args: dict) -> str:
+        """格式化结构化 args 为 prompt 描述文本。"""
+        if not args:
+            return ""
+        parts = []
+        for k, v in args.items():
+            t = v.get("type", "any")
+            req = v.get("required", False)
+            desc = v.get("desc", "")
+            default = v.get("default")
+            tag = "必选" if req else f"可选, 默认 {default!r}"
+            parts.append(f"{k}({t}, {tag}): {desc}")
+        return "{" + "; ".join(parts) + "}"
 
     @property
     def skill_names(self) -> list[str]:

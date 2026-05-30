@@ -579,38 +579,116 @@ class Behavior(BrainMixin):
     # 7. Skill 执行
     # ══════════════════════════════════════════════════════════════════
 
-    def _execute_with_skills(self, first_content: str, system_content: str, on_chunk=None) -> BehaviorOutput:
-        """解析 LLM 输出，若含 Skill 调用则执行技能并进行二次调用。"""
+    def _execute_with_skills(self, first_content: str, system_content: str, on_chunk=None,
+                             max_rounds: int = 3) -> BehaviorOutput:
+        """多轮工具调用循环。
+
+        每轮检测输出中的 Skill 行：有 → 执行并调用下一轮 LLM；无 → 解析为最终决策。
+        最多 max_rounds 轮，超过后强制结束，避免死循环。
+        """
         from pet.skills.executor import SkillExecutor
 
         executor = SkillExecutor()
-        tool_calls = executor.parse_skill_lines(first_content)
+        current_content = first_content
+        history = []  # 累积对话历史，供后续轮次使用
 
-        if not tool_calls:
-            return self._parse_behavior(first_content)
+        for round_idx in range(max_rounds):
+            tool_calls = executor.parse_skill_lines(current_content)
+            if not tool_calls:
+                # 无工具调用 → 解析为最终决策
+                return self._parse_behavior(current_content)
 
-        # 执行工具
-        results = executor.execute(tool_calls)
-        result_text = executor.format_results(results)
+            # 执行工具
+            results = executor.execute(tool_calls)
+            result_text, images = executor.format_results(results)
+            logger.info(f"[Behavior] skill_round_{round_idx+1} executed {len(tool_calls)} tool(s), images={len(images)}")
 
-        # 二次调用 LLM（带工具结果）
-        messages = [
-            {"role": "system", "content": system_content},
-            {"role": "assistant", "content": first_content},
-            {"role": "user", "content": prompts.skill_result_user_prompt(result_text)},
-        ]
-        self._dump_context("skill_pass2", messages)
-        try:
-            if on_chunk:
-                # 流式二次调用，speech 逐字推送到气泡
-                return self._stream_and_parse(messages, on_chunk=on_chunk, tag="skill_pass2")
+            # 累积到对话历史
+            history.append({"role": "assistant", "content": current_content})
+            # 插件有图且模型支持视觉时，构建多模态消息
+            if images and self.has_vision:
+                user_content = [
+                    {"type": "text", "text": prompts.skill_result_user_prompt(result_text)}
+                ]
+                for img_b64 in images:
+                    user_content.append({
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{img_b64}"}
+                    })
+                history.append({"role": "user", "content": user_content})
             else:
-                resp = self._llm_call(messages)
-                final_content = resp.choices[0].message.content or ""
-                return self._parse_behavior(final_content)
-        except Exception as e:
-            logger.error(f"[Behavior] skill second-pass failed: {e}")
-            return self._parse_behavior(first_content)
+                history.append({"role": "user", "content": prompts.skill_result_user_prompt(result_text)})
+
+            # 调用下一轮 LLM
+            messages = [{"role": "system", "content": system_content}] + history
+            tag = f"skill_round_{round_idx+1}"
+            self._dump_context(tag, messages)
+            try:
+                if on_chunk:
+                    # 流式调用：Speech 逐字推送，返回原始文本供下轮检测 Skill
+                    current_content = self._stream_collect(messages, on_chunk=on_chunk, tag=tag)
+                else:
+                    resp = self._llm_call(messages)
+                    current_content = resp.choices[0].message.content or ""
+                    logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] === LLM RESPONSE ({tag}) ===")
+                    logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {current_content}")
+            except Exception as e:
+                logger.error(f"[Behavior] {tag} failed: {e}")
+                return self._parse_behavior(current_content)
+
+        # 达到最大轮次，强制结束
+        logger.warning(f"[Behavior] reached MAX_ROUNDS={max_rounds}, force terminate skill loop")
+        return self._parse_behavior(current_content)
+
+    def _stream_collect(self, messages: list, on_chunk=None, tag: str = "") -> str:
+        """流式调用 LLM，Speech 行逐字推送给 on_chunk，返回完整原始文本。
+
+        不做 Skill 检测，仅负责“收集 + 推送”，以便在多轮循环中复用。
+        """
+        stream = self._llm_call_stream(messages)
+        full_content = ""
+        line_buffer = ""
+        in_speech = False
+        prefix_consumed = False
+
+        for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta is None:
+                continue
+            full_content += delta
+
+            delta_speech = ""
+            for char in delta:
+                if char == "\n":
+                    line_buffer = ""
+                    in_speech = False
+                    prefix_consumed = False
+                else:
+                    line_buffer += char
+                    if not in_speech:
+                        stripped = line_buffer.lstrip()
+                        if stripped.lower().startswith("speech:"):
+                            in_speech = True
+                            prefix = "Speech: "
+                            if len(stripped) > len(prefix):
+                                prefix_consumed = True
+                                delta_speech += stripped[len(prefix):]
+                    else:
+                        if not prefix_consumed:
+                            stripped = line_buffer.lstrip()
+                            prefix = "Speech: "
+                            if len(stripped) > len(prefix):
+                                prefix_consumed = True
+                                delta_speech += stripped[len(prefix):]
+                        else:
+                            delta_speech += char
+
+            if delta_speech and on_chunk:
+                on_chunk(delta_speech)
+
+        logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] === LLM RESPONSE ({tag}) ===")
+        logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {full_content}")
+        return full_content
 
     # ══════════════════════════════════════════════════════════════════
     # 8. Local Fallback

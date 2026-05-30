@@ -63,17 +63,27 @@ def register(registry):
         SKILL_NAME, "list_dir",
         "列出指定目录内容（限桌面/文档）",
         handler=_instance.list_dir,
-        args={"path": "目录路径，默认桌面"},
+        args={
+            "path": {"type": "str", "required": False, "default": "~/Desktop",
+                     "desc": "目录路径，默认桌面"},
+        },
     )
     registry.add_method(
         SKILL_NAME, "read_file",
         "读取文本文件前500字符（限桌面/文档）",
         handler=_instance.read_file,
-        args={"path": "文件路径", "max_chars": "最大读取字符数(可选)"},
+        args={
+            "path": {"type": "str", "required": True, "desc": "文件路径"},
+            "max_chars": {"type": "int", "required": False, "default": 500,
+                          "desc": "最大读取字符数"},
+        },
     )
     registry.add_method(
         SKILL_NAME, "write_note",
         "在桌面创建一个文本笔记",
         handler=_instance.write_note,
-        args={"filename": "文件名(含扩展名)", "content": "内容"},
+        args={
+            "filename": {"type": "str", "required": True, "desc": "文件名（含扩展名）"},
+            "content": {"type": "str", "required": True, "desc": "写入内容"},
+        },
     )

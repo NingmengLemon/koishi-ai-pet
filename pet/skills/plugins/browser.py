@@ -32,11 +32,15 @@ def register(registry):
         SKILL_NAME, "open_url",
         "用默认浏览器打开指定URL",
         handler=_instance.open_url,
-        args={"url": "要打开的网址"},
+        args={
+            "url": {"type": "str", "required": True, "desc": "要打开的网址（包含 http/https）"},
+        },
     )
     registry.add_method(
         SKILL_NAME, "search",
         "用默认浏览器搜索关键词",
         handler=_instance.search,
-        args={"query": "搜索关键词"},
+        args={
+            "query": {"type": "str", "required": True, "desc": "搜索关键词"},
+        },
     )

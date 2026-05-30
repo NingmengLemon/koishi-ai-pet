@@ -33,6 +33,7 @@ class SpeechBubble(QLabel):
         # 打字机效果相关
         self._stream_buffer = ""
         self._char_queue: list[str] = []
+        self._stream_ending = False   # True 表示队列打完后需触发隐藏
         self._type_timer = QTimer(self)
         self._type_timer.timeout.connect(self._type_next_char)
         self._type_interval = 35  # 每字符间隔（ms），可调节
@@ -139,6 +140,7 @@ class SpeechBubble(QLabel):
         """开始流式 - 显示空气泡并开始跟随桌宠。"""
         self._stream_buffer = ""
         self._char_queue.clear()
+        self._stream_ending = False
         self._type_timer.stop()
         self.setText("")
         self._resize_to_text()
@@ -160,7 +162,7 @@ class SpeechBubble(QLabel):
             self._type_timer.start(self._type_interval)
 
     def _type_next_char(self):
-        """定时器回调：从队列取一个字符显示。"""
+        """定时器回调：从队列取一个字符显示。队列清空且正在结束流时触发隐藏。"""
         if self._char_queue:
             char = self._char_queue.pop(0)
             self._stream_buffer += char
@@ -169,29 +171,20 @@ class SpeechBubble(QLabel):
             self._reposition()
         else:
             self._type_timer.stop()
+            if self._stream_ending:
+                self._stream_ending = False
+                self._finish_stream()
 
     def end_stream(self, duration: int = 5000):
         """结束流式：队列打完后再启动自动隐藏。"""
         self._end_stream_duration = duration
         if self._char_queue:
-            self._type_timer.timeout.disconnect(self._type_next_char)
-            self._type_timer.timeout.connect(self._type_next_char_then_hide)
+            # 还有字符未显示，标记结束状态，由 _type_next_char 队列耗尽后自动触发
+            self._stream_ending = True
+            if not self._type_timer.isActive():
+                self._type_timer.start(self._type_interval)
         else:
             self._type_timer.stop()
-            self._finish_stream()
-
-    def _type_next_char_then_hide(self):
-        """打字 + 打完后触发隐藏。"""
-        if self._char_queue:
-            char = self._char_queue.pop(0)
-            self._stream_buffer += char
-            self.setText(self._stream_buffer)
-            self._resize_to_text()
-            self._reposition()
-        else:
-            self._type_timer.stop()
-            self._type_timer.timeout.disconnect(self._type_next_char_then_hide)
-            self._type_timer.timeout.connect(self._type_next_char)
             self._finish_stream()
 
     def _finish_stream(self):

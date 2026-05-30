@@ -1,8 +1,12 @@
+import os
+
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QAction
-from PySide6.QtCore import Qt, QObject
+from PySide6.QtGui import QIcon, QAction
+from PySide6.QtCore import QObject
 
 from pet.ui.debug_window import DebugWindow
+
+_ICON_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "icon", "sys_tray.png")
 
 
 class SystemTrayManager(QObject):
@@ -16,22 +20,11 @@ class SystemTrayManager(QObject):
         self._debug_window = None
 
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(self._create_temp_icon())
+        self.tray_icon.setIcon(QIcon(os.path.normpath(_ICON_PATH)))
         self.tray_icon.setToolTip("Pet")
         self._build_menu()
         self.tray_icon.activated.connect(self._on_tray_activated)
         self.tray_icon.show()
-
-    def _create_temp_icon(self):
-        pixmap = QPixmap(32, 32)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setBrush(QColor(255, 150, 100))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(2, 2, 28, 28)
-        painter.end()
-        return QIcon(pixmap)
 
     def _build_menu(self):
         self.menu = QMenu()

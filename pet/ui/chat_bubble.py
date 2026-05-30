@@ -1,7 +1,7 @@
 """桌宠聊天交互组件 - 悬停显示，点击展开输入框。"""
 
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLineEdit
-from PySide6.QtCore import Qt, QTimer, QPoint, Signal, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup
+from PySide6.QtCore import Qt, QTimer, QPoint, Signal, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, QEvent
 from PySide6.QtGui import QFont
 from config import config
 
@@ -33,6 +33,11 @@ class ChatBubble(QWidget):
         self._hide_timer = QTimer(self)
         self._hide_timer.setSingleShot(True)
         self._hide_timer.timeout.connect(self._try_hide)
+        self._collapse_timer = QTimer(self)
+        self._collapse_timer.setSingleShot(True)
+        self._collapse_timer.timeout.connect(self._on_auto_collapse)
+
+        self._input.installEventFilter(self)
 
         self.hide()
 
@@ -80,6 +85,20 @@ class ChatBubble(QWidget):
 
         self.adjustSize()
 
+    def eventFilter(self, obj, event):
+        if obj is self._input:
+            if event.type() == QEvent.Type.FocusOut and self._expanded:
+                # 失去焦点后 2s 自动缩回
+                self._collapse_timer.start(2000)
+            elif event.type() == QEvent.Type.FocusIn:
+                self._collapse_timer.stop()
+        return super().eventFilter(obj, event)
+
+    def _on_auto_collapse(self):
+        """失焦定时器触发：收起输入框 + 隐藏整个气泡。"""
+        self._collapse()
+        self.hide_bubble()
+
     def _toggle_expand(self):
         if self._expanded:
             self._collapse()
@@ -105,6 +124,7 @@ class ChatBubble(QWidget):
         if not self._expanded:
             return
         self._expanded = False
+        self._collapse_timer.stop()  # 手动收起时取消定时器
         self._btn.setText("\U0001f4ac")
 
         self._collapse_anim = QPropertyAnimation(self._input, b"minimumWidth")
