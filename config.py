@@ -61,5 +61,7 @@ class Config:
 
     SKILLS_ENABLED = os.getenv("SKILLS_ENABLED", "").split(",") if os.getenv("SKILLS_ENABLED") else []
 
+    SHOW_TRAY = os.getenv("SHOW_TRAY", "true").lower() == "true"  # 是否显示系统托盘
+
 
 config = Config()

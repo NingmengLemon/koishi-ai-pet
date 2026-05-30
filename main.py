@@ -53,6 +53,8 @@ def main():
     agent = PetAgent()
     SKILL_CTX.bind(agent)
     window = PetWindow()
+    window.set_agent(agent)
+    window.set_app(app)
     agent.set_pet_window(window)  # 供窗口坐标探测用
     bubble = SpeechBubble(window)
 
@@ -71,7 +73,7 @@ def main():
     window.show()
     agent.start()
 
-    tray = SystemTrayManager(app, window, agent)
+    tray = SystemTrayManager(app, window)
     logger.info("SystemTrayManager ready")
 
     def _shutdown():
@@ -80,7 +82,7 @@ def main():
             agent.stop()
             window.shutdown()
             window.close()
-            tray.tray_icon.hide()
+            tray.hide()
         except RuntimeError:
             pass  # C++ 对象可能已被 Qt 提前销毁
 

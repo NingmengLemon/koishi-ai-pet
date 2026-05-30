@@ -1,6 +1,6 @@
-from PySide6.QtWidgets import QLabel, QVBoxLayout
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QMenu
 from PySide6.QtCore import Qt, QPoint
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtGui import QMouseEvent, QAction
 from pet.ui.base_window import TransparentWindow
 from pet.ui.pet_animations import PetAnimator
 from pet.action import PetActions, ActionQueue
@@ -13,10 +13,21 @@ class PetWindow(TransparentWindow):
         self._setup_ui()
         self._grab_local: QPoint | None = None
         self._chat_bubble = None
+        self._agent = None
+        self._debug_window = None
+        self._app = None
 
     def set_chat_bubble(self, chat_bubble):
         """注入 ChatBubble 引用。"""
         self._chat_bubble = chat_bubble
+
+    def set_agent(self, agent):
+        """注入 PetAgent 引用，供右键菜单使用。"""
+        self._agent = agent
+
+    def set_app(self, app):
+        """注入 QApplication 引用，供退出按钮使用。"""
+        self._app = app
 
     def enterEvent(self, event):
         """鼠标进入桌宠区域时显示聊天按钮。"""
@@ -74,6 +85,65 @@ class PetWindow(TransparentWindow):
             self.action_queue.pause()
             self.action_queue.clear()
             self.pet_actions.caught()
+        elif event.button() == Qt.MouseButton.RightButton:
+            self._show_context_menu(event.globalPosition().toPoint())
+
+    def _show_context_menu(self, pos):
+        """右键菜单。"""
+        menu = QMenu()
+
+        if self._agent:
+            # 调度器开关
+            scheduler_running = self._agent.scheduler.is_running()
+            toggle_sched = QAction("暂停自动决策" if scheduler_running else "开始自动决策")
+            toggle_sched.triggered.connect(self._toggle_scheduler)
+            menu.addAction(toggle_sched)
+
+            # 窶通状态
+            from pet.agent.state import PetState
+            if self._agent.state_machine.state == PetState.SLEEPING:
+                wake_action = QAction("唤醒")
+                wake_action.triggered.connect(lambda: self._agent.force_state("idle"))
+                menu.addAction(wake_action)
+            else:
+                sleep_action = QAction("小憋一下")
+                sleep_action.triggered.connect(lambda: self._agent.force_state("sleeping"))
+                menu.addAction(sleep_action)
+
+            menu.addSeparator()
+
+            # 调试窗口
+            debug_action = QAction("调试面板")
+            debug_action.triggered.connect(self._show_debug_window)
+            menu.addAction(debug_action)
+
+        menu.addSeparator()
+
+        # 隐藏 / 退出
+        hide_action = QAction("隐藏桌宠")
+        hide_action.triggered.connect(self.hide)
+        menu.addAction(hide_action)
+
+        if self._app:
+            quit_action = QAction("退出")
+            quit_action.triggered.connect(self._app.quit)
+            menu.addAction(quit_action)
+
+        menu.exec(pos)
+
+    def _toggle_scheduler(self):
+        if self._agent.scheduler.is_running():
+            self._agent.scheduler.stop()
+        else:
+            self._agent.scheduler.start()
+
+    def _show_debug_window(self):
+        if self._debug_window is None:
+            from pet.ui.debug_window import DebugWindow
+            self._debug_window = DebugWindow(self, agent=self._agent)
+        self._debug_window.show()
+        self._debug_window.activateWindow()
+        self._debug_window.raise_()
 
     def mouseMoveEvent(self, event: QMouseEvent):
         if self._grab_local is not None:
