@@ -71,7 +71,7 @@ class PetAgent(QObject):
         self._worker: BrainWorker | None = None
         self._cancel_flag = False
         self._active_stream_id = 0
-        self._last_interact_ms: int = 0  # interact 限频时间戳
+        self._last_interact_ms: dict[str, int] = {}  # interact 按 hint 独立限频时间戳
 
     def set_pet_window(self, window):
         self._pet_window = window
@@ -286,59 +286,76 @@ class PetAgent(QObject):
         """交互事件触发：抟取/释放等即时响应，内置限频。
 
         Args:
-            hint:        事件描述（源自 prompts.py 常量）
+            hint:        事件描述（源自 prompts.py 常量，同时作为限频 key）
             delay_ms:    延迟毫秒数
-            cooldown_ms: 限频间隔（默认 15s）
+            cooldown_ms: 限频间隔（默认 15s，按 hint 独立）
         """
         if not hint:
             return
-        # 频率限制
         from PySide6.QtCore import QDateTime
         now = QDateTime.currentMSecsSinceEpoch()
-        if now - self._last_interact_ms < cooldown_ms:
-            logger.debug(f"[PetAgent] interact skipped (cooldown, {(now - self._last_interact_ms)//1000}s elapsed)")
+        last = self._last_interact_ms.get(hint, 0)
+        if now - last < cooldown_ms:
             return
-        self._last_interact_ms = now
+        # 立即占位：阻断 delay_ms 期间同一 hint 的重复入队；
+        # 若 _execute 状态去重失败，在内部回滚，不消耗 cooldown 窗口。
+        self._last_interact_ms[hint] = now
 
         def _execute():
             from pet.agent.state import PetState
-            if not self.state_machine.try_transition(PetState.TALKING):
-                logger.info(f"[PetAgent] _trigger_interact skipped (state={self.state_machine.state.value})")
+            # 去重：若已在交互中且线程运行中，回滚时间戳并忽略
+            if (self.state_machine.state == PetState.INTERACTING
+                    and self._thread and self._thread.isRunning()):
+                self._last_interact_ms[hint] = last
+                logger.info("[PetAgent] interact ignored, already processing")
                 return
-            self.state_changed.emit(PetState.TALKING.value)
 
-            self._active_stream_id += 1
-            my_stream_id = self._active_stream_id
-            stream_started = False
+            # 若有正在进行的流式，终止
+            if self._thread and self._thread.isRunning():
+                self.speak_stream_end.emit(0)
 
-            def on_chunk(delta: str):
-                nonlocal stream_started
-                if self._cancel_flag or my_stream_id != self._active_stream_id:
-                    return
-                if not stream_started:
-                    self.speak_stream_start.emit()
-                    stream_started = True
-                self.speak_stream_chunk.emit(delta)
+            self.state_machine.transition(PetState.INTERACTING)
+            self.state_changed.emit(PetState.INTERACTING.value)
 
-            def on_stream_end():
-                nonlocal stream_started
-                if self._cancel_flag or my_stream_id != self._active_stream_id:
-                    return
-                if stream_started:
-                    self.speak_stream_end.emit(4000)
-                    stream_started = False
+            # 清空队列，播放思考动画
+            if self._pet_window:
+                self._pet_window.action_queue.clear()
+                self._pet_window.pet_actions.thinking()
 
-            def _pipeline():
-                result = self.behavior.interact_decide_stream(
-                    hint, on_chunk=on_chunk, on_stream_end=on_stream_end
-                )
-                if stream_started:
-                    self.speak_stream_end.emit(4000)
-                return result
-
-            self._async_brain(_pipeline)
+            self._async_brain(self._interact_pipeline, hint)
 
         QTimer.singleShot(delay_ms, _execute)
+
+    def _interact_pipeline(self, hint: str):
+        """后台线程：交互事件流式决策。"""
+        stream_started = False
+        self._active_stream_id += 1
+        my_stream_id = self._active_stream_id
+
+        def on_chunk(delta: str):
+            nonlocal stream_started
+            if self._cancel_flag or my_stream_id != self._active_stream_id:
+                return
+            if not stream_started:
+                self.speak_stream_start.emit()
+                stream_started = True
+            self.speak_stream_chunk.emit(delta)
+
+        def on_stream_end():
+            nonlocal stream_started
+            if self._cancel_flag or my_stream_id != self._active_stream_id:
+                return
+            if stream_started:
+                self.speak_stream_end.emit(4000)
+                stream_started = False
+
+        result = self.behavior.interact_decide_stream(
+            hint, on_chunk=on_chunk, on_stream_end=on_stream_end,
+        )
+
+        if stream_started:
+            self.speak_stream_end.emit(4000)
+        return result
 
     def _trigger_chat(self, message: str = ""):
         """用户对话触发：截图+上下文+LLM决策。"""
