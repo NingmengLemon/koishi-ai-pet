@@ -189,3 +189,4 @@ cython_debug/
 memories.db
 
 CLAUDE.md
+/.claude
