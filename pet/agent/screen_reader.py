@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 class ScreenReader:
     def __init__(self):
         self._enabled = False
-        self._sct: Optional[mss.mss] = None
 
     def enable(self):
         self._enabled = True
@@ -24,68 +23,39 @@ class ScreenReader:
 
     def disable(self):
         self._enabled = False
-        if self._sct:
-            try:
-                self._sct.close()
-            except Exception:  # Qt 销毁窗口句柄后 mss.close 的 ReleaseDC 会抛异常
-                pass
-            self._sct = None
         logger.info("屏幕截图已禁用")
 
     def capture_fullscreen(self, all_screens: bool = False) -> Optional[Image.Image]:
         if not self._enabled:
             logger.warning("屏幕截图已禁用，无法截图")
             return None
-        for attempt in range(2):
-            try:
-                sct = self._get_sct()
-                monitor_index = 0 if all_screens else 1
-                monitor = sct.monitors[monitor_index]
-                sct_img = sct.grab(monitor)
-                return Image.frombytes(
-                    "RGB", sct_img.size, sct_img.bgra, "raw", "BGRX"
-                )
-            except Exception as e:
-                err_msg = str(e)
-                if attempt == 0 and ("句柄无效" in err_msg or "BitBlt" in err_msg or "handle" in err_msg.lower()):
-                    logger.warning(f"[ScreenReader] DC handle invalid, recreating mss and retry: {e}")
-                    try:
-                        self._sct.close()
-                    except Exception:
-                        pass
-                    self._sct = None
-                    continue
-                logger.error(f"截图失败：{e}")
-                return None
+        sct = mss.mss()
+        try:
+            monitor_index = 0 if all_screens else 1
+            sct_img = sct.grab(sct.monitors[monitor_index])
+            return Image.frombytes(
+                "RGB", sct_img.size, sct_img.bgra, "raw", "BGRX"
+            )
+        except Exception as e:
+            logger.error(f"截图失败：{e}")
+            return None
+        finally:
+            sct.close()
 
     def capture_area(self, x: int, y: int, width: int, height: int) -> Optional[Image.Image]:
         if not self._enabled:
             return None
-        for attempt in range(2):
-            try:
-                sct = self._get_sct()
-                monitor = {"top": y, "left": x, "width": width, "height": height}
-                sct_img = sct.grab(monitor)
-                return Image.frombytes(
-                    "RGB", sct_img.size, sct_img.bgra, "raw", "BGRX"
-                )
-            except Exception as e:
-                err_msg = str(e)
-                if attempt == 0 and ("句柄无效" in err_msg or "BitBlt" in err_msg or "handle" in err_msg.lower()):
-                    logger.warning(f"[ScreenReader] DC handle invalid, recreating mss and retry: {e}")
-                    try:
-                        self._sct.close()
-                    except Exception:
-                        pass
-                    self._sct = None
-                    continue
-                logger.error(f"区域截图失败：{e}")
-                return None
-
-    def _get_sct(self) -> mss.mss:
-        if self._sct is None:
-            self._sct = mss.mss()
-        return self._sct
+        sct = mss.mss()
+        try:
+            sct_img = sct.grab({"top": y, "left": x, "width": width, "height": height})
+            return Image.frombytes(
+                "RGB", sct_img.size, sct_img.bgra, "raw", "BGRX"
+            )
+        except Exception as e:
+            logger.error(f"区域截图失败：{e}")
+            return None
+        finally:
+            sct.close()
 
     def prepare_image(
         self,
@@ -103,7 +73,7 @@ class ScreenReader:
             if max(new_w, new_h) < min_px:
                 ratio = min_px / max(new_w, new_h)
                 new_w, new_h = int(new_w * ratio), int(new_h * ratio)
-            logger.info(f"[ScreenReader] resize {w}x{h} (scale={vision_scale}) \u2192 {new_w}x{new_h}")
+            logger.info(f"[ScreenReader] resize {w}x{h} (scale={vision_scale}) → {new_w}x{new_h}")
             image = image.resize((new_w, new_h), Image.LANCZOS)
         buf = io.BytesIO()
         image.save(buf, format="PNG")
