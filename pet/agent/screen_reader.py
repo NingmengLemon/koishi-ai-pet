@@ -36,31 +36,51 @@ class ScreenReader:
         if not self._enabled:
             logger.warning("屏幕截图已禁用，无法截图")
             return None
-        try:
-            sct = self._get_sct()
-            monitor_index = 0 if all_screens else 1
-            monitor = sct.monitors[monitor_index]
-            sct_img = sct.grab(monitor)
-            return Image.frombytes(
-                "RGB", sct_img.size, sct_img.bgra, "raw", "BGRX"
-            )
-        except Exception as e:
-            logger.error(f"截图失败：{e}")
-            return None
+        for attempt in range(2):
+            try:
+                sct = self._get_sct()
+                monitor_index = 0 if all_screens else 1
+                monitor = sct.monitors[monitor_index]
+                sct_img = sct.grab(monitor)
+                return Image.frombytes(
+                    "RGB", sct_img.size, sct_img.bgra, "raw", "BGRX"
+                )
+            except Exception as e:
+                err_msg = str(e)
+                if attempt == 0 and ("句柄无效" in err_msg or "BitBlt" in err_msg or "handle" in err_msg.lower()):
+                    logger.warning(f"[ScreenReader] DC handle invalid, recreating mss and retry: {e}")
+                    try:
+                        self._sct.close()
+                    except Exception:
+                        pass
+                    self._sct = None
+                    continue
+                logger.error(f"截图失败：{e}")
+                return None
 
     def capture_area(self, x: int, y: int, width: int, height: int) -> Optional[Image.Image]:
         if not self._enabled:
             return None
-        try:
-            sct = self._get_sct()
-            monitor = {"top": y, "left": x, "width": width, "height": height}
-            sct_img = sct.grab(monitor)
-            return Image.frombytes(
-                "RGB", sct_img.size, sct_img.bgra, "raw", "BGRX"
-            )
-        except Exception as e:
-            logger.error(f"区域截图失败：{e}")
-            return None
+        for attempt in range(2):
+            try:
+                sct = self._get_sct()
+                monitor = {"top": y, "left": x, "width": width, "height": height}
+                sct_img = sct.grab(monitor)
+                return Image.frombytes(
+                    "RGB", sct_img.size, sct_img.bgra, "raw", "BGRX"
+                )
+            except Exception as e:
+                err_msg = str(e)
+                if attempt == 0 and ("句柄无效" in err_msg or "BitBlt" in err_msg or "handle" in err_msg.lower()):
+                    logger.warning(f"[ScreenReader] DC handle invalid, recreating mss and retry: {e}")
+                    try:
+                        self._sct.close()
+                    except Exception:
+                        pass
+                    self._sct = None
+                    continue
+                logger.error(f"区域截图失败：{e}")
+                return None
 
     def _get_sct(self) -> mss.mss:
         if self._sct is None:

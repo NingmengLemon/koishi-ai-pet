@@ -489,9 +489,10 @@ class Behavior(BrainMixin):
             lower = line.lower()
             if lower.startswith("action:"):
                 raw = line.split(":", 1)[1].strip()
-                step = self._parse_action_line(raw)
-                if step:
-                    actions.append(step)
+                for segment in raw.split(";"):
+                    step = self._parse_action_line(segment.strip())
+                    if step:
+                        actions.append(step)
             elif lower.startswith("speech:"):
                 raw = line.split(":", 1)[1].strip()
                 if raw.lower() not in ("none", "", "null"):
@@ -512,9 +513,11 @@ class Behavior(BrainMixin):
         if lower.startswith("speech:"):
             speech_parts.append(line.split(":", 1)[1].strip())
         elif lower.startswith("action:"):
-            step = self._parse_action_line(line.split(":", 1)[1].strip())
-            if step:
-                actions.append(step)
+            raw = line.split(":", 1)[1].strip()
+            for segment in raw.split(";"):
+                step = self._parse_action_line(segment.strip())
+                if step:
+                    actions.append(step)
         elif lower.startswith("skill:"):
             skill_lines.append(line)
         elif lower.startswith("summary:"):
@@ -557,13 +560,15 @@ class Behavior(BrainMixin):
 
         executor = SkillExecutor()
         current_content = first_content
-        history = []  # 累积对话历史，供后续轮次使用
+        history = []
+        speech_streamed = False
 
         for round_idx in range(max_rounds):
             tool_calls = executor.parse_skill_lines(current_content)
             if not tool_calls:
-                # 无工具调用 → 解析为最终决策
-                return self._parse_behavior(current_content)
+                result = self._parse_behavior(current_content)
+                result.speech_streamed = speech_streamed
+                return result
 
             # 执行工具
             results = executor.execute(tool_calls)
@@ -592,8 +597,8 @@ class Behavior(BrainMixin):
             self._dump_context(tag, messages)
             try:
                 if on_chunk:
-                    # 流式调用：Speech 逐字推送，返回原始文本供下轮检测 Skill
                     current_content = self._stream_text_raw(messages, on_chunk=on_chunk, tag=tag)
+                    speech_streamed = True
                 else:
                     resp = self._llm_call(messages)
                     current_content = resp.choices[0].message.content or ""
@@ -601,11 +606,14 @@ class Behavior(BrainMixin):
                     logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {current_content}")
             except Exception as e:
                 logger.error(f"[Behavior] {tag} failed: {e}")
-                return self._parse_behavior(current_content)
+                result = self._parse_behavior(current_content)
+                result.speech_streamed = speech_streamed
+                return result
 
-        # 达到最大轮次，强制结束
         logger.warning(f"[Behavior] reached MAX_ROUNDS={max_rounds}, force terminate skill loop")
-        return self._parse_behavior(current_content)
+        result = self._parse_behavior(current_content)
+        result.speech_streamed = speech_streamed
+        return result
 
     def _stream_text_raw(self, messages: list, on_chunk=None, tag: str = "") -> str:
         """流式调用并返回原始文本，不做 Skill/Action 行解析，避免多轮 Skill 循环中递归触发。"""
