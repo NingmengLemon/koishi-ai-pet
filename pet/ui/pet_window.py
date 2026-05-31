@@ -145,19 +145,6 @@ class PetWindow(TransparentWindow):
             toggle_sched.triggered.connect(self._toggle_scheduler)
             menu.addAction(toggle_sched)
 
-            # 窶通状态
-            from pet.agent.state import PetState
-            if self._agent.state_machine.state == PetState.SLEEPING:
-                wake_action = QAction("唤醒")
-                wake_action.triggered.connect(lambda: self._agent.force_state("idle"))
-                menu.addAction(wake_action)
-            else:
-                sleep_action = QAction("小憋一下")
-                sleep_action.triggered.connect(lambda: self._agent.force_state("sleeping"))
-                menu.addAction(sleep_action)
-
-            menu.addSeparator()
-
             # 调试窗口
             debug_action = QAction("调试面板")
             debug_action.triggered.connect(self._show_debug_window)

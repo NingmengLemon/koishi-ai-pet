@@ -1,12 +1,22 @@
+import ctypes
+import logging
+import os
+
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QAction
-from PySide6.QtCore import Qt, QObject
+from PySide6.QtGui import QIcon, QAction, QCursor
+from PySide6.QtCore import QObject
 
 from config import config
 
+logger = logging.getLogger(__name__)
+
+_ICON_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "assets", "icon", "sys_tray.png",
+)
+
 
 class SystemTrayManager(QObject):
-    """管理系统托盘图标（可通过 SHOW_TRAY 配置关闭）。"""
 
     def __init__(self, app, pet_window):
         super().__init__()
@@ -18,38 +28,39 @@ class SystemTrayManager(QObject):
             return
 
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(self._create_temp_icon())
+        self.tray_icon.setIcon(QIcon(_ICON_PATH))
         self.tray_icon.setToolTip("DeskPet")
-        self._build_menu()
-        self.tray_icon.activated.connect(self._on_tray_activated)
+
+        self.tray_icon.activated.connect(self._on_activated)
         self.tray_icon.show()
 
-    def _create_temp_icon(self):
-        pixmap = QPixmap(32, 32)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setBrush(QColor(255, 150, 100))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(2, 2, 28, 28)
-        painter.end()
-        return QIcon(pixmap)
+    def _show_menu(self):
+        self.pet.raise_()
+        try:
+            ctypes.windll.user32.SetForegroundWindow(int(self.pet.winId()))
+        except Exception:
+            pass
 
-    def _build_menu(self):
-        self.menu = QMenu()
+        menu = QMenu(self.pet)
 
-        quit_action = QAction("退出")
+        if self.pet.isVisible():
+            hide_action = QAction("隐藏", menu)
+            hide_action.triggered.connect(self.pet.hide)
+            menu.addAction(hide_action)
+        else:
+            show_action = QAction("显示", menu)
+            show_action.triggered.connect(self.pet.show)
+            menu.addAction(show_action)
+
+        quit_action = QAction("退出", menu)
         quit_action.triggered.connect(self.app.quit)
-        self.menu.addAction(quit_action)
+        menu.addAction(quit_action)
 
-        self.tray_icon.setContextMenu(self.menu)
+        menu.exec(QCursor.pos())
 
-    def _on_tray_activated(self, reason):
-        if reason == QSystemTrayIcon.ActivationReason.Trigger:
-            self.pet.setVisible(not self.pet.isVisible())
-        elif reason == QSystemTrayIcon.ActivationReason.DoubleClick:
-            if not self.pet.isVisible():
-                self.pet.show()
+    def _on_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.Context:
+            self._show_menu()
 
     def hide(self):
         if self.tray_icon:
