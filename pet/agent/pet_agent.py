@@ -349,6 +349,7 @@ class PetAgent(QObject):
             self._pet_window.pet_actions.thinking()
 
         self._async_brain(self._chat_pipeline, message, pet_x, pet_y)
+        logger.info(f"[PetAgent] user chat:{message}")
 
     def _chat_pipeline(self, message: str, pet_x: int, pet_y: int):
         ts = datetime.now().strftime("%H:%M:%S")

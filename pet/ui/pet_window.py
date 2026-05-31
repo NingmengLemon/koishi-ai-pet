@@ -21,6 +21,7 @@ class PetWindow(TransparentWindow):
         self._agent = None
         self._debug_window = None
         self._app = None
+        self._mouse_interaction = False
         self._drag_history: list = []  # [(QPoint, timestamp_ms), ...]
         self._PROMPT_GRABBED = INTERACT_GRABBED
         self._PROMPT_RELEASED = INTERACT_RELEASED
@@ -95,7 +96,7 @@ class PetWindow(TransparentWindow):
             self.action_queue.clear()
             self.pet_actions.grabbed()
             logger.info("[PetWindow] grabbed")
-            if self._agent:
+            if self._agent and self._mouse_interaction :
                 self._agent.trigger("interact", hint=self._PROMPT_GRABBED)
         elif event.button() == Qt.MouseButton.RightButton:
             self._show_context_menu(event.globalPosition().toPoint())
@@ -131,7 +132,7 @@ class PetWindow(TransparentWindow):
         if speed > 80:
             self.pet_actions.gravity.apply_impulse(vx, vy)
         logger.info(f"[PetWindow] released speed={speed:.0f}px/s flick={speed > 80}")
-        if self._agent:
+        if self._agent and self._mouse_interaction:
             self._agent.trigger("interact", hint=self._PROMPT_RELEASED)
 
     def _show_context_menu(self, pos):
@@ -149,6 +150,14 @@ class PetWindow(TransparentWindow):
             debug_action = QAction("调试面板")
             debug_action.triggered.connect(self._show_debug_window)
             menu.addAction(debug_action)
+
+            menu.addSeparator()
+
+            # 鼠标互动开关
+            on = self._mouse_interaction
+            toggle_mouse = QAction("关闭鼠标响应" if on else "开启鼠标响应")
+            toggle_mouse.triggered.connect(self._toggle_mouse_interaction)
+            menu.addAction(toggle_mouse)
 
         menu.addSeparator()
 
@@ -170,6 +179,10 @@ class PetWindow(TransparentWindow):
         else:
             self._agent.scheduler.start()
             self._agent.trigger_once(2000)  # 启动后 2s 即刻触发首次决策
+
+    def _toggle_mouse_interaction(self):
+        self._mouse_interaction = not self._mouse_interaction
+        logger.info(f"Mouse interaction {'enabled' if self._mouse_interaction else 'disabled'}")
 
     def _show_debug_window(self):
         if self._debug_window is None:

@@ -17,9 +17,9 @@ class GravitySystem(QObject):
     landed = Signal()           # 落地时发出
 
     # 甚出物理参数
-    _GRAVITY_ACCEL = 1.5    # 重力加速度（px/tick²）
+    _GRAVITY_ACCEL = 1.5   # 重力加速度（px/tick²）
     _FRICTION       = 0.99  # 水平摩擦系数（每 tick 乘以）
-    _MAX_SPEED      = 25.0  # 最大速度（px/tick）
+    _MAX_SPEED      = 30.0  # 最大速度（px/tick）
     _WALL_BOUNCE    = -0.4  # 碰屏幕左右边缘出射系数
     _IMPULSE_SCALE  = 0.05  # 鼠标速度（px/s）转 tick 速度比例（30ms tick）
 
@@ -234,12 +234,17 @@ class GravitySystem(QObject):
 
         left_lim = geo.left()
         right_lim = geo.right() - w
+        top_lim = geo.top()
         if new_x <= left_lim:
             new_x = left_lim
             self._vx = abs(self._vx) * (-self._WALL_BOUNCE)
         elif new_x >= right_lim:
             new_x = right_lim
             self._vx = -abs(self._vx) * (-self._WALL_BOUNCE)
+
+        if new_y < top_lim:
+            new_y = top_lim
+            self._vy = 0.0
 
         old_pet_bottom = self._window.y() + h
         new_pet_bottom = int(new_y) + h
