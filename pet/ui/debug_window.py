@@ -347,7 +347,7 @@ class DebugWindow(QWidget):
 
     def _play_pet_anim(self, action: str):
         loop = self.pet_loop.isChecked()
-        duration = None if loop else self.pose_duration.value()
+        duration = self.pose_duration.value() if loop else None
         ok = self.pet.pet_anim.play(action, duration=duration)
         if ok:
             self._log(f"pet_anim.play('{action}', duration={duration})")

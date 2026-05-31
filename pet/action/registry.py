@@ -3,14 +3,13 @@
 from dataclasses import dataclass, field
 from typing import List
 
-
+# 耗时类动作的兜底
 DEFAULT_ACTION_DURATIONS = {
-    "stretch": 5,
-    "look_around": 5,
     "sit": 10,
     "thinking": 5,
-    "sleep": 30,
+    "sleep": 12,
 }
+
 
 @dataclass
 class ActionDef:
@@ -33,8 +32,8 @@ REGISTRY: dict[str, ActionDef] = {
         name="bounce",
         category="移动",
         description="弹跳移动到目标位置。适合跳跃到其他窗口上。dx=水平偏移（正=右），dy=垂直偏移（正=下，负=上，通常为负值表示向上跳）。默认 duration=800。",
-        params=["dx: 水平像素偏移", "dy: 垂直像素偏移（通常为负值）", "duration: 毫秒（可选，默认 800）"],
-        usage_example="Action: bounce dx=300 dy=-200 duration=800",
+        params=["dx: 水平像素偏移", "dy: 垂直像素偏移（通常为负值）"],
+        usage_example="Action: bounce dx=300 dy=-200",
     ),
     "sit": ActionDef(
         name="sit",
@@ -53,16 +52,16 @@ REGISTRY: dict[str, ActionDef] = {
     "look_around": ActionDef(
         name="look_around",
         category="驻留",
-        description="张望/环顾四周。耗时动作，必须写 duration=秒（5-10s），穿插在 walk 和 sit 之间。",
-        params=["duration: 秒，5-10"],
-        usage_example="Action: look_around duration=10",
+        description="张望/环顾四周，穿插在 walk 和 sit 之间，无需参数。",
+        params=[],
+        usage_example="Action: look_around",
     ),
     "stretch": ActionDef(
         name="stretch",
         category="驻留",
-        description="伸展/伸懒腰。耗时动作，必须写 duration=秒（3-6s），穿插在 walk 和 sit 之间。",
-        params=["duration: 秒，3-6"],
-        usage_example="Action: stretch duration=4",
+        description="伸展/伸懒腰，穿插在 walk 和 sit 之间，无需参数。",
+        params=[],
+        usage_example="Action: stretch",
     ),
     "thinking": ActionDef(
         name="thinking",
@@ -74,14 +73,14 @@ REGISTRY: dict[str, ActionDef] = {
     "fade_in": ActionDef(
         name="fade_in",
         category="显隐",
-        description="淡入显示。窗口从透明到可见，与 fade_out 成对使用（先 out 后 in），中间可以夹带其他动作。禁止单独出现。",
+        description="淡入显示。窗口从透明到可见，与 fade_out 成对使用（必须先 out 后 in），中间可以夹带其他动作。禁止单独出现。",
         params=[],
         usage_example="Action: fade_in",
     ),
     "fade_out": ActionDef(
         name="fade_out",
         category="显隐",
-        description="淡出隐藏。窗口从可见到透明，必须先 out 后 in，中间可以夹带其他动作，与 fade_in 成对使用。禁止单独出现。",
+        description="淡出隐藏。窗口从可见到透明，与 fade_out 成对使用（必须先 out 后 in），中间可以夹带其他动作。禁止单独出现。",
         params=[],
         usage_example="Action: fade_out",
     ),

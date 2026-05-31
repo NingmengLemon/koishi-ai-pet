@@ -161,7 +161,7 @@ class PetActions(QObject):
         return anim
     
 
-    def bounce(self, dx=0, dy=-150, duration=500):
+    def bounce(self, dx=0, dy=-150, duration=800):
         self._cleanup_stopped_anims()
         self._anim.play("bounce")
         original_pos = self._window.pos()
@@ -193,11 +193,11 @@ class PetActions(QObject):
     def idle(self):
         self._anim.play("idle")
 
-    def look_around(self, duration=None):
-        self._anim.play("look_around", duration=duration)
+    def look_around(self, **_kw):
+        self._anim.play("look_around")
 
-    def stretch(self, duration=None):
-        self._anim.play("stretch", duration=duration)
+    def stretch(self, **_kw):
+        self._anim.play("stretch")
 
     def thinking(self, duration=None):
         self._anim.play("thinking", duration=duration)

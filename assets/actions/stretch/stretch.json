@@ -1,0 +1,7 @@
+{
+  "desc": "拉伸动画",
+  "tick_counts": 45,
+  "frame_ratios": [0.33, 0.33, 0.34],
+  "loop": false,
+  "note": "单次播放"
+}

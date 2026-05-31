@@ -1,0 +1,7 @@
+{
+  "desc": "张望动画",
+  "tick_counts": 45,
+  "frame_ratios": [0.5, 0.5],
+  "loop": false,
+  "note": "单次播放"
+}

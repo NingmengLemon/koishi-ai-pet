@@ -60,7 +60,8 @@ class PetWindow(TransparentWindow):
         self.pet_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.pet_label)
 
-        self.pet_anim = PetAnimator(self.pet_label, parent=self)
+        self.pet_anim = PetAnimator(parent=self)
+        self.pet_anim.frame_changed.connect(self.pet_label.setPixmap)
         self.pet_actions = PetActions(self, self.pet_anim, parent=self)
         self.action_queue = ActionQueue(self.pet_actions, parent=self)
 

@@ -11,6 +11,7 @@ from pet.agent.state import StateMachine
 from pet.agent.screen_reader import ScreenReader
 from pet.agent.memory_store import MemoryStore
 from pet.action.registry import DEFAULT_ACTION_DURATIONS
+
 from config import config
 
 logger = logging.getLogger(__name__)

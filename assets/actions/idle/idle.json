@@ -1,0 +1,7 @@
+{
+  "desc": "待机动画",
+  "tick_counts": 60,
+  "frame_ratios": [0.9, 0.1],
+  "loop": true,
+  "note": "4s一个眨眼周期，闭眼时间约0.4s"
+}

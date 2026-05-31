@@ -1,0 +1,7 @@
+{
+  "desc": "跳跃动画",
+  "tick_counts": 15,
+  "frame_ratios": [1],
+  "loop": true,
+  "note": ""
+}
