@@ -84,6 +84,11 @@ class ActionQueue(QObject):
 
         self._running = True
         name, args, kwargs = self._queue[self._cursor]
+
+        if self._actions.gravity.falling:
+            self.pause()  # 等 PetWindow 的 landed→resume 继续
+            return
+
         self._cursor += 1
         self.changed.emit()
         method = getattr(self._actions, name, None)
@@ -109,12 +114,16 @@ class ActionQueue(QObject):
         # 时间驱动：监听 PetAnimator.animation_finished
         self._actions._anim.animation_finished.connect(self._on_action_done)
         self._waiting_anim_finished = True
+        self._actions.gravity.suppress_idle = True  # 防止重力 tick 覆盖 sleep/sit/thinking
         # 启动超时定时器（仅针对时间驱动动作，如 LLM 未提供 duration 则可能循环播放）
         timeout_ms = max(1000, int(getattr(config, "ACTION_TIMEOUT_MS", 15000)))
         self._timeout_timer.start(timeout_ms)
 
     def _on_action_done(self, *args):
         self._disconnect_active()
+        self._actions.gravity._tick()   #立即调用一次tick，防止队列执行下一个动作
+        if self._actions.gravity.falling:
+            return  # PetWindow 的 falling_started→pause + landed→resume 会继续队列
         self._run_next()
 
     def _on_action_timeout(self):
@@ -131,6 +140,7 @@ class ActionQueue(QObject):
         self._run_next()
 
     def _disconnect_active(self):
+        self._actions.gravity.suppress_idle = False
         if self._timeout_timer.isActive():
             self._timeout_timer.stop()
         if self._active_anim is not None:
@@ -169,8 +179,8 @@ class ActionQueue(QObject):
             parts.append(f"({args[0].x()},{args[0].y()})→({args[1].x()},{args[1].y()})" if len(args) >= 2 else "")
         elif name == "bounce":
             parts.append(f"dx={kwargs.get('dx',0)} dy={kwargs.get('dy',-150)}")
-        elif name in ("sit", "sleep", "look_around", "stretch", "thinking"):
-            duration = kwargs.get("duration", -1)
-            if duration > 0:
-                parts.append(f"{duration}s")
+        elif name in ("sit", "sleep", "thinking"):
+            dur = kwargs.get("duration")
+            if dur:
+                parts.append(f"{dur}s")
         return " ".join(parts)

@@ -489,10 +489,9 @@ class Behavior(BrainMixin):
             lower = line.lower()
             if lower.startswith("action:"):
                 raw = line.split(":", 1)[1].strip()
-                for segment in raw.split(";"):
-                    step = self._parse_action_line(segment.strip())
-                    if step:
-                        actions.append(step)
+                step = self._parse_action_line(raw)
+                if step:
+                    actions.append(step)
             elif lower.startswith("speech:"):
                 raw = line.split(":", 1)[1].strip()
                 if raw.lower() not in ("none", "", "null"):
@@ -514,10 +513,9 @@ class Behavior(BrainMixin):
             speech_parts.append(line.split(":", 1)[1].strip())
         elif lower.startswith("action:"):
             raw = line.split(":", 1)[1].strip()
-            for segment in raw.split(";"):
-                step = self._parse_action_line(segment.strip())
-                if step:
-                    actions.append(step)
+            step = self._parse_action_line(raw)
+            if step:
+                actions.append(step)
         elif lower.startswith("skill:"):
             skill_lines.append(line)
         elif lower.startswith("summary:"):

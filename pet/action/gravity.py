@@ -212,6 +212,8 @@ class GravitySystem(QObject):
             if not self._suppress_idle:
                 self._anim.play("idle")
         elif not at_bottom and not self._falling:
+            if self._suppress_idle:
+                return
             self._falling = True
             self._anim.play("falling")
             logger.debug(f"[Gravity] falling started at y={old_y}, bottom={effective_bottom}")
