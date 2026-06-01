@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLineEdit, QBoxLayout
-from PySide6.QtCore import Qt, QTimer, QPoint, Signal, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, QEvent
+from PySide6.QtCore import Qt, QSize, QTimer, QPoint, Signal, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, QEvent
 from PySide6.QtGui import QFont, QIcon
 from config import config
 
@@ -73,9 +73,9 @@ class ChatBubble(QWidget):
 
         # 聊天按钮（收起态显示）
         self._btn = QPushButton()
-        self._btn.setIcon(QIcon(str(BASE_DIR / "assets" / "icon" / "chat.png")))
-        self._btn.setIconSize(self._btn.size())
         self._btn.setFixedSize(32, 32)
+        self._btn.setIcon(QIcon(str(BASE_DIR / "assets" / "icon" / "chat.png")))
+        self._btn.setIconSize(QSize(28, 28))
         self._btn.setStyleSheet(
             "QPushButton {"
             "  background: rgba(255,255,255,220);"
@@ -128,7 +128,7 @@ class ChatBubble(QWidget):
         self._input.setMinimumWidth(0)
         self._input.setMaximumWidth(180)
         self._input.show()
-        self._btn.setText("\u2715")
+        self._btn.setIcon(QIcon(str(BASE_DIR / "assets" / "icon" / "collapse.png")))
 
         self._expand_anim = QPropertyAnimation(self._input, b"minimumWidth")
         self._expand_anim.setDuration(200)
@@ -146,7 +146,7 @@ class ChatBubble(QWidget):
             return
         self._expanded = False
         self._collapse_timer.stop()  # 手动收起时取消定时器
-        self._btn.setText("\U0001f4ac")
+        self._btn.setIcon(QIcon(str(BASE_DIR / "assets" / "icon" / "chat.png")))
 
         self._collapse_anim = QPropertyAnimation(self._input, b"minimumWidth")
         self._collapse_anim.setDuration(150)
