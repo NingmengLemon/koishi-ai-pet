@@ -1,12 +1,13 @@
 import logging
 
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QMenu
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QMenu, QWidgetAction, QCheckBox
 from PySide6.QtCore import Qt, QPoint, QDateTime
 from PySide6.QtGui import QMouseEvent, QAction
 from pet.ui.base_window import TransparentWindow
 from pet.ui.pet_animations import PetAnimator
 from pet.action import PetActions, ActionQueue
 from pet.brain.prompts import INTERACT_GRABBED, INTERACT_RELEASED
+from pet.skills.registry import SKILL_REGISTRY
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -151,6 +152,17 @@ class PetWindow(TransparentWindow):
             debug_action = QAction("调试面板")
             debug_action.triggered.connect(self._show_debug_window)
             menu.addAction(debug_action)
+
+            # 技能子菜单（QWidgetAction+CheckBox 避免点击时关闭菜单）
+            skill_menu = QMenu("技能", menu)
+            for name in SKILL_REGISTRY.skill_names:
+                cb = QCheckBox(name)
+                cb.setChecked(SKILL_REGISTRY.is_enabled(name))
+                cb.toggled.connect(lambda checked, n=name: SKILL_REGISTRY.set_enabled(n, checked))
+                wa = QWidgetAction(skill_menu)
+                wa.setDefaultWidget(cb)
+                skill_menu.addAction(wa)
+            menu.addMenu(skill_menu)
 
             menu.addSeparator()
 

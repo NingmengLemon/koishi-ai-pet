@@ -6,8 +6,11 @@ args 参数格式：
   required=True 表示必选，缺少时校验不通并返回错误给 LLM。
 """
 
+import logging
 from dataclasses import dataclass, field
 from typing import Callable, Any
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -30,6 +33,7 @@ class SkillRegistry:
 
     def __init__(self):
         self._skills: dict[str, SkillDef] = {}
+        self._disabled: set[str] = set()
 
     def register(self, skill_name: str, description: str) -> "SkillDef":
         skill = SkillDef(name=skill_name, description=description)
@@ -49,6 +53,8 @@ class SkillRegistry:
         if len(parts) != 2:
             return None
         skill_name, method_name = parts
+        if not self.is_enabled(skill_name):
+            return None
         skill = self._skills.get(skill_name)
         if not skill:
             return None
@@ -67,6 +73,8 @@ class SkillRegistry:
                  "",
                  "可用技能列表："]
         for skill in self._skills.values():
+            if not self.is_enabled(skill.name):
+                continue
             lines.append(f"\n【{skill.name}】{skill.description}")
             for m in skill.methods.values():
                 args_desc = self._format_args(m.args)
@@ -93,6 +101,21 @@ class SkillRegistry:
     @property
     def skill_names(self) -> list[str]:
         return list(self._skills.keys())
+
+    def is_enabled(self, skill_name: str) -> bool:
+        return skill_name not in self._disabled
+
+    def set_enabled(self, skill_name: str, enabled: bool):
+        if enabled:
+            self._disabled.discard(skill_name)
+            logger.info(f"[Skill] ✓ enabled: {skill_name}")
+        else:
+            self._disabled.add(skill_name)
+            logger.info(f"[Skill] ✗ disabled: {skill_name}")
+
+    @property
+    def disabled_set(self) -> set[str]:
+        return set(self._disabled)
 
 
 # 全局单例
