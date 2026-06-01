@@ -69,6 +69,9 @@ def main():
     agent.speak_stream_start.connect(bubble.start_stream)
     agent.speak_stream_chunk.connect(bubble.append_stream)
     agent.speak_stream_end.connect(bubble.end_stream)
+    agent.state_changed.connect(
+        lambda s: chat_bubble.set_busy(s in ("autonomous", "interacting"))
+    )
 
     window.show()
     agent.start()

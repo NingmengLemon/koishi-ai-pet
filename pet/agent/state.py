@@ -7,7 +7,7 @@ from enum import Enum
 class PetState(Enum):
     IDLE = "idle"
     SLEEPING = "sleeping"
-    TALKING = "talking"
+    AUTONOMOUS = "autonomous"
     INTERACTING = "interacting"
 
 
@@ -15,10 +15,10 @@ class StateMachine:
     """简单状态机，维护当前状态并做合法性检查。"""
 
     _TRANSITIONS = {
-        PetState.IDLE:        [PetState.SLEEPING, PetState.TALKING, PetState.INTERACTING],
+        PetState.IDLE:        [PetState.SLEEPING, PetState.AUTONOMOUS, PetState.INTERACTING],
         PetState.SLEEPING:    [PetState.IDLE],
-        PetState.TALKING:     [PetState.IDLE, PetState.INTERACTING],
-        PetState.INTERACTING: [PetState.IDLE, PetState.TALKING],
+        PetState.AUTONOMOUS:  [PetState.IDLE, PetState.INTERACTING],
+        PetState.INTERACTING: [PetState.IDLE, PetState.AUTONOMOUS],
     }
 
     def __init__(self, initial: PetState = PetState.IDLE):
@@ -30,7 +30,7 @@ class StateMachine:
 
     @property
     def can_decide(self) -> bool:
-        return self._state not in (PetState.SLEEPING, PetState.TALKING, PetState.INTERACTING)
+        return self._state not in (PetState.SLEEPING, PetState.AUTONOMOUS, PetState.INTERACTING)
 
     def transition(self, new_state: PetState) -> bool:
         allowed = self._TRANSITIONS.get(self._state, [])

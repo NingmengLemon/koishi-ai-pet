@@ -90,10 +90,10 @@ class PetAgent(QObject):
 
         def _execute():
             from pet.agent.state import PetState
-            if not self.state_machine.try_transition(PetState.TALKING):
+            if not self.state_machine.try_transition(PetState.AUTONOMOUS):
                 logger.info(f"[PetAgent] trigger_once skipped (state={self.state_machine.state.value})")
                 return
-            self.state_changed.emit(PetState.TALKING.value)
+            self.state_changed.emit(PetState.AUTONOMOUS.value)
 
             pet_x, pet_y = (self._pet_window.x(), self._pet_window.y()) if self._pet_window else (0, 0)
 
@@ -148,10 +148,10 @@ class PetAgent(QObject):
     def _on_mid_tick(self):
         ts = datetime.now().strftime("%H:%M:%S")
         from pet.agent.state import PetState
-        if not self.state_machine.try_transition(PetState.TALKING):
+        if not self.state_machine.try_transition(PetState.AUTONOMOUS):
             logger.info(f"[{ts}] [PetAgent] [mid_tick] skipped (state={self.state_machine.state.value})")
             return
-        self.state_changed.emit(PetState.TALKING.value)
+        self.state_changed.emit(PetState.AUTONOMOUS.value)
 
         pet_x, pet_y = 0, 0
         if self._pet_window:
@@ -278,14 +278,12 @@ class PetAgent(QObject):
 
         def _execute():
             from pet.agent.state import PetState
-            if (self.state_machine.state == PetState.INTERACTING
-                    and self._thread and self._thread.isRunning()):
+            if self.state_machine.state == PetState.INTERACTING:
                 self._last_interact_ms[hint] = last
-                logger.info("[PetAgent] interact ignored, already processing")
+                logger.info("[PetAgent] interact ignored (INTERACTING)")
                 return
 
-            if self._thread and self._thread.isRunning():
-                self.speak_stream_end.emit(0)
+            self.speak_stream_end.emit(0)
 
             self.state_machine.transition(PetState.INTERACTING)
             self.state_changed.emit(PetState.INTERACTING.value)
@@ -329,13 +327,11 @@ class PetAgent(QObject):
 
     def _trigger_chat(self, message: str = ""):
         from pet.agent.state import PetState
-        if (self.state_machine.state == PetState.INTERACTING
-                and self._thread and self._thread.isRunning()):
-            logger.info("[PetAgent] chat request ignored, already processing")
+        if self.state_machine.state == PetState.INTERACTING:
+            logger.info("[PetAgent] chat request ignored (INTERACTING)")
             return
 
-        if self._thread and self._thread.isRunning():
-            self.speak_stream_end.emit(0)
+        self.speak_stream_end.emit(0)
 
         self.state_machine.transition(PetState.INTERACTING)
         self.state_changed.emit(PetState.INTERACTING.value)
@@ -445,7 +441,7 @@ class PetAgent(QObject):
     def _on_brain_result(self, result):
         ts = datetime.now().strftime("%H:%M:%S")
         from pet.agent.state import PetState
-        if self.state_machine.state in (PetState.INTERACTING, PetState.TALKING):
+        if self.state_machine.state in (PetState.INTERACTING, PetState.AUTONOMOUS):
             self.state_machine.transition(PetState.IDLE)
             self.state_changed.emit(PetState.IDLE.value)
 
@@ -475,7 +471,7 @@ class PetAgent(QObject):
 
     def _on_brain_error(self, msg: str):
         from pet.agent.state import PetState
-        if self.state_machine.state in (PetState.INTERACTING, PetState.TALKING):
+        if self.state_machine.state in (PetState.INTERACTING, PetState.AUTONOMOUS):
             self.state_machine.transition(PetState.IDLE)
             self.state_changed.emit(PetState.IDLE.value)
         logger.error(f"[PetAgent] ERROR: {msg}")
