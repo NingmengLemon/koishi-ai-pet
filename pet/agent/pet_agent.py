@@ -447,6 +447,8 @@ class PetAgent(QObject):
 
         if isinstance(result, BehaviorOutput):
             logger.info(f"[{ts}] [PetAgent] ← {result}")
+            if not result.actions and not result.speech:
+                logger.warning(f"[{ts}] [PetAgent] empty response from LLM (no actions, no speech)")
             action_names = [a.name for a in result.actions]
             self.behavior.add_context(
                 f"[{ts}] did {', '.join(action_names)}, said: {result.speech or '(silent)'}")

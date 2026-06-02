@@ -3,11 +3,16 @@
 from dataclasses import dataclass, field
 from typing import List
 
-# 耗时类动作的兜底
+from config import config
+
+# 耗时类动作的兜底时长，根据调度间隔的 50% 自动推算
+_MID_S = config.SCHEDULER_MID_MS / 1000
+_TARGET_S = int(_MID_S * 0.5)
+
 DEFAULT_ACTION_DURATIONS = {
-    "sit": 10,
-    "thinking": 5,
-    "sleep": 12,
+    "sit": max(10, int(_TARGET_S * 0.20)),
+    "thinking": max(5, int(_TARGET_S * 0.10)),
+    "sleep": max(10, int(_TARGET_S * 0.20)),
 }
 
 
@@ -38,16 +43,16 @@ REGISTRY: dict[str, ActionDef] = {
     "sit": ActionDef(
         name="sit",
         category="驻留",
-        description="坐下。耗时动作，必须写 duration=秒（5-15s），适合收尾撑时长。",
-        params=["duration: 秒，5-15"],
-        usage_example="Action: sit duration=10",
+        description="坐下。耗时动作，必须写 duration=秒（15-60s），适合收尾撑时长。",
+        params=["duration: 秒，15-60"],
+        usage_example="Action: sit duration=40",
     ),
     "sleep": ActionDef(
         name="sleep",
         category="驻留",
-        description="睡觉。耗时动作，必须写 duration=秒（10-15s），适合安静场景收尾。",
-        params=["duration: 秒，10-15"],
-        usage_example="Action: sleep duration=12",
+        description="睡觉。耗时动作，必须写 duration=秒（20-40s），适合安静场景收尾。",
+        params=["duration: 秒，20-40"],
+        usage_example="Action: sleep duration=30",
     ),
     "look_around": ActionDef(
         name="look_around",
@@ -66,9 +71,9 @@ REGISTRY: dict[str, ActionDef] = {
     "thinking": ActionDef(
         name="thinking",
         category="驻留",
-        description="沉思/思考。耗时动作，必须写 duration=秒（3-8s），站着不动但表情思考状。",
-        params=["duration: 秒，3-8"],
-        usage_example="Action: thinking duration=5",
+        description="沉思/思考。耗时动作，必须写 duration=秒（10-25s），站着不动但表情思考状。",
+        params=["duration: 秒，10-25"],
+        usage_example="Action: thinking duration=15",
     ),
     "fade_in": ActionDef(
         name="fade_in",

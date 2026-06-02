@@ -1,8 +1,18 @@
 ﻿"""系统提示词和决策提示词"""
 
+import math
+
 from pet.action.registry import generate_action_section
 from pet.skills.registry import SKILL_REGISTRY
 from config import config
+
+
+def _action_params():
+    """根据调度间隔自动推算：目标总时长（50%）+ 最少动作数（每15s一个）。"""
+    mid_s = config.SCHEDULER_MID_MS / 1000
+    target_s = int(mid_s * 0.5)
+    min_actions = max(4, math.ceil(target_s / 15))
+    return target_s, min_actions
 
 
 _WINDOW_GUIDE = """=== 窗口互动方法 ===
@@ -31,20 +41,29 @@ _WINDOW_GUIDE = """=== 窗口互动方法 ===
 
 
 
-_COMMON_TAIL = """=== 输出格式 ===
-必须按以下顺序输出：Summary 行 → Speech 行 → 至少4个 Action 行，缺一不可：
+def _build_common_tail() -> str:
+    target_s, min_actions = _action_params()
+    sit_dur = max(10, int(target_s * 0.20))
+    think_dur = max(5, int(target_s * 0.10))
+
+    return f"""=== 输出格式 ===
+必须按以下顺序输出：Summary 行 → Speech 行 → 至少{min_actions}个 Action 行，缺一不可：
 
   Summary: <本次观察到的屏幕内容和行为决策，50字以内>
   Speech: 又有新窗口了，我过去看看
   Action: walk right 800
-  Action: look_around duration=5
+  Action: stretch
   Action: walk left 600
-  Action: sit duration=10
-  Skill: {"name": "skill.method", "args": {...}}   ← 可选，需要获取信息时使用
+  Action: look_around
+  Action: thinking duration={think_dur}
+  Action: walk right 400
+  Action: look_around
+  Action: sit duration={sit_dur}
+  Skill: {{"name": "skill.method", "args": {{...}}}}   ← 可选，需要获取信息时使用
 
 === 硬性约束 ===
 1. Summary 行必须放在输出最前面，50字以内
-2. 最少 4 个 Action，序列总时长约 30 秒
+2. 最少 {min_actions} 个 Action，序列总时长约 {target_s} 秒，必须用多个 sit/thinking/sleep 穿插 walk/stretch/look_around 来撑满时长
 3. 必须严格按照动作表输出参数，有参数要求的输出，没有的不输出"
 4. walk 必须指定 left/right，距离 500-1000px
 5. 输出的Action序列,fade_out / fade_in 必须成对出现（先 out 后 in），且在同一序列内配对，out和in之间必须有其他动作
@@ -52,15 +71,16 @@ _COMMON_TAIL = """=== 输出格式 ===
 7. 动作名只能是上方列出的动作之一
 8. 避免重复 Recent 中最近的行为和台词
 9. 你的台词、动作选择、互动方式，全部由你的人格描述决定
-10. bounce 的 height 禁止超过 900px；窗口探测标记”禁止跳跃”的窗口不得作为 bounce 目标
+10. bounce 的 height 禁止超过 900px；窗口探测标记"禁止跳跃"的窗口不得作为 bounce 目标
 11. 如果截图找不到桌宠形象的位置，必须使用fade_in
-12. 每个 Action 行只能包含一个动作，多个动作必须分开写在多行"""
+12. 每个 Action 行只能包含一个动作，多个动作必须分开写在多行
+13. sit/thinking/sleep 必须写 duration 参数撑时长，不可省略"""
 
 
 
-_VISION_ONLY_CONSTRAINTS = """11. walk 距离和方向基于截图中的实际距离估算，不要随意编造
-12. 先在截图中定位自己，再观察窗口，两者结合规划动作
-13. bounce 必须有明确的窗口目标，基于窗口在截图中的位置估算参数"""
+_VISION_ONLY_CONSTRAINTS = """14. walk 距离和方向基于截图中的实际距离估算，不要随意编造
+15. 先在截图中定位自己，再观察窗口，两者结合规划动作
+16. bounce 必须有明确的窗口目标，基于窗口在截图中的位置估算参数"""
 
 
 _MEMORY_GUIDE = """## 记忆存储
@@ -96,25 +116,27 @@ INTERACT_RELEASED = (
 
 def non_vision_system_prompt() -> str:
     actions = generate_action_section()
+    target_s, _ = _action_params()
     return (
         "你是桌面宠物。你能行走、跳跃、坐下、睡觉、张望、伸展、淡入淡出。"
-        "每次输出完整的动作序列（约30秒），禁止单个动作。"
+        f"每次输出完整的动作序列（约{target_s}秒），禁止单个动作。"
         "\n\n=== 非视觉模式行为指南 ==="
         "\n你无法看到屏幕，仅能依据窗口探测数据感知环境。"
         "\n- walk 方向可以随机选择，不需要精确坐标"
         "\n- 不要在非视觉模式下使用 bounce（你看不到窗口位置）"
         f"\n\n{_WINDOW_GUIDE}"
         f"\n\n{actions}"
-        f"\n\n{_COMMON_TAIL}"
+        f"\n\n{_build_common_tail()}"
         f"\n\n{_MEMORY_GUIDE}"
     ) + (f"\n\n{SKILL_REGISTRY.generate_prompt_section()}" if SKILL_REGISTRY.generate_prompt_section() else "")
 
 
 def vision_system_prompt() -> str:
     actions = generate_action_section()
+    target_s, _ = _action_params()
     return (
         "你是桌面宠物。你能看到用户的屏幕截图。"
-        "每次输出完整的动作序列（约30秒），禁止单个动作。"
+        f"每次输出完整的动作序列（约{target_s}秒），禁止单个动作。"
         "\n\n=== 视觉模式行为指南 ==="
         "\n- 优先参考「窗口探测」数据（系统 API 精确坐标），截图仅作视觉确认"
         "\n- 先在截图中找到自己的形象（约125×125px），确认位置是否与探测数据一致"
@@ -125,7 +147,7 @@ def vision_system_prompt() -> str:
         "\n- 大窗口/全屏 → 走到边缘坐下或跳到低矮区域，不要硬跳"
         f"\n\n{_WINDOW_GUIDE}"
         f"\n\n{actions}"
-        f"\n\n{_COMMON_TAIL}"
+        f"\n\n{_build_common_tail()}"
         f"\n{_VISION_ONLY_CONSTRAINTS}"
         f"\n\n{_MEMORY_GUIDE}"
     ) + (f"\n\n{SKILL_REGISTRY.generate_prompt_section()}" if SKILL_REGISTRY.generate_prompt_section() else "")
@@ -190,7 +212,7 @@ def chat_decide_system_prompt() -> str:
         "\n"
         "\n=== 硬性约束 ==="
         "\n1. Summary 行必须放在输出最前面，50字以内"
-        "\n2. 至少 1 个 Action（可以少于 4 个，根据用户指令灵活调整）"
+        "\n2. 至少 1 个 Action（根据用户指令灵活调整）"
         "\n3. 每个 Action 行只能包含一个动作，多个动作必须分开写在多行"
         "\n4. 必须严格按照动作表输出参数，有参数要求的输出，没有的不输出"
         "\n5. 必须有 Speech 回应用户"

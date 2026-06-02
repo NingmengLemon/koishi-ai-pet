@@ -49,8 +49,9 @@ class Config:
 
     SCHEDULER_AUTO_START = os.getenv("SCHEDULER_AUTO_START", "false").lower() == "true"
     SCHEDULER_FAST_MS = int(os.getenv("SCHEDULER_FAST_MS", "1000"))
-    SCHEDULER_MID_MS = int(os.getenv("SCHEDULER_MID_MS", "30000"))
+    SCHEDULER_MID_MS = int(os.getenv("SCHEDULER_MID_MS", "300000"))
     SCHEDULER_SLOW_MS = int(os.getenv("SCHEDULER_SLOW_MS", "300000"))
+    SCHEDULER_IDLE_TIMEOUT_MS = int(os.getenv("SCHEDULER_IDLE_TIMEOUT_MS", "900000"))  # 15min 无操作暂停调度
 
     PET_PERSONALITY = os.getenv("PET_PERSONALITY", "")
 

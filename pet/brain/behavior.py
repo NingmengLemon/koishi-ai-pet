@@ -400,7 +400,7 @@ class Behavior(BrainMixin):
             raw = "\n".join(
                 ([f"Summary: {summary_holder[0]}"] if summary_holder else []) +
                 [f"Speech: {s}" for s in speech_parts] +
-                [f"Action: {a.name} {' '.join(map(str, a.args))}" for a in actions] +
+                [f"Action: {a.name} {' '.join(map(str, a.args))} {' '.join(f'{k}={v}' for k, v in a.kwargs.items())}".strip() for a in actions] +
                 skill_lines
             )
             logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] === LLM RESPONSE ({tag}) ===")

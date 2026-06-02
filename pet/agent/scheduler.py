@@ -1,23 +1,43 @@
-"""多频率 Tick 调度器 — fast、mid、slow，间隔从 config 读取。"""
+"""多频率 Tick 调度器 — fast、mid、slow，间隔从 config 读取。支持空闲暂停。"""
 
+import ctypes
 import logging
+from ctypes import wintypes
 from datetime import datetime
 from PySide6.QtCore import QObject, QTimer, Signal
 from config import config
 
 logger = logging.getLogger(__name__)
 
+# Windows 空闲检测
+class _LASTINPUTINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+
+
+def _get_idle_ms() -> int:
+    """返回系统级无输入空闲时长（毫秒）。"""
+    lii = _LASTINPUTINFO()
+    lii.cbSize = ctypes.sizeof(_LASTINPUTINFO)
+    if ctypes.windll.user32.GetLastInputInfo(ctypes.byref(lii)):
+        return ctypes.windll.kernel32.GetTickCount() - lii.dwTime
+    return 0
+
 
 class Scheduler(QObject):
-    """基于 QTimer 的多频率调度器。"""
+    """基于 QTimer 的多频率调度器，支持空闲超时暂停。"""
 
     fast_tick = Signal()
     mid_tick  = Signal()
     slow_tick = Signal()
+    idle_paused = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._timers: dict[str, QTimer] = {}
+        self._idle_paused = False
+        self._idle_check = QTimer(self)
+        self._idle_check.timeout.connect(self._check_idle)
+        self._idle_timeout_ms = config.SCHEDULER_IDLE_TIMEOUT_MS
         logger.debug("[Scheduler] Created")
 
     def start(self, fast_ms: int | None = None, mid_ms: int | None = None,
@@ -50,9 +70,12 @@ class Scheduler(QObject):
             t.start()
             self._timers["slow"] = t
 
-        logger.info(f"[{ts}] [Scheduler] Total {len(self._timers)} timer(s) running")
+        # 空闲检测：每 30 秒轮询一次系统输入状态
+        self._idle_check.start(30000)
+        self._idle_paused = False
 
     def stop(self):
+        self._idle_check.stop()
         if not self._timers:
             return
         ts = datetime.now().strftime("%H:%M:%S")
@@ -61,7 +84,27 @@ class Scheduler(QObject):
             t.stop()
             t.deleteLater()
         self._timers.clear()
+        self._idle_paused = False
         logger.info(f"[{ts}] [Scheduler] stop() — stopped {names}")
 
     def is_running(self) -> bool:
         return bool(self._timers)
+
+    def _check_idle(self):
+        """检查系统空闲状态，超时则暂停三个调度计时器。"""
+        idle_ms = _get_idle_ms()
+        if idle_ms >= self._idle_timeout_ms and not self._idle_paused:
+            for t in self._timers.values():
+                t.stop()
+            self._idle_paused = True
+            self.idle_paused.emit(True)
+            logger.info(f"[Scheduler] idle {idle_ms // 1000}s >= {self._idle_timeout_ms // 1000}s — paused")
+        elif idle_ms < self._idle_timeout_ms and self._idle_paused:
+            for t in self._timers.values():
+                t.start()
+            self._idle_paused = False
+            self.idle_paused.emit(False)
+            logger.info(f"[Scheduler] activity resumed — timers restarted")
+
+    def is_idle_paused(self) -> bool:
+        return self._idle_paused
