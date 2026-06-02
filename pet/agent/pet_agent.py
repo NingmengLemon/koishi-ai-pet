@@ -470,7 +470,8 @@ class PetAgent(QObject):
                 self.memory_store.save_from_line(result.memory_line)
             except Exception as e:
                 logger.warning(f"[PetAgent] memory save failed: {e}")
-
+        logger.info(f"[{ts}] [PetAgent] === call complete ===")
+        
     def _on_brain_error(self, msg: str):
         from pet.agent.state import PetState
         if self.state_machine.state in (PetState.INTERACTING, PetState.AUTONOMOUS):
