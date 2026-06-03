@@ -1,6 +1,7 @@
 import ctypes
 import logging
 import os
+import sys
 
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu
 from PySide6.QtGui import QIcon, QAction, QCursor
@@ -37,7 +38,11 @@ class SystemTrayManager(QObject):
     def _show_menu(self):
         self.pet.raise_()
         try:
-            ctypes.windll.user32.SetForegroundWindow(int(self.pet.winId()))
+            if sys.platform == "darwin":
+                from AppKit import NSApp
+                NSApp.activateIgnoringOtherApps_(True)
+            else:
+                ctypes.windll.user32.SetForegroundWindow(int(self.pet.winId()))
         except Exception:
             pass
 

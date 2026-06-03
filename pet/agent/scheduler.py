@@ -1,26 +1,37 @@
 """多频率 Tick 调度器 — fast、mid、slow，间隔从 config 读取。支持空闲暂停。"""
 
-import ctypes
 import logging
-from ctypes import wintypes
+import sys
 from datetime import datetime
 from PySide6.QtCore import QObject, QTimer, Signal
 from config import config
 
 logger = logging.getLogger(__name__)
 
-# Windows 空闲检测
-class _LASTINPUTINFO(ctypes.Structure):
-    _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
-
 
 def _get_idle_ms() -> int:
-    """返回系统级无输入空闲时长（毫秒）。"""
-    lii = _LASTINPUTINFO()
-    lii.cbSize = ctypes.sizeof(_LASTINPUTINFO)
-    if ctypes.windll.user32.GetLastInputInfo(ctypes.byref(lii)):
-        return ctypes.windll.kernel32.GetTickCount() - lii.dwTime
-    return 0
+    """返回系统级无输入空闲时长（毫秒），Windows / macOS 双平台。"""
+    if sys.platform == "darwin":
+        import ctypes
+        import ctypes.util
+        cg = ctypes.cdll.LoadLibrary(ctypes.util.find_library("CoreGraphics"))
+        seconds = cg.CGEventSourceSecondsSinceLastEventType(
+            ctypes.c_int(1),  # kCGEventSourceStateCombinedSessionState
+            ctypes.c_ulong(0xFFFFFFFFFFFFFFFF),  # ~0 = kCGAnyInputEventType
+        )
+        return int(seconds * 1000)
+    else:
+        import ctypes
+        from ctypes import wintypes
+
+        class _LASTINPUTINFO(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+
+        lii = _LASTINPUTINFO()
+        lii.cbSize = ctypes.sizeof(_LASTINPUTINFO)
+        if ctypes.windll.user32.GetLastInputInfo(ctypes.byref(lii)):
+            return ctypes.windll.kernel32.GetTickCount() - lii.dwTime
+        return 0
 
 
 class Scheduler(QObject):
