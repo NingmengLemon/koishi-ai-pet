@@ -222,6 +222,8 @@ class Behavior(BrainMixin):
             speech_streamed = False
 
             for chunk in stream:
+                if not chunk.choices:
+                    continue
                 delta = chunk.choices[0].delta.content
                 if delta is None:
                     continue
@@ -336,6 +338,8 @@ class Behavior(BrainMixin):
             speech_prefix_consumed = False
 
             for chunk in stream:
+                if not chunk.choices:
+                    continue
                 delta = chunk.choices[0].delta.content
                 if delta is None:
                     continue
@@ -624,6 +628,8 @@ class Behavior(BrainMixin):
         prefix_consumed = False
 
         for chunk in stream:
+            if not chunk.choices:
+                continue
             delta = chunk.choices[0].delta.content
             if delta is None:
                 continue
