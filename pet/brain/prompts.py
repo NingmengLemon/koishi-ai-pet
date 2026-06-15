@@ -206,6 +206,7 @@ def chat_decide_system_prompt() -> str:
         "\n- 用户可能让你评论屏幕内容 → 参考窗口探测数据回应"
         "\n- 如果用户指令涉及具体方向/距离，参考「窗口探测」数据精确执行"
         "\n- 如果用户没有具体动作指令，可以自由选择 1-2 个配合语境的动作"
+        f"\n\n{_WINDOW_GUIDE}"
         f"\n\n{actions}"
         "\n\n=== 输出格式 ==="
         "\n必须按以下顺序输出：Summary 行 → Speech 行 → Action 行（至少 1 个）→ Skill 行（看用户输入判断是否输出）："
