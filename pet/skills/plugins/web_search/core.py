@@ -29,7 +29,7 @@ def _load_config() -> dict:
 
 def _search_searxng(query: str, count: int, language: str, cfg: dict) -> dict:
     """通过自建 SearXNG 实例搜索。"""
-    base_url = cfg.get("searxng_url", "").rstrip("/")
+    base_url = cfg.get("searxng_url", "").rstrip("/").removesuffix("/search")
     if not base_url:
         return {"summary": "搜索失败：未配置 searxng_url，请在 web_search/config.json 中设置"}
 
