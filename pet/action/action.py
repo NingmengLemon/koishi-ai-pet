@@ -144,16 +144,7 @@ class PetActions(QObject):
         return sentinel
 
     def normal_walk(self, direction: str = "right", distance: int = 400):
-        """普通行走：自包含的 tick 驱动行走，行走期间暂停重力 timer。
-
-        与其他 action 一样，逻辑全在 PetActions 内。行走期间：
-        - 水平位移由本方法自有 timer 驱动
-        - 垂直检测复用 gravity 的窗口扫描逻辑（通过直接访问 gravity 属性）
-        - gravity timer 暂停，避免两个 timer 同时驱动位移冲突
-
-        Returns:
-            "normal_walk" 字符串，供 ActionQueue 识别
-        """
+        """普通行走"""
         if direction not in ("left", "right"):
             raise ValueError(f"direction must be 'left' or 'right', got '{direction}'")
 
