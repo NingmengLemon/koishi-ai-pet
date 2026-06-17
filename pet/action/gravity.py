@@ -16,6 +16,7 @@ class GravitySystem(QObject):
     falling_started = Signal()  # 进入下落状态时发出
     landed = Signal()           # 落地时发出
     standing_lost = Signal(str) # 站立的窗口消失/被遮挡，附带窗口标题
+    walk_finished = Signal()    # 重力行走完成时发出
 
     # 物理参数
     _GRAVITY_ACCEL  = 1.5   # 重力加速度（px/tick²）
@@ -54,6 +55,13 @@ class GravitySystem(QObject):
         self._suppress_idle: bool = False
         self._last_anim_played: str | None = None
 
+        # 重力行走状态
+        self._walking: bool = False
+        self._walk_sign: int = 1       # 1=右, -1=左
+        self._walk_speed: float = 3.0  # px/tick（约 100px/s @ 30ms tick）
+        self._walk_target_x: int = 0   # 目标 x 坐标
+        self._walk_start_x: int = 0    # 起始 x 坐标
+
     def apply_impulse(self, vx: float, vy: float):
         """注入初速度，开始甚出物理模式。
 
@@ -80,6 +88,41 @@ class GravitySystem(QObject):
         logger.info(f"[Gravity] apply_impulse vx={self._vx:.1f} vy={self._vy:.1f} px/tick")
 
     @property
+    def walking(self) -> bool:
+        return self._walking
+
+    def walk_start(self, direction: str, distance: int):
+        """启动重力驱动的行走。由重力 tick 统一驱动位移和检测。
+
+        Args:
+            direction: "left" 或 "right"
+            distance: 行走像素距离
+        """
+        if not self._enabled:
+            return
+        if direction not in ("left", "right"):
+            raise ValueError(f"direction must be 'left' or 'right', got '{direction}'")
+
+        self._walk_sign = 1 if direction == "right" else -1
+        self._walk_start_x = self._window.x()
+        self._walk_target_x = self._walk_start_x + self._walk_sign * distance
+        self._walking = True
+        self._suppress_idle = True
+        self._cached_effective_bottom = None  # 起步时清空旧落点
+        logger.info(f"[Gravity] walk_start dir={direction} dist={distance} "
+                     f"from={self._walk_start_x} to={self._walk_target_x}")
+
+    def walk_stop(self):
+        """停止行走。"""
+        if not self._walking:
+            return
+        self._walking = False
+        self._suppress_idle = False
+        self._play_once("idle")
+        logger.info(f"[Gravity] walk_stop at x={self._window.x()}")
+        self.walk_finished.emit()
+
+    @property
     def falling(self) -> bool:
         return self._falling
 
@@ -102,6 +145,7 @@ class GravitySystem(QObject):
             self._standing_hwnd = 0
             self._standing_title = ""
             self._standing_rect = None
+            self._walking = False
             self._last_anim_played = None
             if not self._timer.isActive():
                 self._timer.start(self._interval)
@@ -133,6 +177,11 @@ class GravitySystem(QObject):
         # 甩出的物理模式：自行驱动位移，不走常规重力逻辑
         if self._in_flick:
             self._tick_flick()
+            return
+
+        # 重力行走模式：每个 tick 驱动水平位移，同时保持垂直重力检测
+        if self._walking:
+            self._tick_walk()
             return
 
         self._scan_tick += 1
@@ -261,6 +310,131 @@ class GravitySystem(QObject):
             logger.debug(f"[Gravity] falling started at y={old_y}, bottom={effective_bottom}")
             self.falling_started.emit()
             self._play_once("falling")
+
+    def _tick_walk(self):
+        """重力行走 tick：水平位移 + 垂直重力检测，丝滑无顿挫。"""
+        cur_x = self._window.x()
+        cur_y = self._window.y()
+        w = self._window.width()
+        h = self._window.height()
+
+        # 水平步进
+        step = self._walk_speed * self._walk_sign
+        new_x = cur_x + step
+
+        # 判断是否到达目标 / 屏幕边缘
+        reached_target = (
+            (self._walk_sign > 0 and new_x >= self._walk_target_x) or
+            (self._walk_sign < 0 and new_x <= self._walk_target_x)
+        )
+        screen = QApplication.primaryScreen()
+        if screen:
+            geo = screen.availableGeometry()
+            hit_edge = (new_x <= geo.left()) or (new_x >= geo.right() - w)
+        else:
+            hit_edge = False
+
+        if reached_target:
+            new_x = self._walk_target_x
+        if hit_edge and screen:
+            new_x = max(geo.left(), min(new_x, geo.right() - w))
+
+        # 垂直方向：正常重力检测
+        self._vy = min(self._vy + self._GRAVITY_ACCEL, self._FALL_TERMINAL)
+        new_y = cur_y + self._vy
+
+        # 扫描落点
+        try:
+            screen_bottom = screen.availableGeometry().bottom() - h if screen else cur_y
+            was_at_bottom = self._cached_effective_bottom is not None and cur_y >= self._cached_effective_bottom
+            if was_at_bottom and self._standing_hwnd:
+                rect = get_window_rect(self._standing_hwnd)
+                if rect is None or is_window_occluded(self._standing_hwnd, skip_hwnd=int(self._window.winId())):
+                    # 站立窗口消失 → 停止行走，交由常规重力处理
+                    lost_title = self._standing_title
+                    self._standing_hwnd = 0
+                    self._standing_title = ""
+                    self._standing_rect = None
+                    self._cached_effective_bottom = None
+                    self._walking = False
+                    self._suppress_idle = False
+                    self.standing_lost.emit(lost_title)
+                    if not self._falling:
+                        self._falling = True
+                        self.falling_started.emit()
+                        self._play_once("falling")
+                    return
+                else:
+                    new_top = rect[1]
+                    pet_w = self._window.width()
+                    feet_l = int(new_x) + pet_w // 3
+                    feet_r = int(new_x) + (2 * pet_w) // 3
+                    if feet_l >= rect[2] or feet_r <= rect[0] or new_top != self._cached_effective_bottom + h:
+                        # 走出窗口范围 → 停止行走，下落
+                        lost_title = self._standing_title
+                        self._standing_hwnd = 0
+                        self._standing_title = ""
+                        self._standing_rect = None
+                        self._cached_effective_bottom = None
+                        self._walking = False
+                        self._suppress_idle = False
+                        self.standing_lost.emit(lost_title)
+                        # 交由下个 tick 的常规重力处理下落
+                        if not self._falling:
+                            self._falling = True
+                            self.falling_started.emit()
+                            self._play_once("falling")
+                        return
+                    else:
+                        new_y = self._cached_effective_bottom
+                        self._vy = 0.0
+            else:
+                # 不在已知落点上，做窗口扫描
+                pet_hwnd = int(self._window.winId())
+                pet_self = (int(new_x), cur_y, int(new_x) + w, cur_y + h)
+                feet_l = int(new_x) + w // 3
+                feet_r = int(new_x) + (2 * w) // 3
+                effective_bottom = screen_bottom
+                found_hwnd = 0
+                found_title = ""
+                for win in get_visible_windows():
+                    left, top, right, bottom = win["rect"]
+                    if (left == pet_self[0] and top == pet_self[1]
+                            and right == pet_self[2] and bottom == pet_self[3]):
+                        continue
+                    if feet_l >= right or feet_r <= left:
+                        continue
+                    if cur_y + h <= top <= new_y + h:
+                        landing = top - h
+                        if landing < effective_bottom:
+                            if is_window_occluded(win["hwnd"], skip_hwnd=pet_hwnd):
+                                continue
+                            effective_bottom = landing
+                            found_hwnd = win["hwnd"]
+                            found_title = win["title"][:30]
+                self._cached_effective_bottom = effective_bottom
+                if found_hwnd:
+                    self._standing_hwnd = found_hwnd
+                    self._standing_title = found_title
+                    self._standing_rect = get_window_rect(found_hwnd)
+                elif effective_bottom == screen_bottom:
+                    self._standing_hwnd = 0
+                    self._standing_title = ""
+                    self._standing_rect = None
+
+                at_bottom = new_y >= effective_bottom
+                if at_bottom:
+                    new_y = effective_bottom
+                    self._vy = 0.0
+        except Exception:
+            logger.exception("[Gravity] _tick_walk scan failed")
+
+        clamped = self._clamp_pos(QPoint(int(new_x), int(new_y)))
+        self._window.move(clamped.x(), clamped.y())
+
+        # 走到目标或边缘 → 停止行走
+        if reached_target or hit_edge:
+            self.walk_stop()
 
     def _tick_flick(self):
         screen = QApplication.primaryScreen()

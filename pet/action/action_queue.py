@@ -23,6 +23,7 @@ class ActionQueue(QObject):
         self._paused = False
         self._active_anim: QPropertyAnimation | None = None
         self._waiting_anim_finished: bool = False
+        self._waiting_gravity_walk: bool = False
         # 超时保护：防止循环动作永不发 animation_finished 导致队列永久阻塞
         self._timeout_timer = QTimer(self)
         self._timeout_timer.setSingleShot(True)
@@ -96,6 +97,11 @@ class ActionQueue(QObject):
             self._run_next()
             return
 
+        # walk 路由到 gravity_walk（重力驱动行走）
+        if name == "walk":
+            name = "gravity_walk"
+            method = getattr(self._actions, name, None)
+
         try:
             logger.info(f"[ActionQueue] ▶ {self._format(name, args, kwargs)}")
             result = method(*args, **kwargs)
@@ -108,6 +114,15 @@ class ActionQueue(QObject):
             # 动画驱动：监听 QPropertyAnimation.finished
             self._active_anim = result
             result.finished.connect(self._on_action_done)
+            return
+
+        if result == "gravity_walk":
+            # 重力行走：监听 GravitySystem.walk_finished
+            self._actions.gravity.walk_finished.connect(self._on_action_done)
+            self._waiting_gravity_walk = True
+            # 超时保护
+            timeout_ms = max(1000, int(getattr(config, "ACTION_TIMEOUT_MS", 15000)))
+            self._timeout_timer.start(timeout_ms)
             return
 
         # 时间驱动：监听 PetAnimator.animation_finished
@@ -127,7 +142,7 @@ class ActionQueue(QObject):
 
     def _on_action_timeout(self):
         """动作超时保护"""
-        if not self._waiting_anim_finished and self._active_anim is None:
+        if not self._waiting_anim_finished and self._active_anim is None and not self._waiting_gravity_walk:
             return
         cur = self._queue[self._cursor - 1] if 0 < self._cursor <= len(self._queue) else None
         name = cur[0] if cur else "<unknown>"
@@ -155,6 +170,12 @@ class ActionQueue(QObject):
             except (TypeError, RuntimeError):
                 pass
             self._waiting_anim_finished = False
+        if self._waiting_gravity_walk:
+            try:
+                self._actions.gravity.walk_finished.disconnect(self._on_action_done)
+            except (TypeError, RuntimeError):
+                pass
+            self._waiting_gravity_walk = False
 
     def describe(self) -> list[str]:
         """返回队列可视化列表，用于调试面板展示。"""

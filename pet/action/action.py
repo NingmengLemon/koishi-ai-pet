@@ -132,6 +132,26 @@ class PetActions(QObject):
         QTimer.singleShot(0, lambda: _hop(0))
         return sentinel
 
+    def gravity_walk(self, direction: str = "right", distance: int = 400):
+        """重力驱动行走：由 gravity tick 统一驱动位移和检测，丝滑无顿挫。
+
+        与旧 walk() 的区别：
+        - 不使用 QPropertyAnimation，改为重力系统每 tick 驱动水平位移
+        - 每个 tick 都做垂直重力检测，走到悬崖边自然下落
+        - 不需要 sentinel 占位动画
+
+        Returns:
+            "gravity_walk" 字符串，供 ActionQueue 识别为重力行走类型
+        """
+        if direction not in ("left", "right"):
+            raise ValueError(f"direction must be 'left' or 'right', got '{direction}'")
+
+        walk_action = f"walk_{direction}"
+        self._anim.play(walk_action)
+        self._cleanup_stopped_anims()
+        self.gravity.walk_start(direction, distance)
+        return "gravity_walk"
+
     def fade_in(self, duration=300):
         """窗口淡入。"""
         self._cleanup_stopped_anims()
