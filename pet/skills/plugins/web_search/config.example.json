@@ -1,0 +1,6 @@
+{
+    "backend": "searxng",
+    "searxng_url": "http://localhost:8080",
+    "searxng_key": "",
+    "bing_search_key": ""
+}

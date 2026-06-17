@@ -1,4 +1,4 @@
-"""天气查询技能 —— 通过 Open-Meteo 免费 API 获取实时天气和预报。"""
+"""天气查询核心逻辑 — 通过 Open-Meteo 免费 API 获取实时天气和预报。"""
 
 import json
 import logging
@@ -6,9 +6,6 @@ from urllib.request import urlopen, Request, URLError
 from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
-
-SKILL_NAME = "weather"
-SKILL_DESCRIPTION = "天气查询（当前天气、未来预报），调用 Open-Meteo 免费 API，无需密钥"
 
 _GEO_URL = "https://geocoding-api.open-meteo.com/v1/search?count=3&language=zh&name={city}"
 _WEATHER_URL = (
@@ -116,7 +113,6 @@ def get_forecast(city: str = "Beijing", days: int = 3) -> dict:
     if not data:
         return {"summary": f"获取 {city_info['name']} 预报失败"}
 
-    cur = data.get("current", {})
     daily = data.get("daily", {})
     dates = daily.get("time", [])
     highs = daily.get("temperature_2m_max", [])
@@ -135,28 +131,3 @@ def get_forecast(city: str = "Beijing", days: int = 3) -> dict:
         )
 
     return {"summary": "\n".join(lines)}
-
-
-def register(registry):
-    registry.register(SKILL_NAME, SKILL_DESCRIPTION)
-
-    registry.add_method(
-        SKILL_NAME, "get_current",
-        "查询指定城市当前天气（含未来3日简要预报）",
-        handler=get_current,
-        args={
-            "city": {"type": "str", "required": False, "default": "Beijing",
-                     "desc": "城市名（中英文均可，如 Beijing/北京/Tokyo/東京）"},
-        },
-    )
-    registry.add_method(
-        SKILL_NAME, "get_forecast",
-        "查询指定城市未来N日天气预报",
-        handler=get_forecast,
-        args={
-            "city": {"type": "str", "required": False, "default": "Beijing",
-                     "desc": "城市名（中英文均可）"},
-            "days": {"type": "int", "required": False, "default": 3,
-                     "desc": "预报天数（1-7）"},
-        },
-    )

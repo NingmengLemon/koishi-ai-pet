@@ -1,26 +1,9 @@
-"""浏览器操作工具 — 打开URL、搜索。"""
+"""浏览器操作插件"""
 
-import logging
-import webbrowser
-
-logger = logging.getLogger(__name__)
+from pet.skills.plugins.browser.core import BrowserTool
 
 SKILL_NAME = "browser"
 SKILL_DESCRIPTION = "浏览器操作（打开网页、搜索）"
-
-
-class BrowserTool:
-    def open_url(self, url: str) -> dict:
-        """打开指定网址。"""
-        webbrowser.open(url)
-        return {"status": "opened", "url": url}
-
-    def search(self, query: str) -> dict:
-        """用默认浏览器搜索。"""
-        url = f"https://www.bing.com/search?q={query}"
-        webbrowser.open(url)
-        return {"status": "searching", "query": query, "url": url}
-
 
 _instance = BrowserTool()
 

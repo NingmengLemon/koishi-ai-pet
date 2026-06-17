@@ -1,9 +1,4 @@
-"""系统监控技能 —— 查询 CPU、内存、磁盘、电池、进程等系统信息。
-
-工具调用格式：
-  Tool: {"name": "system_monitor.get_overview", "args": {}}
-  Tool: {"name": "system_monitor.get_top_processes", "args": {"count": 5}}
-"""
+"""系统监控核心逻辑。"""
 
 import psutil
 import logging
@@ -11,9 +6,6 @@ import platform
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
-
-SKILL_NAME = "system_monitor"
-SKILL_DESCRIPTION = "系统资源监控（CPU、内存、磁盘、电池、进程）"
 
 
 def _format_bytes(b: int) -> str:
@@ -25,7 +17,7 @@ def _format_bytes(b: int) -> str:
     return f"{b:.1f}PB"
 
 
-def _get_overview() -> dict:
+def get_overview() -> dict:
     """获取系统整体概况：CPU、内存、磁盘、电池、运行时长。"""
     cpu_percent = psutil.cpu_percent(interval=0.3)
     cpu_count = psutil.cpu_count()
@@ -33,7 +25,6 @@ def _get_overview() -> dict:
     mem = psutil.virtual_memory()
     disk = psutil.disk_usage("/")
 
-    # 系统运行时长
     boot_time = datetime.fromtimestamp(psutil.boot_time())
     uptime = datetime.now() - boot_time
     uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
@@ -51,13 +42,11 @@ def _get_overview() -> dict:
         "os": f"{platform.system()} {platform.release()}",
     }
 
-    # 电池信息（笔记本才有）
     battery = psutil.sensors_battery()
     if battery:
         result["battery_percent"] = battery.percent
         result["battery_charging"] = battery.power_plugged
 
-    # 生成 summary
     parts = [
         f"CPU {cpu_percent}% ({cpu_count}核)",
         f"内存 {mem.percent}% ({_format_bytes(mem.used)}/{_format_bytes(mem.total)})",
@@ -72,9 +61,9 @@ def _get_overview() -> dict:
     return result
 
 
-def _get_top_processes(count: int = 5) -> dict:
+def get_top_processes(count: int = 5) -> dict:
     """获取占用 CPU 最高的前 N 个进程。"""
-    count = max(1, min(count, 20))  # 限制范围 1-20
+    count = max(1, min(count, 20))
     procs = []
     for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent"]):
         try:
@@ -100,7 +89,7 @@ def _get_top_processes(count: int = 5) -> dict:
     }
 
 
-def _get_memory_detail() -> dict:
+def get_memory_detail() -> dict:
     """获取详细内存信息。"""
     mem = psutil.virtual_memory()
     swap = psutil.swap_memory()
@@ -123,7 +112,7 @@ def _get_memory_detail() -> dict:
     return result
 
 
-def _get_network() -> dict:
+def get_network() -> dict:
     """获取网络流量统计。"""
     counters = psutil.net_io_counters()
     result = {
@@ -137,36 +126,3 @@ def _get_network() -> dict:
         f"已接收 {_format_bytes(counters.bytes_recv)}"
     )
     return result
-
-
-def register(registry):
-    """插件接口 — 由 SkillLoader 调用。"""
-    registry.register(SKILL_NAME, SKILL_DESCRIPTION)
-
-    registry.add_method(
-        SKILL_NAME, "get_overview",
-        "获取系统整体概况（CPU、内存、磁盘、电池、运行时长）",
-        handler=_get_overview,
-        args={},
-    )
-    registry.add_method(
-        SKILL_NAME, "get_top_processes",
-        "获取占用CPU最高的前N个进程",
-        handler=_get_top_processes,
-        args={
-            "count": {"type": "int", "required": False, "default": 5,
-                      "desc": "返回进程数量（1-20）"},
-        },
-    )
-    registry.add_method(
-        SKILL_NAME, "get_memory_detail",
-        "获取详细内存信息（物理内存+交换分区）",
-        handler=_get_memory_detail,
-        args={},
-    )
-    registry.add_method(
-        SKILL_NAME, "get_network",
-        "获取网络流量统计（累计发送/接收字节数）",
-        handler=_get_network,
-        args={},
-    )
