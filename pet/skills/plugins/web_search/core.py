@@ -147,6 +147,61 @@ def _search_bing(query: str, count: int, market: str, cfg: dict) -> dict:
     }
 
 
+# ── 启动连通性检测 ────────────────────────────────────────────
+
+def check_connectivity():
+    """插件加载时检测后端连通性，结果写入日志。"""
+    cfg = _load_config()
+    backend = cfg.get("backend", "auto")
+
+    # 检测 SearXNG
+    searxng_url = cfg.get("searxng_url", "").rstrip("/").removesuffix("/search")
+    if searxng_url and backend in ("searxng", "auto"):
+        api_key = cfg.get("searxng_key", "")
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        try:
+            resp = requests.get(
+                f"{searxng_url}/search",
+                params={"q": "test", "format": "json", "pageno": 1},
+                headers=headers,
+                timeout=5,
+            )
+            if resp.status_code == 200 and "results" in resp.json():
+                logger.info(f"[web_search] ✓ SearXNG 连通正常 → {searxng_url}")
+            else:
+                logger.warning(
+                    f"[web_search] ✗ SearXNG 响应异常 → {searxng_url} "
+                    f"(HTTP {resp.status_code})"
+                )
+        except requests.RequestException as e:
+            logger.warning(
+                f"[web_search] ✗ SearXNG 无法连接 → {searxng_url} ({e})"
+            )
+
+    # 检测 Bing
+    bing_key = cfg.get("bing_search_key", "")
+    if bing_key:
+        try:
+            resp = requests.get(
+                _BING_ENDPOINT,
+                headers={"Ocp-Apim-Subscription-Key": bing_key},
+                params={"q": "test", "count": 1, "mkt": "en-US"},
+                timeout=5,
+            )
+            if resp.status_code == 200:
+                logger.info("[web_search] ✓ Bing API 连通正常")
+            else:
+                logger.warning(
+                    f"[web_search] ✗ Bing API 响应异常 (HTTP {resp.status_code})"
+                )
+        except requests.RequestException as e:
+            logger.warning(f"[web_search] ✗ Bing API 无法连接 ({e})")
+
+    # 两个都没配
+    if not searxng_url and not bing_key:
+        logger.warning("[web_search] ⚠ 未配置任何搜索后端，搜索功能不可用")
+
+
 # ── 统一入口 ──────────────────────────────────────────────────
 
 def search(query: str, count: int = 5, language: str = "zh-CN") -> dict:
