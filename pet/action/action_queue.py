@@ -112,8 +112,8 @@ class ActionQueue(QObject):
             return
 
         if result == "normal_walk":
-            # 重力行走：监听 GravitySystem.walk_finished
-            self._actions.gravity.walk_finished.connect(self._on_action_done)
+            # 普通行走：监听 PetActions.walk_finished
+            self._actions.walk_finished.connect(self._on_action_done)
             self._waiting_gravity_walk = True
             # 超时保护
             timeout_ms = max(1000, int(getattr(config, "ACTION_TIMEOUT_MS", 15000)))
@@ -167,7 +167,7 @@ class ActionQueue(QObject):
             self._waiting_anim_finished = False
         if self._waiting_gravity_walk:
             try:
-                self._actions.gravity.walk_finished.disconnect(self._on_action_done)
+                self._actions.walk_finished.disconnect(self._on_action_done)
             except (TypeError, RuntimeError):
                 pass
             self._waiting_gravity_walk = False

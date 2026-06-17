@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 class PetActions(QObject):
     """桌宠行为控制器 —— 管理复合动作。"""
 
+    walk_finished = Signal()  # 普通行走完成时发出
+
     def __init__(self, window: QWidget, animator, parent=None):
         super().__init__(parent or window)
         self._window = window
@@ -21,6 +23,15 @@ class PetActions(QObject):
         self._win_anims: list[QPropertyAnimation] = []
 
         self.gravity = GravitySystem(window, animator, self._win_anims, parent=self)
+
+        # 普通行走状态（自包含，不依赖 gravity 内部行走逻辑）
+        self._walking: bool = False
+        self._walk_sign: int = 1       # 1=右, -1=左
+        self._walk_speed: float = 3.0  # px/tick（约 100px/s @ 30ms tick）
+        self._walk_target_x: int = 0
+        self._walk_start_x: int = 0
+        self._walk_timer = QTimer(self)
+        self._walk_timer.setInterval(30)
 
     def _clamp_pos(self, pos: QPoint) -> QPoint:
         """将坐标限制在屏幕可用范围内。"""
@@ -133,15 +144,203 @@ class PetActions(QObject):
         return sentinel
 
     def normal_walk(self, direction: str = "right", distance: int = 400):
-        """普通行走"""
+        """普通行走：自包含的 tick 驱动行走，行走期间暂停重力 timer。
+
+        与其他 action 一样，逻辑全在 PetActions 内。行走期间：
+        - 水平位移由本方法自有 timer 驱动
+        - 垂直检测复用 gravity 的窗口扫描逻辑（通过直接访问 gravity 属性）
+        - gravity timer 暂停，避免两个 timer 同时驱动位移冲突
+
+        Returns:
+            "normal_walk" 字符串，供 ActionQueue 识别
+        """
         if direction not in ("left", "right"):
             raise ValueError(f"direction must be 'left' or 'right', got '{direction}'")
 
         walk_action = f"normal_walk_{direction}"
         self._anim.play(walk_action)
         self._cleanup_stopped_anims()
-        self.gravity.walk_start(direction, distance)
+
+        self._walk_sign = 1 if direction == "right" else -1
+        self._walk_start_x = self._window.x()
+        self._walk_target_x = self._walk_start_x + self._walk_sign * distance
+        self._walking = True
+        self.gravity.suppress_idle = True
+        self.gravity.pause_timer()  # 行走期间暂停重力，由本方法 timer 接管
+
+        self._walk_timer.timeout.connect(self._normal_walk_tick)
+        self._walk_timer.start()
+        logger.info(f"[PetActions] normal_walk dir={direction} dist={distance} "
+                     f"from={self._walk_start_x} to={self._walk_target_x}")
         return "normal_walk"
+
+    def _stop_walk(self, switch_idle: bool = True):
+        """停止行走，恢复 gravity timer，emit walk_finished。"""
+        if not self._walking:
+            return
+        self._walking = False
+        self._walk_timer.stop()
+        try:
+            self._walk_timer.timeout.disconnect(self._normal_walk_tick)
+        except (TypeError, RuntimeError):
+            pass
+        self.gravity.suppress_idle = False
+        self.gravity.resume_timer()  # 恢复重力 tick
+        if switch_idle:
+            self._anim.play("idle")
+        logger.info(f"[PetActions] _stop_walk at x={self._window.x()}")
+        self.walk_finished.emit()
+
+    def _normal_walk_tick(self):
+        """普通行走 tick：水平位移 + 垂直检测，丝滑无顿挫。"""
+        from PySide6.QtWidgets import QApplication
+        from pet.brain.window_detector import get_visible_windows, get_window_rect, is_window_occluded
+
+        g = self.gravity
+        cur_x = self._window.x()
+        cur_y = self._window.y()
+        w = self._window.width()
+        h = self._window.height()
+
+        # 水平步进
+        step = self._walk_speed * self._walk_sign
+        new_x = cur_x + step
+
+        # 判断是否到达目标 / 屏幕边缘
+        reached_target = (
+            (self._walk_sign > 0 and new_x >= self._walk_target_x) or
+            (self._walk_sign < 0 and new_x <= self._walk_target_x)
+        )
+        screen = QApplication.primaryScreen()
+        if screen:
+            geo = screen.availableGeometry()
+            hit_edge = (new_x <= geo.left()) or (new_x >= geo.right() - w)
+        else:
+            hit_edge = False
+
+        if reached_target:
+            new_x = self._walk_target_x
+        if hit_edge and screen:
+            new_x = max(geo.left(), min(new_x, geo.right() - w))
+
+        # 垂直方向：复用 gravity 的重力加速度和地面检测
+        g._vy = min(g._vy + g._GRAVITY_ACCEL, g._FALL_TERMINAL)
+        new_y = cur_y + g._vy
+
+        # 扫描落点
+        try:
+            screen_bottom = screen.availableGeometry().bottom() - h if screen else cur_y
+            was_at_bottom = g._cached_effective_bottom is not None and cur_y >= g._cached_effective_bottom
+            if was_at_bottom and g._standing_hwnd:
+                rect = get_window_rect(g._standing_hwnd)
+                if rect is None or is_window_occluded(g._standing_hwnd, skip_hwnd=int(self._window.winId())):
+                    # 站立窗口消失 → 停止行走，交由重力处理下落
+                    lost_title = g._standing_title
+                    g._standing_hwnd = 0
+                    g._standing_title = ""
+                    g._standing_rect = None
+                    g._cached_effective_bottom = None
+                    self._stop_walk(switch_idle=False)
+                    g.standing_lost.emit(lost_title)
+                    if not g._falling:
+                        g._falling = True
+                        g.falling_started.emit()
+                        g._play_once("falling")
+                    return
+                else:
+                    new_top = rect[1]
+                    pet_w = self._window.width()
+                    feet_l = int(new_x) + pet_w // 3
+                    feet_r = int(new_x) + (2 * pet_w) // 3
+
+                    off_edge = feet_l >= rect[2] or feet_r <= rect[0]
+                    window_moved = new_top != g._cached_effective_bottom + h
+
+                    if off_edge:
+                        # 走出窗口范围 → 夹到边缘，再下落
+                        if self._walk_sign > 0:
+                            new_x = rect[2] - pet_w // 3
+                        else:
+                            new_x = rect[0] - (2 * pet_w) // 3
+                        clamped = g._clamp_pos(QPoint(int(new_x), cur_y))
+                        self._window.move(clamped.x(), clamped.y())
+                        lost_title = g._standing_title
+                        g._standing_hwnd = 0
+                        g._standing_title = ""
+                        g._standing_rect = None
+                        g._cached_effective_bottom = None
+                        self._stop_walk(switch_idle=False)
+                        g.standing_lost.emit(lost_title)
+                        if not g._falling:
+                            g._falling = True
+                            g.falling_started.emit()
+                            g._play_once("falling")
+                        return
+
+                    if window_moved:
+                        # 窗口垂直移动 → 停止行走，下落
+                        lost_title = g._standing_title
+                        g._standing_hwnd = 0
+                        g._standing_title = ""
+                        g._standing_rect = None
+                        g._cached_effective_bottom = None
+                        self._stop_walk(switch_idle=False)
+                        g.standing_lost.emit(lost_title)
+                        if not g._falling:
+                            g._falling = True
+                            g.falling_started.emit()
+                            g._play_once("falling")
+                        return
+
+                    new_y = g._cached_effective_bottom
+                    g._vy = 0.0
+            else:
+                # 不在已知落点上，做窗口扫描
+                pet_hwnd = int(self._window.winId())
+                pet_self = (int(new_x), cur_y, int(new_x) + w, cur_y + h)
+                feet_l = int(new_x) + w // 3
+                feet_r = int(new_x) + (2 * w) // 3
+                effective_bottom = screen_bottom
+                found_hwnd = 0
+                found_title = ""
+                for win in get_visible_windows():
+                    left, top, right, bottom = win["rect"]
+                    if (left == pet_self[0] and top == pet_self[1]
+                            and right == pet_self[2] and bottom == pet_self[3]):
+                        continue
+                    if feet_l >= right or feet_r <= left:
+                        continue
+                    if cur_y + h <= top <= new_y + h:
+                        landing = top - h
+                        if landing < effective_bottom:
+                            if is_window_occluded(win["hwnd"], skip_hwnd=pet_hwnd):
+                                continue
+                            effective_bottom = landing
+                            found_hwnd = win["hwnd"]
+                            found_title = win["title"][:30]
+                g._cached_effective_bottom = effective_bottom
+                if found_hwnd:
+                    g._standing_hwnd = found_hwnd
+                    g._standing_title = found_title
+                    g._standing_rect = get_window_rect(found_hwnd)
+                elif effective_bottom == screen_bottom:
+                    g._standing_hwnd = 0
+                    g._standing_title = ""
+                    g._standing_rect = None
+
+                at_bottom = new_y >= effective_bottom
+                if at_bottom:
+                    new_y = effective_bottom
+                    g._vy = 0.0
+        except Exception:
+            logger.exception("[PetActions] _normal_walk_tick scan failed")
+
+        clamped = g._clamp_pos(QPoint(int(new_x), int(new_y)))
+        self._window.move(clamped.x(), clamped.y())
+
+        # 走到目标或边缘 → 停止行走
+        if reached_target or hit_edge:
+            self._stop_walk()
 
     def fade_in(self, duration=300):
         """窗口淡入。"""
