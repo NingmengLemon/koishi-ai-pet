@@ -133,16 +133,7 @@ class PetActions(QObject):
         return sentinel
 
     def normal_walk(self, direction: str = "right", distance: int = 400):
-        """重力驱动行走：由 gravity tick 统一驱动位移和检测，丝滑无顿挫。
-
-        与 jump_walk() 的区别：
-        - 不使用 QPropertyAnimation，改为重力系统每 tick 驱动水平位移
-        - 每个 tick 都做垂直重力检测，走到悬崖边自然下落
-        - 不需要 sentinel 占位动画
-
-        Returns:
-            "normal_walk" 字符串，供 ActionQueue 识别为重力行走类型
-        """
+        """普通行走"""
         if direction not in ("left", "right"):
             raise ValueError(f"direction must be 'left' or 'right', got '{direction}'")
 
