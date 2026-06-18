@@ -67,8 +67,8 @@ class EmotionBubble(QLabel):
             parent_pos = self.parent().geometry().center()
 
         if parent_pos is not None:
-            pos = self._final_position(parent_pos)
-            self.move(pos)
+            x, y = self._final_position(parent_pos)
+            self.move(x, y)
             # 淡入
             self.setWindowOpacity(0.0)
             self.show()
