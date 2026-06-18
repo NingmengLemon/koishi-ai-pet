@@ -76,7 +76,7 @@ class MemoryStore:
 
     def __init__(self, db_path: str | None = None, dedup_threshold: float = 0.6):
         if db_path is None:
-            db_path = str(Path(__file__).resolve().parent.parent.parent / "memories.db")
+            db_path = str(Path(__file__).resolve().parent.parent.parent / "pet.db")
         
         self._db_path = db_path
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -243,7 +243,7 @@ class MemoryStore:
         keywords = [
             t for t in tokens
             if len(t) >= 2 and t not in STOP_WORDS and not t.isdigit()
-        ][:5]
+       ][:5]
         return keywords
 
     def _find_similar(self, content: str, keywords: list[str]) -> Tuple[Optional[dict], float]:
@@ -295,7 +295,7 @@ class MemoryStore:
 
     def _enforce_capacity(self):
         """容量控制（需在已有 lock 内调用）"""
-        count = self._conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
+        count = self._conn.execute("SELECT COUNT(*) FROM memories").fetchall()[0][0]
         if count <= self.MAX_MEMORIES:
             return
             
@@ -306,7 +306,7 @@ class MemoryStore:
         )
         self._conn.commit()
         
-        count = self._conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
+        count = self._conn.execute("SELECT COUNT(*) FROM memories").fetchall()[0][0]
         if count > self.MAX_MEMORIES:
             excess = count - self.MAX_MEMORIES
             self._conn.execute(
