@@ -33,6 +33,7 @@ class SkillResult:
     data: Any = None
     error: str = ""
     image_b64: str | None = None  # 插件可返回 base64 图片，供下一轮 LLM 多模态读取
+    image_mime: str = "image/png"  # 图片 MIME 类型
 
 
 class SkillExecutor:
@@ -58,9 +59,11 @@ class SkillExecutor:
             data = method.handler(**validated_args)
             logger.info(f"[SkillExecutor] \u2713 {call.name} \u2192 {str(data)[:100]}")
             image_b64 = None
+            image_mime = "image/png"
             if isinstance(data, dict):
-                image_b64 = data.pop("__image__", None)  # 插件的截图走 __image__ 旁路，不混入文本结果
-            return SkillResult(name=call.name, success=True, data=data, image_b64=image_b64)
+                image_b64 = data.pop("__image__", None)
+                image_mime = data.pop("__image_mime__", "image/png")
+            return SkillResult(name=call.name, success=True, data=data, image_b64=image_b64, image_mime=image_mime)
         except TypeError as e:
             logger.error(f"[SkillExecutor] ✗ {call.name} TypeError: {e}")
             return SkillResult(name=call.name, success=False, error=f"参数不匹配: {e}")
@@ -135,13 +138,13 @@ class SkillExecutor:
     @classmethod
     def format_results(cls, results: list[SkillResult]) -> tuple[str, list[str]]:
         lines = []
-        images = []
+        image_uris = []
         for r in results:
             if r.success:
                 lines.append(f"[✓ {r.name}]\n{cls._normalize(r.data)}")
                 if r.image_b64:
-                    images.append(r.image_b64)
+                    image_uris.append(f"data:{r.image_mime};base64,{r.image_b64}")
                     lines.append("(附图: 已提供截图，可直接观察内容)")
             else:
                 lines.append(f"[✗ {r.name}] 失败: {r.error}")
-        return "\n\n".join(lines), images
+        return "\n\n".join(lines), image_uris

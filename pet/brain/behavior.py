@@ -564,6 +564,9 @@ class Behavior(BrainMixin):
         current_content = first_content
         history = []
         speech_streamed = False
+        # 第 1 轮用完整 system prompt，后续轮次用精简版
+        personality = config.PET_PERSONALITY or ""
+        short_system = prompts.skill_round_system_prompt(personality)
 
         for round_idx in range(max_rounds):
             tool_calls = executor.parse_skill_lines(current_content)
@@ -584,17 +587,18 @@ class Behavior(BrainMixin):
                 user_content = [
                     {"type": "text", "text": prompts.skill_result_user_prompt(result_text)}
                 ]
-                for img_b64 in images:
+                for img_uri in images:
                     user_content.append({
                         "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{img_b64}"}
+                        "image_url": {"url": img_uri}
                     })
                 history.append({"role": "user", "content": user_content})
             else:
                 history.append({"role": "user", "content": prompts.skill_result_user_prompt(result_text)})
 
-            # 调用下一轮 LLM
-            messages = [{"role": "system", "content": system_content}] + history
+            # 调用下一轮 LLM：第 1 轮用完整 prompt，后续用精简版
+            sys = system_content if round_idx == 0 else short_system
+            messages = [{"role": "system", "content": sys}] + history
             tag = f"skill_round_{round_idx+1}"
             self._dump_context(tag, messages)
             try:

@@ -15,6 +15,55 @@ def _action_params():
     return target_s, min_actions
 
 
+def _format_args(args: dict) -> str:
+    """格式化结构化 args 为 prompt 描述文本。"""
+    if not args:
+        return ""
+    parts = []
+    for k, v in args.items():
+        t = v.get("type", "any")
+        req = v.get("required", False)
+        desc = v.get("desc", "")
+        default = v.get("default")
+        tag = "必选" if req else f"可选, 默认 {default!r}"
+        parts.append(f"{k}({t}, {tag}): {desc}")
+    return "{" + "; ".join(parts) + "}"
+
+
+def generate_skill_section() -> str:
+    """根据注册表生成技能描述 prompt 段。"""
+    enabled = SKILL_REGISTRY.enabled_skills
+    if not enabled:
+        return ""
+
+    lines = [
+        "=== 可用技能 ===",
+        "你需要主动判断何时使用技能，不要等用户明确指示：",
+        "  • 只能使用下方列表中的技能，禁止编造不存在的技能名",
+        "  • 技能返回的结果已经包含所需信息时，直接基于结果回答用户，不要重复调用其他技能",
+        "",
+        "输出格式：",
+        '  Skill: {"name": "skill.method", "args": {}}',
+        "可一次输出多个 Skill 行；工具结果返回后可继续输出新的 Skill 行（最多 3 轮）。",
+        "",
+        "可用技能列表：",
+    ]
+
+    for skill in enabled:
+        lines.append(f"\n【{skill.name}】{skill.description}")
+        if skill.when:
+            lines.append(f"  何时使用: {skill.when}")
+        for m in skill.methods.values():
+            args_desc = _format_args(m.args)
+            args_part = f"  参数: {args_desc}" if args_desc else "  无参数"
+            lines.append(f"  - {skill.name}.{m.name}: {m.description}")
+            lines.append(f"    {args_part}")
+            if m.when:
+                lines.append(f"    触发场景: {m.when}")
+
+    return "\n".join(lines)
+
+
 _WINDOW_GUIDE = """=== 窗口互动方法 ===
 屏幕上的窗口是你与用户世界的主要连接点。你需要主动利用窗口来展开行为。
 
@@ -133,7 +182,7 @@ def non_vision_system_prompt() -> str:
         f"\n\n{actions}"
         f"\n\n{_build_common_tail()}"
         f"\n\n{_MEMORY_GUIDE}"
-    ) + (f"\n\n{SKILL_REGISTRY.generate_prompt_section()}" if SKILL_REGISTRY.generate_prompt_section() else "")
+    ) + (f"\n\n{generate_skill_section()}" if generate_skill_section() else "")
 
 
 def vision_system_prompt() -> str:
@@ -155,7 +204,7 @@ def vision_system_prompt() -> str:
         f"\n\n{_build_common_tail()}"
         f"\n{_VISION_ONLY_CONSTRAINTS}"
         f"\n\n{_MEMORY_GUIDE}"
-    ) + (f"\n\n{SKILL_REGISTRY.generate_prompt_section()}" if SKILL_REGISTRY.generate_prompt_section() else "")
+    ) + (f"\n\n{generate_skill_section()}" if generate_skill_section() else "")
 
 
 def non_vision_decide_prompt(context: str) -> str:
@@ -227,7 +276,7 @@ def chat_decide_system_prompt() -> str:
         "\n8. 参考「近期对话/行为记录」保持对话连贯，记住用户之前说过的话"
         "\n9. 假如用户让你使用某技能，在=== 可用技能 === 后面搜索，搜索到了必须调用，如果搜索不到，则按照人格设定回复暂时不会该技能"
         f"\n\n{_MEMORY_GUIDE}"
-    ) + (f"\n\n{SKILL_REGISTRY.generate_prompt_section()}" if SKILL_REGISTRY.generate_prompt_section() else "")
+    ) + (f"\n\n{generate_skill_section()}" if generate_skill_section() else "")
 
 
 def chat_decide_user_prompt(user_message: str, context: str) -> str:
@@ -250,6 +299,25 @@ def skill_result_user_prompt(skill_results: str) -> str:
         "  Action: <动作名>\n"
         "避免重复调用相同参数的技能。若上轮返回「参数错误」，请读并修正后重试。"
     )
+
+
+def skill_round_system_prompt(personality: str = "") -> str:
+    """Skill 多轮调用时的精简 system prompt，避免重复注入完整 prompt 浪费 token。
+
+    LLM 在第一轮已经看过完整的动作表和技能列表，后续轮次只需保留
+    核心格式约束和性格设定，无需重复窗口指南、动作详情等。
+    """
+    parts = [
+        "你是桌面宠物，正在执行技能多轮调用。根据技能返回结果决策下一步。",
+        "\n=== 输出格式 ===",
+        "Summary: <简要记录，50字以内>",
+        "Speech: <你想说的话>",
+        "Action: <动作名>",
+        "Skill: {\"name\": \"skill.method\", \"args\": {}}   ← 仍需查询时才输出",
+    ]
+    if personality:
+        parts.append(f"\n=== 你的性格 ===\n{personality}")
+    return "\n".join(parts)
 
 
 def interact_system_prompt() -> str:
