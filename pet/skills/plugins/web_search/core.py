@@ -25,7 +25,38 @@ def _load_config() -> dict:
     return {}
 
 
-# ── SearXNG 后端 ──────────────────────────────────────────────
+def _extract_text(url: str, max_chars: int = 2000) -> str:
+    """从 URL 抓取正文文本（使用 trafilatura）。
+
+    Returns:
+        提取的正文文本，失败则返回空字符串。
+    """
+    try:
+        import trafilatura
+    except ImportError:
+        logger.debug("[web_search] trafilatura not installed, skip text extraction")
+        return ""
+
+    try:
+        downloaded = trafilatura.fetch_url(url)
+        if not downloaded:
+            return ""
+        result = trafilatura.extract(
+            downloaded,
+            include_comments=False,
+            include_tables=True,
+            favor_precision=True,
+        )
+        if not result:
+            return ""
+        if len(result) > max_chars:
+            result = result[:max_chars] + "…"
+        return result
+    except Exception as e:
+        logger.debug(f"[web_search] trafilatura extract failed for {url}: {e}")
+        return ""
+
+
 
 def _search_searxng(query: str, count: int, language: str, cfg: dict) -> dict:
     """通过自建 SearXNG 实例搜索。"""
@@ -52,7 +83,7 @@ def _search_searxng(query: str, count: int, language: str, cfg: dict) -> dict:
             f"{base_url}/search",
             params=params,
             headers=headers,
-            timeout=10,
+            timeout=20,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -62,33 +93,22 @@ def _search_searxng(query: str, count: int, language: str, cfg: dict) -> dict:
 
     raw_results = data.get("results", [])
     if not raw_results:
-        return {"summary": f"「{query}」未找到相关结果", "results": [], "query": query}
+        return {"summary": f"「{query}」未找到相关结果"}
 
-    results = []
-    for item in raw_results[:count]:
-        results.append({
-            "title": item.get("title", ""),
-            "url": item.get("url", ""),
-            "snippet": item.get("content", ""),
-            "engine": item.get("engine", ""),
-            "publishedDate": item.get("publishedDate", ""),
-        })
-
-    lines = [f"「{query}」搜索结果（{len(results)}条）："]
-    for i, r in enumerate(results, 1):
-        date = r["publishedDate"]
+    lines = [f"「{query}」搜索结果（{min(len(raw_results), count)}条）："]
+    for i, item in enumerate(raw_results[:count], 1):
+        title = item.get("title", "")
+        url = item.get("url", "")
+        snippet = item.get("content", "")
+        date = item.get("publishedDate", "")
+        engine = item.get("engine", "")
         date_tag = f" [{date}]" if date else ""
-        engine_tag = f" [{r['engine']}]" if r["engine"] else ""
-        lines.append(f"  {i}. {r['title']}{date_tag}{engine_tag}\n     {r['snippet']}")
+        engine_tag = f" [{engine}]" if engine else ""
+        lines.append(f"  {i}. {title}{date_tag}{engine_tag}\n     {snippet}\n     {url}")
 
-    return {
-        "summary": "\n".join(lines),
-        "results": results,
-        "query": query,
-    }
+    return {"summary": "\n".join(lines)}
 
 
-# ── Bing 后端 ────────────────────────────────────────────────
 
 def _search_bing(query: str, count: int, market: str, cfg: dict) -> dict:
     """通过 Bing Web Search API 搜索。"""
@@ -122,32 +142,19 @@ def _search_bing(query: str, count: int, market: str, cfg: dict) -> dict:
 
     web_pages = data.get("webPages", {}).get("value", [])
     if not web_pages:
-        return {"summary": f"「{query}」未找到相关结果", "results": [], "query": query}
+        return {"summary": f"「{query}」未找到相关结果"}
 
-    results = []
-    for page in web_pages:
-        results.append({
-            "title": page.get("name", ""),
-            "url": page.get("url", ""),
-            "snippet": page.get("snippet", ""),
-            "dateLastPublished": page.get("dateLastPublished", ""),
-        })
-
-    lines = [f"「{query}」搜索结果（{len(results)}条）："]
-    for i, r in enumerate(results, 1):
-        date = r["dateLastPublished"]
+    lines = [f"「{query}」搜索结果（{len(web_pages)}条）："]
+    for i, page in enumerate(web_pages, 1):
+        title = page.get("name", "")
+        url = page.get("url", "")
+        snippet = page.get("snippet", "")
+        date = page.get("dateLastPublished", "")
         date_tag = f" [{date}]" if date else ""
-        lines.append(f"  {i}. {r['title']}{date_tag}\n     {r['snippet']}")
+        lines.append(f"  {i}. {title}{date_tag}\n     {snippet}\n     {url}")
 
-    return {
-        "summary": "\n".join(lines),
-        "results": results,
-        "query": query,
-        "total_matches": data.get("webPages", {}).get("totalEstimatedMatches", 0),
-    }
+    return {"summary": "\n".join(lines)}
 
-
-# ── 启动连通性检测 ────────────────────────────────────────────
 
 def check_connectivity() -> bool:
     """检测后端连通性（同步，由 SkillLoader 后台线程调用，不阻塞主线程）。
@@ -170,11 +177,21 @@ def check_connectivity() -> bool:
                 f"{searxng_url}/search",
                 params={"q": "test", "format": "json", "pageno": 1},
                 headers=headers,
-                timeout=5,
+                timeout=20,
             )
-            if resp.status_code == 200 and "results" in resp.json():
-                logger.info(f"[web_search] ✓ SearXNG 连通正常 → {searxng_url}")
-                any_ok = True
+            if resp.status_code == 200:
+                data = resp.json()
+                n = len(data.get("results", []))
+                unresponsive = data.get("unresponsive_engines", [])
+                if n > 0:
+                    logger.info(f"[web_search] ✓ SearXNG 连通正常 → {searxng_url} ({n} 条)")
+                    any_ok = True
+                else:
+                    engines = ", ".join(e[0] for e in unresponsive[:5]) if unresponsive else "未知"
+                    logger.warning(
+                        f"[web_search] ✗ SearXNG 可达但无结果 → {searxng_url} "
+                        f"(所有引擎不可用: {engines})"
+                    )
             else:
                 logger.warning(
                     f"[web_search] ✗ SearXNG 响应异常 → {searxng_url} "
@@ -214,7 +231,6 @@ def check_connectivity() -> bool:
     return any_ok
 
 
-# ── 统一入口 ──────────────────────────────────────────────────
 
 def search(query: str, count: int = 5, language: str = "zh-CN") -> dict:
     """网络搜索 — 智能路由：优先使用 SearXNG，未配置/失败则 fallback 到 Bing。
@@ -249,6 +265,52 @@ def search(query: str, count: int = 5, language: str = "zh-CN") -> dict:
             + ("SearXNG 已配置但请求失败。" if searxng_ok else "")
             + " 请在 web_search/config.json 中配置 searxng_url 或 bing_search_key"
         ),
-        "results": [],
-        "query": query,
     }
+
+
+def deep_search(query: str, count: int = 5, language: str = "zh-CN",
+                extract_top: int = 2, max_chars: int = 2000) -> dict:
+    """深度搜索 — 先搜索，再抓取前 N 条结果的正文摘要。
+
+    相比 search() 只返回标题+snippet，deep_search 会访问搜索结果页面，
+    提取正文文本，信息密度更高，适合需要具体细节的查询。
+
+    Args:
+        query:       搜索关键词
+        count:       搜索结果数量（1-10）
+        language:    语言/区域代码
+        extract_top: 抓取正文的结果条数（1-3，越多越慢）
+        max_chars:   每条正文最大字符数
+    """
+    # 先执行普通搜索
+    base_result = search(query, count, language)
+    summary = base_result.get("summary", "")
+    if "搜索失败" in summary:
+        return base_result
+
+    # 从 summary 中解析出 URL
+    urls = []
+    for line in summary.split("\n"):
+        line = line.strip()
+        if line.startswith("http://") or line.startswith("https://"):
+            urls.append(line)
+
+    if not urls:
+        return base_result
+
+    # 抓取前 extract_top 条结果的正文
+    extract_top = max(1, min(extract_top, 3, len(urls)))
+    extra_lines = ["\n--- 深度搜索：页面正文 ---"]
+    extracted = 0
+    for url in urls:
+        if extracted >= extract_top:
+            break
+        text = _extract_text(url, max_chars)
+        if text:
+            extra_lines.append(f"[{url}]\n{text}")
+            extracted += 1
+
+    if extracted == 0:
+        extra_lines.append("(未能提取任何页面正文，请参考搜索摘要)")
+
+    return {"summary": summary + "\n".join(extra_lines)}
