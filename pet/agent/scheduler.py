@@ -42,6 +42,9 @@ class Scheduler(QObject):
     slow_tick = Signal()
     idle_paused = Signal(bool)
 
+    _VALID_NAMES = ("fast", "mid", "slow")
+    _SIGNAL_MAP = None  # 延迟初始化，避免类级别引用 Signal 实例
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._timers: dict[str, QTimer] = {}
@@ -50,43 +53,61 @@ class Scheduler(QObject):
         self._idle_check = QTimer(self)
         self._idle_check.timeout.connect(self._check_idle)
         self._idle_timeout_ms = config.SCHEDULER_IDLE_TIMEOUT_MS
+        self._initialized = False
         logger.debug("[Scheduler] Created")
 
-    def start(self, fast_ms: int | None = None, mid_ms: int | None = None,
-              slow_ms: int | None = None):
-        fast_ms = fast_ms if fast_ms is not None else config.SCHEDULER_FAST_MS
-        mid_ms = mid_ms if mid_ms is not None else config.SCHEDULER_MID_MS
-        slow_ms = slow_ms if slow_ms is not None else config.SCHEDULER_SLOW_MS
-        self.stop()
-        ts = datetime.now().strftime("%H:%M:%S")
-        logger.info(f"[{ts}] [Scheduler] start(fast={fast_ms}ms, mid={mid_ms}ms, slow={slow_ms}ms)")
+    @classmethod
+    def _get_signal_map(cls):
+        if cls._SIGNAL_MAP is None:
+            cls._SIGNAL_MAP = {"fast": cls.fast_tick, "mid": cls.mid_tick, "slow": cls.slow_tick}
+        return cls._SIGNAL_MAP
 
-        if fast_ms > 0:
-            t = QTimer(self)
-            t.setInterval(fast_ms)
-            t.timeout.connect(self.fast_tick)
-            t.start()
-            self._timers["fast"] = t
+    def init(self, auto_fast: bool = True, auto_mid: bool = True, auto_slow: bool = True):
+        """初始化调度器：始终创建全部三个 timer，auto_xxx 控制初始是否运行。
 
-        if mid_ms > 0:
-            t = QTimer(self)
-            t.setInterval(mid_ms)
-            t.timeout.connect(self.mid_tick)
-            t.start()
-            self._timers["mid"] = t
+        Args:
+            auto_fast: fast_tick 是否自动启动
+            auto_mid:  mid_tick 是否自动启动
+            auto_slow: slow_tick 是否自动启动
+        """
+        # 清理旧 timer
+        for t in self._timers.values():
+            t.stop()
+            t.deleteLater()
+        self._timers.clear()
+        self._manually_paused.clear()
 
-        if slow_ms > 0:
+        signal_map = self._get_signal_map()
+        intervals = {"fast": config.SCHEDULER_FAST_MS, "mid": config.SCHEDULER_MID_MS, "slow": config.SCHEDULER_SLOW_MS}
+        auto_flags = {"fast": auto_fast, "mid": auto_mid, "slow": auto_slow}
+
+        for name in self._VALID_NAMES:
+            ms = intervals[name]
             t = QTimer(self)
-            t.setInterval(slow_ms)
-            t.timeout.connect(self.slow_tick)
-            t.start()
-            self._timers["slow"] = t
+            t.setInterval(ms)
+            t.timeout.connect(signal_map[name])
+            self._timers[name] = t
+
+            if auto_flags[name]:
+                t.start()
+            else:
+                self._manually_paused.add(name)
 
         # 空闲检测：每 30 秒轮询一次系统输入状态
         self._idle_check.start(30000)
         self._idle_paused = False
+        self._initialized = True
+
+        ts = datetime.now().strftime("%H:%M:%S")
+        logger.info(
+            f"[{ts}] [Scheduler] init — "
+            f"fast={'ON' if auto_fast else 'PAUSED'}({intervals['fast']}ms), "
+            f"mid={'ON' if auto_mid else 'PAUSED'}({intervals['mid']}ms), "
+            f"slow={'ON' if auto_slow else 'PAUSED'}({intervals['slow']}ms)"
+        )
 
     def stop(self):
+        """停止全部定时器与空闲检测。"""
         self._idle_check.stop()
         if not self._timers:
             return
@@ -96,11 +117,14 @@ class Scheduler(QObject):
             t.stop()
             t.deleteLater()
         self._timers.clear()
+        self._manually_paused.clear()
         self._idle_paused = False
+        self._initialized = False
         logger.info(f"[{ts}] [Scheduler] stop() — stopped {names}")
 
     def is_running(self) -> bool:
-        return bool(self._timers)
+        """调度器是否已初始化。"""
+        return self._initialized
 
     def _check_idle(self):
         """检查系统空闲状态，超时则暂停三个调度计时器。"""
@@ -122,8 +146,6 @@ class Scheduler(QObject):
 
     def is_idle_paused(self) -> bool:
         return self._idle_paused
-
-    _VALID_NAMES = ("fast", "mid", "slow")
 
     def pause(self, name: str):
         """暂停指定定时器（fast/mid/slow）。"""
