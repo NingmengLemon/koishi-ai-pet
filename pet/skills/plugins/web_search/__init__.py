@@ -1,4 +1,4 @@
-"""网络搜索插件 — 支持 SearXNG（自建）和 Bing Web Search API。"""
+"""支持 SearXNG（自建）和 Bing Web Search API。"""
 
 from pet.skills.plugins.web_search.core import search, deep_search, check_connectivity
 
@@ -7,8 +7,6 @@ SKILL_DESCRIPTION = "网络搜索，获取实时信息、新闻、百科知识"
 
 
 def register(registry):
-    """插件接口 — 由 SkillLoader（后台线程）调用。"""
-    # 连通性检测（同步，但在 loader 后台线程中，不阻塞主线程）
     if not check_connectivity():
         raise RuntimeError("web_search: 所有搜索后端均不可达，跳过加载")
 

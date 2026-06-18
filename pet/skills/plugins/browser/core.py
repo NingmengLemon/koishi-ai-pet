@@ -1,5 +1,3 @@
-"""浏览器操作核心逻辑。"""
-
 import base64
 import logging
 import webbrowser

@@ -1,4 +1,4 @@
-"""LLM 调用重试与异常分类工具。"""
+"""LLM 调用重试与异常分类。"""
 
 import logging
 from functools import wraps
@@ -14,7 +14,6 @@ from config import config
 
 logger = logging.getLogger(__name__)
 
-# --- 异常分类 ---
 RETRYABLE_EXCEPTIONS = (
     APIConnectionError, APITimeoutError, RateLimitError,
     InternalServerError, ConnectionError, TimeoutError, OSError,
@@ -33,7 +32,6 @@ def is_retryable(exception: BaseException) -> bool:
     return False
 
 
-# --- 非流式重试装饰器 ---
 def llm_retry(tag: str = "LLM"):
     """非流式 LLM 调用的重试装饰器。"""
     def decorator(func):
@@ -62,14 +60,13 @@ def llm_retry(tag: str = "LLM"):
     return decorator
 
 
-# --- 流式重试函数（阶段二使用）---
 def llm_stream_with_retry(create_stream_fn, tag: str = "LLM"):
     """流式调用的重试包装"""
     last_exception = None
     for attempt in range(config.LLM_MAX_RETRIES):
         try:
             stream = create_stream_fn()
-            return stream  # 连接成功，返回迭代器
+            return stream
         except Exception as e:
             last_exception = e
             if not is_retryable(e):

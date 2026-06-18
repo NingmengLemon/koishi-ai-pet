@@ -1,4 +1,4 @@
-"""网络搜索核心逻辑 — 支持 SearXNG（自建）和 Bing Web Search API 两种后端。"""
+"""支持 SearXNG（自建）和 Bing Web Search API 两种后端。"""
 
 import json
 import logging
@@ -8,6 +8,8 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+logging.getLogger("trafilatura").setLevel(logging.ERROR)
+
 _PLUGIN_DIR = Path(__file__).parent
 _CONFIG_FILE = _PLUGIN_DIR / "config.json"
 
@@ -15,7 +17,6 @@ _BING_ENDPOINT = "https://api.bing.microsoft.com/v7.0/search"
 
 
 def _load_config() -> dict:
-    """读取插件本地 config.json 配置。"""
     if _CONFIG_FILE.is_file():
         try:
             with open(_CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -26,11 +27,7 @@ def _load_config() -> dict:
 
 
 def _extract_text(url: str, max_chars: int = 2000) -> str:
-    """从 URL 抓取正文文本（使用 trafilatura）。
-
-    Returns:
-        提取的正文文本，失败则返回空字符串。
-    """
+    """从 URL 抓取正文文本（使用 trafilatura），失败返回空字符串。"""
     try:
         import trafilatura
     except ImportError:
@@ -59,7 +56,6 @@ def _extract_text(url: str, max_chars: int = 2000) -> str:
 
 
 def _search_searxng(query: str, count: int, language: str, cfg: dict) -> dict:
-    """通过自建 SearXNG 实例搜索。"""
     base_url = cfg.get("searxng_url", "").rstrip("/").removesuffix("/search")
     if not base_url:
         return {"summary": "搜索失败：未配置 searxng_url，请在 web_search/config.json 中设置"}
@@ -111,7 +107,6 @@ def _search_searxng(query: str, count: int, language: str, cfg: dict) -> dict:
 
 
 def _search_bing(query: str, count: int, market: str, cfg: dict) -> dict:
-    """通过 Bing Web Search API 搜索。"""
     api_key = cfg.get("bing_search_key", "")
     if not api_key:
         return {"summary": "搜索失败：未配置 bing_search_key，请在 web_search/config.json 中设置"}
@@ -157,12 +152,7 @@ def _search_bing(query: str, count: int, market: str, cfg: dict) -> dict:
 
 
 def check_connectivity() -> bool:
-    """检测后端连通性（同步，由 SkillLoader 后台线程调用，不阻塞主线程）。
-
-    Returns:
-        True:  至少一个后端可用
-        False: 全部后端不可用，不应注册此技能
-    """
+    """检测后端连通性，至少一个可用返回 True。"""
     cfg = _load_config()
     backend = cfg.get("backend", "auto")
     any_ok = False
@@ -243,7 +233,6 @@ def search(query: str, count: int = 5, language: str = "zh-CN") -> dict:
     cfg = _load_config()
     backend = cfg.get("backend", "auto")
 
-    # SearXNG 优先（backend=searxng 或 backend=auto）
     if backend in ("searxng", "auto"):
         searxng_url = cfg.get("searxng_url", "")
         if searxng_url:
@@ -252,12 +241,10 @@ def search(query: str, count: int = 5, language: str = "zh-CN") -> dict:
                 return result
             logger.info("[web_search] SearXNG failed, falling back to Bing")
 
-    # Bing fallback
     bing_key = cfg.get("bing_search_key", "")
     if bing_key:
         return _search_bing(query, count, language, cfg)
 
-    # 两个后端都不可用
     searxng_ok = bool(cfg.get("searxng_url", ""))
     return {
         "summary": (
@@ -282,13 +269,11 @@ def deep_search(query: str, count: int = 5, language: str = "zh-CN",
         extract_top: 抓取正文的结果条数（1-3，越多越慢）
         max_chars:   每条正文最大字符数
     """
-    # 先执行普通搜索
     base_result = search(query, count, language)
     summary = base_result.get("summary", "")
     if "搜索失败" in summary:
         return base_result
 
-    # 从 summary 中解析出 URL
     urls = []
     for line in summary.split("\n"):
         line = line.strip()
@@ -298,7 +283,6 @@ def deep_search(query: str, count: int = 5, language: str = "zh-CN",
     if not urls:
         return base_result
 
-    # 抓取前 extract_top 条结果的正文
     extract_top = max(1, min(extract_top, 3, len(urls)))
     extra_lines = ["\n--- 深度搜索：页面正文 ---"]
     extracted = 0

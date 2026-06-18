@@ -1,5 +1,3 @@
-"""系统监控核心逻辑。"""
-
 import psutil
 import logging
 import platform
@@ -9,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 
 def _format_bytes(b: int) -> str:
-    """字节数转可读字符串。"""
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if abs(b) < 1024:
             return f"{b:.1f}{unit}"
@@ -18,7 +15,6 @@ def _format_bytes(b: int) -> str:
 
 
 def get_overview() -> dict:
-    """获取系统整体概况：CPU、内存、磁盘、电池、运行时长。"""
     try:
         cpu_percent = psutil.cpu_percent(interval=0.3)
         cpu_count = psutil.cpu_count()
@@ -65,7 +61,6 @@ def get_overview() -> dict:
 
 
 def get_top_processes(count: int = 5) -> dict:
-    """获取占用 CPU 最高的前 N 个进程。"""
     count = max(1, min(count, 20))
     procs = []
     for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent"]):
@@ -93,7 +88,6 @@ def get_top_processes(count: int = 5) -> dict:
 
 
 def get_memory_detail() -> dict:
-    """获取详细内存信息。"""
     mem = psutil.virtual_memory()
     swap = psutil.swap_memory()
 
@@ -116,7 +110,6 @@ def get_memory_detail() -> dict:
 
 
 def get_network() -> dict:
-    """获取网络流量统计。"""
     counters = psutil.net_io_counters()
     result = {
         "bytes_sent": _format_bytes(counters.bytes_sent),

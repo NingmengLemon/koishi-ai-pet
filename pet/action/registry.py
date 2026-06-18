@@ -1,4 +1,4 @@
-"""Action Registry - 可被 LLM 调用的动作定义。"""
+"""可被 LLM 调用的动作定义。"""
 
 from dataclasses import dataclass, field
 from typing import List

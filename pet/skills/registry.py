@@ -1,10 +1,4 @@
-"""技能注册表 — 自动发现、注册、描述可用技能。
-
-args 参数格式：
-  {"name": {"type": "int", "required": False, "default": 5, "desc": "说明"}}
-  type 支持: int / float / str / bool / list / dict
-  required=True 表示必选，缺少时校验不通并返回错误给 LLM。
-"""
+"""技能注册表 — 自动发现、注册、描述可用技能。"""
 
 import logging
 from dataclasses import dataclass, field
@@ -31,7 +25,6 @@ class SkillDef:
 
 
 class SkillRegistry:
-    """全局技能注册表。"""
 
     def __init__(self):
         self._skills: dict[str, SkillDef] = {}
@@ -66,7 +59,6 @@ class SkillRegistry:
 
     @property
     def enabled_skills(self) -> list["SkillDef"]:
-        """返回所有已启用的技能定义列表。"""
         return [s for s in self._skills.values() if self.is_enabled(s.name)]
 
     @property
@@ -89,5 +81,4 @@ class SkillRegistry:
         return set(self._disabled)
 
 
-# 全局单例
 SKILL_REGISTRY = SkillRegistry()

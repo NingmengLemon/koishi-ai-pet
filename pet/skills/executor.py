@@ -32,8 +32,8 @@ class SkillResult:
     success: bool
     data: Any = None
     error: str = ""
-    image_b64: str | None = None  # 插件可返回 base64 图片，供下一轮 LLM 多模态读取
-    image_mime: str = "image/png"  # 图片 MIME 类型
+    image_b64: str | None = None
+    image_mime: str = "image/png"
 
 
 class SkillExecutor:

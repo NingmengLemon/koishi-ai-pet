@@ -1,4 +1,4 @@
-"""天气查询核心逻辑 — 通过 Open-Meteo 免费 API 获取实时天气和预报。"""
+"""通过 Open-Meteo 免费 API 获取实时天气和预报。"""
 
 import json
 import logging

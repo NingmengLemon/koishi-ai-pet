@@ -1,4 +1,4 @@
-"""LLM 行为决策 —— 与 AI 通信，解析响应为动作序列。"""
+"""与 AI 通信，解析响应为动作序列。"""
 
 import base64
 from datetime import datetime
@@ -384,7 +384,6 @@ class Behavior(BrainMixin):
                     on_chunk(delta_speech)
                     speech_streamed = True
 
-            # 最后一行
             if buffer.strip():
                 self._finish_line(buffer, actions, speech_parts, skill_lines, summary_holder, memory_holder)
 
@@ -575,12 +574,10 @@ class Behavior(BrainMixin):
                 result.speech_streamed = speech_streamed
                 return result
 
-            # 执行工具
             results = executor.execute(tool_calls)
             result_text, images = executor.format_results(results)
             logger.info(f"[Behavior] skill_round_{round_idx+1} executed {len(tool_calls)} tool(s), images={len(images)}")
 
-            # 累积到对话历史
             history.append({"role": "assistant", "content": current_content})
             # 插件有图且模型支持视觉时，构建多模态消息
             if images and self.has_vision:
@@ -596,7 +593,6 @@ class Behavior(BrainMixin):
             else:
                 history.append({"role": "user", "content": prompts.skill_result_user_prompt(result_text)})
 
-            # 调用下一轮 LLM：第 1 轮用完整 prompt，后续用精简版
             sys = system_content if round_idx == 0 else short_system
             messages = [{"role": "system", "content": sys}] + history
             tag = f"skill_round_{round_idx+1}"

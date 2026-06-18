@@ -1,4 +1,4 @@
-"""桌宠行为动作模块 —— 复合行为（移动、弹跳等），通过 PetAnimator 播放帧动画。"""
+"""复合行为（移动、弹跳等），通过 PetAnimator 播放帧动画。"""
 
 import logging
 
@@ -18,7 +18,7 @@ class PetActions(QObject):
     def __init__(self, window: QWidget, animator, parent=None):
         super().__init__(parent or window)
         self._window = window
-        self._anim = animator  # PetAnimator instance for frame playback
+        self._anim = animator
 
         self._win_anims: list[QPropertyAnimation] = []
 
@@ -176,7 +176,7 @@ class PetActions(QObject):
         except (TypeError, RuntimeError):
             pass
         self.gravity.suppress_idle = False
-        self.gravity.resume_timer()  # 恢复重力 tick
+        self.gravity.resume_timer()
         if switch_idle:
             self._anim.play("idle")
         logger.info(f"[PetActions] _stop_walk at x={self._window.x()}")
@@ -193,11 +193,9 @@ class PetActions(QObject):
         w = self._window.width()
         h = self._window.height()
 
-        # 水平步进
         step = self._walk_speed * self._walk_sign
         new_x = cur_x + step
 
-        # 判断是否到达目标 / 屏幕边缘
         reached_target = (
             (self._walk_sign > 0 and new_x >= self._walk_target_x) or
             (self._walk_sign < 0 and new_x <= self._walk_target_x)
@@ -218,8 +216,7 @@ class PetActions(QObject):
         g._vy = min(g._vy + g._GRAVITY_ACCEL, g._FALL_TERMINAL)
         new_y = cur_y + g._vy
 
-        # 扫描落点
-        try:
+            try:
             screen_bottom = screen.availableGeometry().bottom() - h if screen else cur_y
             was_at_bottom = g._cached_effective_bottom is not None and cur_y >= g._cached_effective_bottom
             if was_at_bottom and g._standing_hwnd:
@@ -286,7 +283,6 @@ class PetActions(QObject):
                     new_y = g._cached_effective_bottom
                     g._vy = 0.0
             else:
-                # 不在已知落点上，做窗口扫描
                 pet_hwnd = int(self._window.winId())
                 pet_self = (int(new_x), cur_y, int(new_x) + w, cur_y + h)
                 feet_l = int(new_x) + w // 3
@@ -329,7 +325,6 @@ class PetActions(QObject):
         clamped = g._clamp_pos(QPoint(int(new_x), int(new_y)))
         self._window.move(clamped.x(), clamped.y())
 
-        # 走到目标或边缘 → 停止行走
         if reached_target or hit_edge:
             self._stop_walk()
 

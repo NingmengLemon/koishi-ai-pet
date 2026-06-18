@@ -1,5 +1,3 @@
-"""文件操作插件"""
-
 from pet.skills.plugins.file_ops.core import FileOpsTool
 
 SKILL_NAME = "file"
@@ -9,7 +7,6 @@ _instance = FileOpsTool()
 
 
 def register(registry):
-    """插件接口 — 由 SkillLoader 调用。"""
     skill = registry.register(SKILL_NAME, SKILL_DESCRIPTION)
     skill.when = "用户让你查看桌面/文档文件、读取文件内容、或写笔记时"
 

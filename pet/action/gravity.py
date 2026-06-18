@@ -1,4 +1,4 @@
-"""重力系统 —— 模拟桌宠受重力下落，可站立在其他窗口上。"""
+"""模拟桌宠受重力下落，可站立在其他窗口上。"""
 
 import logging
 
@@ -11,31 +11,29 @@ logger = logging.getLogger(__name__)
 
 
 class GravitySystem(QObject):
-    """重力系统，定时检测桌宠是否悬空并模拟下落。支持甚出投掷物理。"""
+    """定时检测桌宠是否悬空并模拟下落，支持甩出投掷物理。"""
 
     falling_started = Signal()  # 进入下落状态时发出
     landed = Signal()           # 落地时发出
     standing_lost = Signal(str) # 站立的窗口消失/被遮挡，附带窗口标题
 
-    # 物理参数
-    _GRAVITY_ACCEL  = 1.5   # 重力加速度（px/tick²）
-    _FRICTION       = 0.99  # 水平摩擦系数（每 tick 乘以）
-    _MAX_SPEED      = 25.0  # 最大速度（px/tick）
-    _FALL_TERMINAL  = 8.0   # 常规下落终端速度（px/tick）
-    _WALL_BOUNCE    = -0.4  # 碰屏幕左右边缘出射系数
-    _IMPULSE_SCALE  = 0.05  # 鼠标速度（px/s）转 tick 速度比例（30ms tick）
+    _GRAVITY_ACCEL  = 1.5   # px/tick²
+    _FRICTION       = 0.99
+    _MAX_SPEED      = 25.0  # px/tick
+    _FALL_TERMINAL  = 8.0   # px/tick
+    _WALL_BOUNCE    = -0.4
+    _IMPULSE_SCALE  = 0.05  # px/s → px/tick (30ms)
 
     def __init__(self, window: QWidget, animator, win_anims: list, parent=None):
         super().__init__(parent)
         self._window = window
         self._anim = animator
-        self._win_anims = win_anims  # PetActions 的动画列表，用于判断是否有动画在执行
+        self._win_anims = win_anims
 
         self._interval = 30
         self._enabled = True
         self._falling = False
 
-        # 甚出物理状态
         self._vx: float = 0.0
         self._vy: float = 0.0
         self._in_flick: bool = False
@@ -55,16 +53,10 @@ class GravitySystem(QObject):
         self._last_anim_played: str | None = None
 
     def apply_impulse(self, vx: float, vy: float):
-        """注入初速度，开始甚出物理模式。
-
-        Args:
-            vx: 水平速度（px/s）
-            vy: 垂直速度（px/s）
-        """
+        """注入初速度 (px/s)，开始甩出物理模式。"""
         if not self._enabled:
             return
 
-        # 换算为 px/tick
         self._vx = max(-self._MAX_SPEED, min(vx * self._IMPULSE_SCALE, self._MAX_SPEED))
         # 纯水平/向下甩出时给一个最小向上速度，确保离面
         scaled_vy = vy * self._IMPULSE_SCALE
@@ -109,13 +101,11 @@ class GravitySystem(QObject):
             self._timer.stop()
 
     def _play_once(self, name: str):
-        """只在动画变化时播一次，避免每 tick 重播同动画。"""
         if name != self._last_anim_played:
             self._last_anim_played = name
             self._anim.play(name)
 
     def _clamp_pos(self, pos):
-        """将坐标限制在屏幕可用范围内。"""
         screen = QApplication.primaryScreen()
         if not screen:
             return pos
@@ -130,7 +120,6 @@ class GravitySystem(QObject):
         if any(a.state() == QPropertyAnimation.State.Running for a in self._win_anims):
             return
 
-        # 甩出的物理模式：自行驱动位移，不走常规重力逻辑
         if self._in_flick:
             self._tick_flick()
             return
@@ -263,12 +252,10 @@ class GravitySystem(QObject):
             self._play_once("falling")
 
     def pause_timer(self):
-        """暂停重力 tick 定时器，供外部模块接管位移时使用。"""
         if self._timer.isActive():
             self._timer.stop()
 
     def resume_timer(self):
-        """恢复重力 tick 定时器。"""
         if self._enabled and not self._timer.isActive():
             self._timer.start(self._interval)
 

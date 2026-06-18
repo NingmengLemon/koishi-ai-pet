@@ -1,5 +1,4 @@
 class BrainMixin:
-    """轻量级上下文管理 mixin"""
 
     def __init__(self):
         self._context: list[str] = []

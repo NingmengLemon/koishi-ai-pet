@@ -1,5 +1,3 @@
-"""浏览器操作插件"""
-
 from pet.skills.plugins.browser.core import BrowserTool
 
 SKILL_NAME = "browser"
@@ -9,7 +7,6 @@ _instance = BrowserTool()
 
 
 def register(registry):
-    """插件接口 — 由 SkillLoader 调用。"""
     skill = registry.register(SKILL_NAME, SKILL_DESCRIPTION)
     skill.when = "用户让你打开某个网站、帮他用浏览器搜索、或需要查看网页内容时；如果其他技能的摘要结果不够详细，可用 screenshot_url 截图查看网页详情"
 

@@ -1,5 +1,3 @@
-"""天气查询插件"""
-
 from pet.skills.plugins.weather.core import get_current, get_forecast
 
 SKILL_NAME = "weather"
@@ -7,7 +5,6 @@ SKILL_DESCRIPTION = "天气查询（当前天气、未来预报）"
 
 
 def register(registry):
-    """插件接口 — 由 SkillLoader 调用。"""
     skill = registry.register(SKILL_NAME, SKILL_DESCRIPTION)
     skill.when = "用户询问天气、温度、是否下雨、出门穿衣建议时"
 

@@ -1,4 +1,4 @@
-"""SQLite 持久化记忆存储。"""
+"""SQLite 持久化记忆存储"""
 
 import sqlite3
 import re
@@ -30,21 +30,18 @@ STOP_WORDS = {
 
 
 class LightweightDeduplicator:
-    """轻量级去重器"""
 
     def __init__(self, ngram_size: int = 2, sim_threshold: float = 0.6):
         self.ngram_size = ngram_size
         self.sim_threshold = sim_threshold
 
     def _get_char_ngrams(self, text: str) -> set:
-        """提取字符级 N-gram"""
         text = re.sub(r'[^\w]', '', text.lower())
         if len(text) < self.ngram_size:
             return {text}
         return {text[i:i+self.ngram_size] for i in range(len(text) - self.ngram_size + 1)}
 
     def _jaccard_similarity(self, set1: set, set2: set) -> float:
-        """计算 Jaccard 相似度"""
         if not set1 or not set2:
             return 0.0
         intersection = len(set1 & set2)
@@ -63,7 +60,6 @@ class LightweightDeduplicator:
         return 0.6 * jaccard_sim + 0.4 * seq_sim
 
     def find_duplicates(self, new_text: str, existing_texts: List[str]) -> List[Tuple[int, float]]:
-        """查找重复项"""
         results = []
         for i, text in enumerate(existing_texts):
             sim = self.compute_similarity(new_text, text)
@@ -75,7 +71,6 @@ class LightweightDeduplicator:
 
 
 class MemoryStore:
-    """记忆存储"""
 
     MAX_MEMORIES = 200
 
@@ -86,11 +81,10 @@ class MemoryStore:
         self._db_path = db_path
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._lock = threading.Lock()  # 加锁防止多线程写入崩溃
+        self._lock = threading.Lock()
         
         self._create_table()
         
-        # 初始化轻量去重器
         self._deduplicator = LightweightDeduplicator(sim_threshold=dedup_threshold)
         logger.info(f"[MemoryStore] 初始化完成，轻量去重阈值: {dedup_threshold}")
 

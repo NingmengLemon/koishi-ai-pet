@@ -1,5 +1,3 @@
-"""系统监控插件"""
-
 from pet.skills.plugins.system_monitor.core import get_overview, get_top_processes, get_memory_detail, get_network
 
 SKILL_NAME = "system_monitor"
@@ -7,7 +5,6 @@ SKILL_DESCRIPTION = "系统资源监控（CPU、内存、磁盘、电池、进�
 
 
 def register(registry):
-    """插件接口 — 由 SkillLoader 调用。"""
     skill = registry.register(SKILL_NAME, SKILL_DESCRIPTION)
     skill.when = "用户询问电脑状态、卡不卡、内存/磁盘/电池/网络用量时"
 

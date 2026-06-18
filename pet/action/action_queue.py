@@ -106,13 +106,11 @@ class ActionQueue(QObject):
             return
 
         if isinstance(result, QPropertyAnimation):
-            # 动画驱动：监听 QPropertyAnimation.finished
             self._active_anim = result
             result.finished.connect(self._on_action_done)
             return
 
         if result == "normal_walk":
-            # 普通行走：监听 PetActions.walk_finished
             self._actions.walk_finished.connect(self._on_action_done)
             self._waiting_gravity_walk = True
             # 超时保护
@@ -124,7 +122,6 @@ class ActionQueue(QObject):
         self._actions._anim.animation_finished.connect(self._on_action_done)
         self._waiting_anim_finished = True
         self._actions.gravity.suppress_idle = True  # 防止重力 tick 覆盖 sleep/sit/thinking
-        # 启动超时定时器（仅针对时间驱动动作，如 LLM 未提供 duration 则可能循环播放）
         timeout_ms = max(1000, int(getattr(config, "ACTION_TIMEOUT_MS", 15000)))
         self._timeout_timer.start(timeout_ms)
 

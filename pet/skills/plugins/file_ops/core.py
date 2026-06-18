@@ -1,5 +1,3 @@
-"""文件操作核心逻辑。"""
-
 import os
 import logging
 
