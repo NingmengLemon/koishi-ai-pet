@@ -107,15 +107,15 @@ class EmotionBubble(QLabel):
         super().hide()
 
     def _final_position(self, target_pos) -> tuple:
-        """定位在宠物左下方，避免与 speech 气泡（上方）重叠。"""
+        """定位在宠物右上角，避免与 speech 气泡（上方居中）重叠。"""
         pet = self.parent()
         if isinstance(pet, QWidget):
-            # 左下角：pet 左边缘 - bubble 宽度偏移，pet 下边缘 + 小间距
-            x = pet.x() - self.width() // 2
-            y = pet.y() + config.PET_HEIGHT - self.height() // 2
+            # 右上角：pet 右边缘 + 小偏移，pet 上边缘 - bubble 高度偏移
+            x = pet.x() + config.PET_WIDTH + 4
+            y = pet.y() - self.height() // 2
         else:
-            x = target_pos.x() - config.PET_WIDTH // 2 - self.width() // 2
-            y = target_pos.y() + config.PET_HEIGHT // 2 - self.height() // 2
+            x = target_pos.x() + config.PET_WIDTH // 2 + 4
+            y = target_pos.y() - config.PET_HEIGHT // 2 - self.height() // 2
         from PySide6.QtWidgets import QApplication
         screen = QApplication.primaryScreen()
         if screen:
