@@ -208,18 +208,21 @@ class PetAgent(QObject):
     def _build_window_context(self, pet_x: int, pet_y: int) -> str:
         try:
             from pet.brain.window_detector import get_visible_windows, is_window_occluded
+            from PySide6.QtWidgets import QApplication
             windows = get_visible_windows()
         except Exception:
             return ""
 
         pet_w, pet_h = 125, 125
         pet_hwnd = int(self._pet_window.winId()) if self._pet_window else 0
+        dpr = QApplication.primaryScreen().devicePixelRatio() if QApplication.primaryScreen() else 1.0
         lines = [f"=== 窗口探测（系统 API，坐标精确） ==="]
         lines.append(f"桌宠位置: 左{pet_x} 上{pet_y} (宽{pet_w} 高{pet_h})")
 
         valid = 0
         for win in windows:
-            left, top, right, bottom = win["rect"]
+            # Win32 返回物理坐标，需转为 Qt 逻辑坐标才能与 pet_x/pet_y 比较
+            left, top, right, bottom = tuple(v / dpr for v in win["rect"])
             w, h = right - left, bottom - top
             title = win["title"].strip()
             if not title or len(title) > 50:

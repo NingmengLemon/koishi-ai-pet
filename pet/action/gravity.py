@@ -114,6 +114,16 @@ class GravitySystem(QObject):
         y = max(geo.top(), min(pos.y(), geo.bottom() - self._window.height()))
         return QPoint(x, y)
 
+    def _to_logical(self, physical_val: float) -> float:
+        """将 Win32 物理坐标转换为 Qt 逻辑坐标。"""
+        dpr = QApplication.primaryScreen().devicePixelRatio() if QApplication.primaryScreen() else 1.0
+        return physical_val / dpr
+
+    def _to_logical_rect(self, rect: tuple) -> tuple:
+        """将 Win32 物理矩形转换为 Qt 逻辑矩形。"""
+        dpr = QApplication.primaryScreen().devicePixelRatio() if QApplication.primaryScreen() else 1.0
+        return tuple(v / dpr for v in rect)
+
     def _tick(self):
         if not self._enabled:
             return
@@ -161,12 +171,13 @@ class GravitySystem(QObject):
                         self._cached_effective_bottom = None
                         self.standing_lost.emit(lost_title)
                     else:
-                        new_top = rect[1]
+                        l_rect = self._to_logical_rect(rect)
+                        new_top = l_rect[1]
                         pet_x = self._window.x()
                         pet_w = self._window.width()
                         feet_l = pet_x + pet_w // 3
                         feet_r = pet_x + (2 * pet_w) // 3
-                        if (feet_l >= rect[2] or feet_r <= rect[0]
+                        if (feet_l >= l_rect[2] or feet_r <= l_rect[0]
                                 or new_top != self._cached_effective_bottom + h):
                             logger.debug(f"[Gravity] standing window moved (hwnd={self._standing_hwnd})")
                             lost_title = self._standing_title
@@ -195,7 +206,7 @@ class GravitySystem(QObject):
             feet_l = pet_x + w // 3
             feet_r = pet_x + (2 * w) // 3
             for win in get_visible_windows():
-                left, top, right, bottom = win["rect"]
+                left, top, right, bottom = self._to_logical_rect(win["rect"])
                 if (left == pet_self[0] and top == pet_self[1]
                         and right == pet_self[2] and bottom == pet_self[3]):
                     continue
@@ -214,7 +225,7 @@ class GravitySystem(QObject):
             if found_hwnd:
                 self._standing_hwnd = found_hwnd
                 self._standing_title = found_title
-                self._standing_rect = get_window_rect(found_hwnd)
+                self._standing_rect = self._to_logical_rect(get_window_rect(found_hwnd))
             elif effective_bottom == screen_bottom:
                 self._standing_hwnd = 0
                 self._standing_title = ""
@@ -301,7 +312,7 @@ class GravitySystem(QObject):
             feet_l = pet_x_int + w // 3
             feet_r = pet_x_int + (2 * w) // 3
             for win in get_visible_windows():
-                left, top, right, bottom = win["rect"]
+                left, top, right, bottom = self._to_logical_rect(win["rect"])
                 if feet_l >= right or feet_r <= left:
                     continue
                 if old_pet_bottom <= top <= new_pet_bottom:
@@ -311,7 +322,7 @@ class GravitySystem(QObject):
                             effective_bottom = landing
                             found_hwnd = win["hwnd"]
                             found_title = win["title"][:30]
-                            found_rect = win["rect"]
+                            found_rect = self._to_logical_rect(win["rect"])
         except Exception:
             pass
 
