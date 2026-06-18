@@ -42,11 +42,11 @@ class EmotionBubble(QLabel):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setStyleSheet(
             "background: transparent;"
-            "font-size: 28px;"
-            "padding: 4px;"
+            "font-size: 32px;"
         )
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setFixedSize(40, 40)
+        self.setFixedSize(48, 48)
+        self.setContentsMargins(2, 2, 2, 4)
 
         self._hide_timer = QTimer(self)
         self._hide_timer.setSingleShot(True)
@@ -110,12 +110,12 @@ class EmotionBubble(QLabel):
         """定位在宠物右上角，避免与 speech 气泡（上方居中）重叠。"""
         pet = self.parent()
         if isinstance(pet, QWidget):
-            # 右上角：pet 右边缘 + 小偏移，pet 上边缘 - bubble 高度偏移
-            x = pet.x() + config.PET_WIDTH + 4
-            y = pet.y() - self.height() // 2
+            # 右上角：pet 右边缘靠近，pet 上边缘对齐
+            x = pet.x() + config.PET_WIDTH - 16
+            y = pet.y() - 8
         else:
-            x = target_pos.x() + config.PET_WIDTH // 2 + 4
-            y = target_pos.y() - config.PET_HEIGHT // 2 - self.height() // 2
+            x = target_pos.x() + config.PET_WIDTH // 2 - 16
+            y = target_pos.y() - config.PET_HEIGHT // 2 - 8
         from PySide6.QtWidgets import QApplication
         screen = QApplication.primaryScreen()
         if screen:

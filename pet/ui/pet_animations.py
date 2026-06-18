@@ -23,6 +23,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QObject, Signal
 from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import QApplication
 
 from config import config
 
@@ -148,12 +149,14 @@ class PetAnimator(QObject):
             if pixmap.isNull():
                 logger.warning(f"Failed to load image: {action}/{f}")
                 return None
+            dpr = QApplication.primaryScreen().devicePixelRatio() if QApplication.primaryScreen() else 1.0
             pixmap = pixmap.scaled(
-                config.PET_WIDTH,
-                config.PET_HEIGHT,
+                int(config.PET_WIDTH * dpr),
+                int(config.PET_HEIGHT * dpr),
                 Qt.AspectRatioMode.IgnoreAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
+            pixmap.setDevicePixelRatio(dpr)
             frames.append(pixmap)
 
         if not self._validate_config(cfg, len(frames), action):
