@@ -10,6 +10,7 @@ from PySide6.QtGui import QFont
 
 from pet.ui.bubble import SpeechBubble
 from pet.ui.emotion import EmotionBubble, EMOTION_MAP
+from pet.ui.particle import ParticleWidget
 from pet.brain.behavior import Behavior
 from pet.brain.view import View
 from pet.agent.screen_reader import ScreenReader
@@ -264,6 +265,20 @@ class DebugWindow(QWidget):
 
         right.addWidget(emotion_group)
 
+        # ── 粒子调试 ──
+
+        particle_group = QGroupBox("粒子特效测试")
+        particle_layout = QVBoxLayout(particle_group)
+
+        pbtn_row = QHBoxLayout()
+        for fx in ("dust", "stars", "zzz", "hearts"):
+            btn = QPushButton(fx)
+            btn.clicked.connect(lambda checked, e=fx: self._test_particle(e))
+            pbtn_row.addWidget(btn)
+        particle_layout.addLayout(pbtn_row)
+
+        right.addWidget(particle_group)
+
         chat_group = QGroupBox("Chat 调试")
         chat_layout = QVBoxLayout(chat_group)
 
@@ -462,6 +477,10 @@ class DebugWindow(QWidget):
     def _test_emotion_input(self):
         emotion = self.emotion_input.text().strip() or "happy"
         self._test_emotion(emotion)
+
+    def _test_particle(self, effect: str):
+        self._log(f"particle: \"{effect}\"")
+        self.pet.particles.spawn(effect)
 
     def _test_chat_think(self):
         prompt = self.chat_input.text().strip()

@@ -216,6 +216,9 @@ class PetActions(QObject):
         g._vy = min(g._vy + g._GRAVITY_ACCEL, g._FALL_TERMINAL)
         new_y = cur_y + g._vy
 
+        dpr = screen.devicePixelRatio() if screen else 1.0
+        to_logical = lambda rect: tuple(v / dpr for v in rect)
+
         try:
             screen_bottom = screen.availableGeometry().bottom() - h if screen else cur_y
             was_at_bottom = g._cached_effective_bottom is not None and cur_y >= g._cached_effective_bottom
@@ -236,20 +239,21 @@ class PetActions(QObject):
                         g._play_once("falling")
                     return
                 else:
-                    new_top = rect[1]
+                    l_rect = to_logical(rect)
+                    new_top = l_rect[1]
                     pet_w = self._window.width()
                     feet_l = int(new_x) + pet_w // 3
                     feet_r = int(new_x) + (2 * pet_w) // 3
 
-                    off_edge = feet_l >= rect[2] or feet_r <= rect[0]
+                    off_edge = feet_l >= l_rect[2] or feet_r <= l_rect[0]
                     window_moved = new_top != g._cached_effective_bottom + h
 
                     if off_edge:
                         # 走出窗口范围 → 夹到边缘，再下落
                         if self._walk_sign > 0:
-                            new_x = rect[2] - pet_w // 3
+                            new_x = l_rect[2] - pet_w // 3
                         else:
-                            new_x = rect[0] - (2 * pet_w) // 3
+                            new_x = l_rect[0] - (2 * pet_w) // 3
                         clamped = g._clamp_pos(QPoint(int(new_x), cur_y))
                         self._window.move(clamped.x(), clamped.y())
                         lost_title = g._standing_title
@@ -291,7 +295,7 @@ class PetActions(QObject):
                 found_hwnd = 0
                 found_title = ""
                 for win in get_visible_windows():
-                    left, top, right, bottom = win["rect"]
+                    left, top, right, bottom = to_logical(win["rect"])
                     if (left == pet_self[0] and top == pet_self[1]
                             and right == pet_self[2] and bottom == pet_self[3]):
                         continue
@@ -309,7 +313,7 @@ class PetActions(QObject):
                 if found_hwnd:
                     g._standing_hwnd = found_hwnd
                     g._standing_title = found_title
-                    g._standing_rect = get_window_rect(found_hwnd)
+                    g._standing_rect = to_logical(get_window_rect(found_hwnd))
                 elif effective_bottom == screen_bottom:
                     g._standing_hwnd = 0
                     g._standing_title = ""
@@ -389,12 +393,14 @@ class PetActions(QObject):
 
     def sleep(self, duration=None):
         self._anim.play("sleep", duration=duration)
+        self._window.particles.spawn("zzz")
 
     def idle(self):
         self._anim.play("idle")
 
     def shake_arms(self, **_kw):
         self._anim.play("shake_arms")
+        self._window.particles.spawn("stars")
 
     def look_around(self, **_kw):
         self._anim.play("look_around")

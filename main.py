@@ -68,6 +68,9 @@ def main():
 
     agent.action_requested.connect(window.queue_enqueue_action)
     agent.emotion_requested.connect(emotion_bubble.show_emotion)
+    agent.emotion_requested.connect(
+        lambda e, d: window.particles.spawn("hearts") if e == "love" else None
+    )
     agent.speak_requested.connect(bubble.show_text)
     agent.speak_stream_start.connect(bubble.start_stream)
     agent.speak_stream_chunk.connect(bubble.append_stream)

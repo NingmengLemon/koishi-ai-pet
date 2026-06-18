@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt, QPoint, QDateTime
 from PySide6.QtGui import QMouseEvent, QAction
 from pet.ui.base_window import TransparentWindow
 from pet.ui.pet_animations import PetAnimator
+from pet.ui.particle import ParticleWidget
 from pet.action import PetActions, ActionQueue
 from pet.brain.prompts import INTERACT_GRABBED, INTERACT_RELEASED, INTERACT_WINDOW_DISAPPEARED
 from pet.skills.registry import SKILL_REGISTRY
@@ -75,6 +76,7 @@ class PetWindow(TransparentWindow):
 
         self.pet_anim = PetAnimator(parent=self)
         self.pet_anim.frame_changed.connect(self.pet_label.setPixmap)
+        self.particles = ParticleWidget(self)
         self.pet_actions = PetActions(self, self.pet_anim, parent=self)
         self.action_queue = ActionQueue(self.pet_actions, parent=self)
 
@@ -221,6 +223,11 @@ class PetWindow(TransparentWindow):
 
     def _on_landed(self):
         self.action_queue.resume()
+        self.particles.spawn("dust")
+
+    def _on_emotion_hearts(self):
+        """love 情绪时触发爱心粒子。"""
+        self.particles.spawn("hearts")
 
     def _on_standing_lost(self, window_title: str):
         """站立窗口消失/被遮挡时，触发 LLM 交互反应。"""
