@@ -39,7 +39,7 @@ class PetWindow(TransparentWindow):
         self._press_pos: QPoint | None = None  # 按下时的全局坐标
         self._click_timer = QTimer(self)       # 单击检测定时器
         self._click_timer.setSingleShot(True)
-        self._click_timer.setInterval(50)      # 50ms 内无移动 → 判定为单击
+        self._click_timer.setInterval(200)      # 200ms 内无移动 → 判定为单击
         self._click_timer.timeout.connect(self._on_click_confirmed)
         self._PROMPT_GRABBED = INTERACT_GRABBED
         self._PROMPT_RELEASED = INTERACT_RELEASED
