@@ -19,11 +19,14 @@ def _format_bytes(b: int) -> str:
 
 def get_overview() -> dict:
     """获取系统整体概况：CPU、内存、磁盘、电池、运行时长。"""
-    cpu_percent = psutil.cpu_percent(interval=0.3)
-    cpu_count = psutil.cpu_count()
+    try:
+        cpu_percent = psutil.cpu_percent(interval=0.3)
+        cpu_count = psutil.cpu_count()
 
-    mem = psutil.virtual_memory()
-    disk = psutil.disk_usage("/")
+        mem = psutil.virtual_memory()
+        # 跨平台磁盘：Windows 用 C:，其他用 /
+        disk_path = "C:\\" if platform.system() == "Windows" else "/"
+        disk = psutil.disk_usage(disk_path)
 
     boot_time = datetime.fromtimestamp(psutil.boot_time())
     uptime = datetime.now() - boot_time

@@ -63,13 +63,17 @@ def get_current(city: str = "Beijing") -> dict:
     if not data or "current" not in data:
         return {"summary": f"获取 {city_info['name']} 天气失败"}
 
-    cur = data["current"]
-    temp = cur["temperature_2m"]
-    feels = cur["apparent_temperature"]
-    humidity = cur["relative_humidity_2m"]
-    wind_speed = cur["wind_speed_10m"]
-    code = cur["weather_code"]
-    desc = _weather_code_desc(code)
+    try:
+        cur = data["current"]
+        temp = cur["temperature_2m"]
+        feels = cur["apparent_temperature"]
+        humidity = cur["relative_humidity_2m"]
+        wind_speed = cur["wind_speed_10m"]
+        code = cur["weather_code"]
+        desc = _weather_code_desc(code)
+    except KeyError as e:
+        logger.warning(f"[weather] unexpected API response: missing {e}")
+        return {"summary": f"获取 {city_info['name']} 天气数据格式异常"}
 
     lines = [
         f"{city_info['name']} 当前天气：{desc}，气温 {temp}°C（体感 {feels}°C）",
@@ -85,10 +89,13 @@ def get_current(city: str = "Beijing") -> dict:
         if dates:
             lines.append("未来预报：")
             for i, d in enumerate(dates[:3]):
-                lines.append(
-                    f"  {d}  {_weather_code_desc(codes[i]) if i < len(codes) else '?'}"
-                    f"，{int(lows[i])}°C ~ {int(highs[i])}°C"
-                )
+                try:
+                    lines.append(
+                        f"  {d}  {_weather_code_desc(codes[i]) if i < len(codes) else '?'}"
+                        f"，{int(lows[i])}°C ~ {int(highs[i])}°C"
+                    )
+                except (IndexError, TypeError):
+                    break
 
     return {
         "city": city_info["name"],
@@ -120,14 +127,20 @@ def get_forecast(city: str = "Beijing", days: int = 3) -> dict:
     codes = daily.get("weather_code", [])
     precips = daily.get("precipitation_probability_max", [])
 
+    if not dates:
+        return {"summary": f"获取 {city_info['name']} 预报数据为空"}
+
     lines = [f"{city_info['name']} {len(dates)}日天气预报："]
     for i, d in enumerate(dates):
-        wcode = codes[i] if i < len(codes) else 0
-        precip = int(precips[i]) if i < len(precips) and precips[i] is not None else 0
-        lines.append(
-            f"  {d}  {_weather_code_desc(wcode)}"
-            f"，{int(lows[i])}°C ~ {int(highs[i])}°C"
-            f"，降水概率 {precip}%"
-        )
+        try:
+            wcode = codes[i] if i < len(codes) else 0
+            precip = int(precips[i]) if i < len(precips) and precips[i] is not None else 0
+            lines.append(
+                f"  {d}  {_weather_code_desc(wcode)}"
+                f"，{int(lows[i])}°C ~ {int(highs[i])}°C"
+                f"，降水概率 {precip}%"
+            )
+        except (IndexError, TypeError, ValueError):
+            break
 
     return {"summary": "\n".join(lines)}
