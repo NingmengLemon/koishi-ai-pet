@@ -1,7 +1,7 @@
 {
   "desc": "坐下动画",
-  "tick_counts": 15,
-  "frame_ratios": [1],
+  "tick_counts": 60,
+  "frame_ratios": [0.9, 0.1],
   "loop": true,
   "note": ""
 }
