@@ -111,7 +111,9 @@ class Scheduler(QObject):
             self.idle_paused.emit(True)
             logger.info(f"[Scheduler] idle {idle_ms // 1000}s >= {self._idle_timeout_ms // 1000}s — paused")
         elif idle_ms < self._idle_timeout_ms and self._idle_paused:
-            for t in self._timers.values():
+            for name, t in self._timers.items():
+                if self.is_paused(name):
+                    continue  # 被手动暂停的定时器，空闲恢复时不自动重启
                 t.start()
             self._idle_paused = False
             self.idle_paused.emit(False)
@@ -119,3 +121,41 @@ class Scheduler(QObject):
 
     def is_idle_paused(self) -> bool:
         return self._idle_paused
+
+    _VALID_NAMES = ("fast", "mid", "slow")
+
+    def pause(self, name: str):
+        """暂停指定定时器（fast/mid/slow）。"""
+        if name not in self._VALID_NAMES:
+            raise ValueError(f"Invalid timer name '{name}', must be one of {self._VALID_NAMES}")
+        t = self._timers.get(name)
+        if t and t.isActive():
+            t.stop()
+            logger.info(f"[Scheduler] {name}_tick paused")
+
+    def resume(self, name: str):
+        """恢复指定定时器（fast/mid/slow）。"""
+        if name not in self._VALID_NAMES:
+            raise ValueError(f"Invalid timer name '{name}', must be one of {self._VALID_NAMES}")
+        t = self._timers.get(name)
+        if t and not t.isActive():
+            t.start()
+            logger.info(f"[Scheduler] {name}_tick resumed")
+
+    def is_paused(self, name: str) -> bool:
+        """指定定时器是否被暂停。"""
+        if name not in self._VALID_NAMES:
+            raise ValueError(f"Invalid timer name '{name}', must be one of {self._VALID_NAMES}")
+        t = self._timers.get(name)
+        return t is not None and not t.isActive()
+
+    # ── 便捷别名 ──
+
+    def pause_mid(self):
+        self.pause("mid")
+
+    def resume_mid(self):
+        self.resume("mid")
+
+    def is_mid_paused(self) -> bool:
+        return self.is_paused("mid")

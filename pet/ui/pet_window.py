@@ -157,9 +157,9 @@ class PetWindow(TransparentWindow):
         menu = QMenu()
 
         if self._agent:
-            # 调度器开关
-            scheduler_running = self._agent.scheduler.is_running()
-            toggle_sched = QAction("关闭自主行动" if scheduler_running else "开启自主行动")
+            # 自主决策开关
+            mid_paused = self._agent.scheduler.is_mid_paused()
+            toggle_sched = QAction("开启自主行动" if mid_paused else "关闭自主行动")
             toggle_sched.triggered.connect(self._toggle_scheduler)
             menu.addAction(toggle_sched)
 
@@ -200,11 +200,11 @@ class PetWindow(TransparentWindow):
         menu.exec(pos)
 
     def _toggle_scheduler(self):
-        if self._agent.scheduler.is_running():
-            self._agent.scheduler.stop()
+        if self._agent.scheduler.is_mid_paused():
+            self._agent.scheduler.resume_mid()
+            self._agent.trigger_once(2000)  # 恢复后 2s 即刻触发首次决策
         else:
-            self._agent.scheduler.start()
-            self._agent.trigger_once(2000)  # 启动后 2s 即刻触发首次决策
+            self._agent.scheduler.pause_mid()
 
     def _toggle_event_reaction(self):
         self._event_reaction = not self._event_reaction
