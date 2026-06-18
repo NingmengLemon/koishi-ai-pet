@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt, QPoint, QTimer
 from PySide6.QtGui import QFont
 
 from pet.ui.bubble import SpeechBubble
+from pet.ui.emotion import EmotionBubble, EMOTION_MAP
 from pet.brain.behavior import Behavior
 from pet.brain.view import View
 from pet.agent.screen_reader import ScreenReader
@@ -22,6 +23,7 @@ class DebugWindow(QWidget):
         self.pet = pet_window
         self.agent = agent
         self.bubble = SpeechBubble(self.pet)
+        self.emotion_bubble = EmotionBubble(self.pet)
         if agent is not None:
             self.brain = agent.behavior
             self.view_brain = agent.view_brain
@@ -34,6 +36,7 @@ class DebugWindow(QWidget):
         if self.agent:
             self.agent.action_requested.connect(self._on_agent_action)
             self.agent.speak_requested.connect(self._on_agent_speech)
+            self.agent.emotion_requested.connect(self._on_agent_emotion)
             self.agent.view_ready.connect(self._on_view_ready)
             self.agent.view_error.connect(self._on_view_error)
 
@@ -237,6 +240,30 @@ class DebugWindow(QWidget):
 
         right.addWidget(bubble_group)
 
+        # ── 表情调试 ──
+
+        emotion_group = QGroupBox("表情测试")
+        emotion_layout = QVBoxLayout(emotion_group)
+
+        emo_btn_row = QHBoxLayout()
+        for emo_name in EMOTION_MAP:
+            btn = QPushButton(emo_name)
+            btn.clicked.connect(lambda checked, e=emo_name: self._test_emotion(e))
+            emo_btn_row.addWidget(btn)
+        emotion_layout.addLayout(emo_btn_row)
+
+        emo_input_row = QHBoxLayout()
+        self.emotion_input = QLineEdit()
+        self.emotion_input.setPlaceholderText("输入情绪名或 emoji...")
+        self.emotion_input.returnPressed.connect(self._test_emotion_input)
+        emo_input_row.addWidget(self.emotion_input)
+        self.btn_emotion = QPushButton("显示表情")
+        self.btn_emotion.clicked.connect(self._test_emotion_input)
+        emo_input_row.addWidget(self.btn_emotion)
+        emotion_layout.addLayout(emo_input_row)
+
+        right.addWidget(emotion_group)
+
         chat_group = QGroupBox("Chat 调试")
         chat_layout = QVBoxLayout(chat_group)
 
@@ -423,6 +450,18 @@ class DebugWindow(QWidget):
 
     def _on_agent_speech(self, text: str, duration: int):
         self._log(f"Agent → speech: \"{text[:50]}\"")
+
+    def _on_agent_emotion(self, emotion: str, duration: int):
+        self._log(f"Agent → emotion: {emotion} ({duration}ms)")
+
+    def _test_emotion(self, emotion: str):
+        pet_center = self.pet.geometry().center()
+        self._log(f"emotion: \"{emotion}\"")
+        self.emotion_bubble.show_emotion(emotion, duration=3000, parent_pos=pet_center)
+
+    def _test_emotion_input(self):
+        emotion = self.emotion_input.text().strip() or "happy"
+        self._test_emotion(emotion)
 
     def _test_chat_think(self):
         prompt = self.chat_input.text().strip()
