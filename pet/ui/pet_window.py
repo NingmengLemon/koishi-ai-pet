@@ -133,7 +133,6 @@ class PetWindow(TransparentWindow):
         """150ms 内无移动，判定为单击，播放爱心粒子。"""
         self._press_pos = None
         self.particles.spawn("hearts")
-        logger.info("[PetWindow] click → hearts")
 
     def mouseMoveEvent(self, event: QMouseEvent):
         # 若单击定时器还在跑，检查是否已移动足够距离以判定为拖拽
