@@ -1,7 +1,9 @@
-"""Pet 状态枚举 + 轻量状态机。"""
+"""Pet 状态枚举 + 轻量状态机（自带 Qt 信号通知）。"""
 
 from datetime import datetime
 from enum import Enum
+
+from PySide6.QtCore import QObject, Signal
 
 
 class PetState(Enum):
@@ -11,8 +13,10 @@ class PetState(Enum):
     INTERACTING = "interacting"
 
 
-class StateMachine:
-    """简单状态机，维护当前状态并做合法性检查。"""
+class StateMachine(QObject):
+    """简单状态机，维护当前状态并做合法性检查"""
+
+    state_changed = Signal(str)
 
     _TRANSITIONS = {
         PetState.IDLE:        [PetState.SLEEPING, PetState.AUTONOMOUS, PetState.INTERACTING],
@@ -21,7 +25,8 @@ class StateMachine:
         PetState.INTERACTING: [PetState.IDLE, PetState.AUTONOMOUS],
     }
 
-    def __init__(self, initial: PetState = PetState.IDLE):
+    def __init__(self, initial: PetState = PetState.IDLE, parent=None):
+        super().__init__(parent)
         self._state = initial
 
     @property
@@ -35,7 +40,9 @@ class StateMachine:
     def transition(self, new_state: PetState) -> bool:
         allowed = self._TRANSITIONS.get(self._state, [])
         if new_state in allowed or new_state == self._state:
-            self._state = new_state
+            if new_state != self._state:
+                self._state = new_state
+                self.state_changed.emit(new_state.value)
             return True
         return False
 
@@ -47,3 +54,4 @@ class StateMachine:
 
     def force(self, new_state: PetState):
         self._state = new_state
+        self.state_changed.emit(new_state.value)
