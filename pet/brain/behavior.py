@@ -447,8 +447,6 @@ class Behavior(BrainMixin):
                 if memory_text:
                     system_content += f"\n\n[你对主人的记忆]\n{memory_text}"
             text_prompt = prompts.vision_decide_prompt(context_str)
-            if config.VISION_PROMPT_EXTRA:
-                text_prompt += "\n\n" + config.VISION_PROMPT_EXTRA.replace("{context}", context_str)
             return [
                 {"role": "system", "content": system_content},
                 {"role": "user", "content": [
@@ -465,8 +463,6 @@ class Behavior(BrainMixin):
                 if memory_text:
                     system_content += f"\n\n[你对主人的记忆]\n{memory_text}"
             prompt = prompts.non_vision_decide_prompt(context_str)
-            if config.NON_VISION_PROMPT_EXTRA:
-                prompt += "\n\n" + config.NON_VISION_PROMPT_EXTRA.replace("{context}", context_str)
             return [
                 {"role": "system", "content": system_content},
                 {"role": "user", "content": prompt},

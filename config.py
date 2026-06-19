@@ -6,7 +6,6 @@ load_dotenv()
 
 class Config:
     
-    APP_NAME = "DeskPet"
     PET_WIDTH = 125
     PET_HEIGHT = 125
     PET_FPS = 15
@@ -23,20 +22,6 @@ class Config:
 
     VISION_ENABLED = os.getenv("VISION_ENABLED", "false").lower() == "true"  # 模型是否支持 vision
     VISION_SCALE = float(os.getenv("VISION_SCALE", "1"))                    # 截图缩放比例（1=不缩放，下限锁1536px，0.5=缩一半）
-
-    NON_VISION_PROMPT_EXTRA = os.getenv("NON_VISION_PROMPT_EXTRA", "")
-
-    VIEW_PROMPT_SYSTEM = os.getenv(
-        "VIEW_PROMPT_SYSTEM",
-        "你是桌面宠物的视觉模块，负责分析屏幕截图内容。"
-        "用中文回答，简洁有帮助。",
-    )
-    VIEW_PROMPT_VISION = os.getenv(
-        "VIEW_PROMPT_VISION",
-        "请描述这张截图中的内容，用户可能在做什么？",
-    )
-
-    VISION_PROMPT_EXTRA = os.getenv("VISION_PROMPT_EXTRA", "")
 
     # LLM 超时与重试
     LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "30"))

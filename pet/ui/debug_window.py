@@ -12,7 +12,6 @@ from pet.ui.bubble import SpeechBubble
 from pet.ui.emotion import EmotionBubble, EMOTION_MAP
 from pet.ui.particle import ParticleWidget
 from pet.brain.behavior import Behavior
-from pet.brain.view import View
 from pet.agent.screen_reader import ScreenReader
 from config import config
 
@@ -27,10 +26,8 @@ class DebugWindow(QWidget):
         self.emotion_bubble = EmotionBubble(self.pet)
         if agent is not None:
             self.brain = agent.behavior
-            self.view_brain = agent.view_brain
         else:
             self.brain = Behavior()
-            self.view_brain = View()
         self.screen_reader = ScreenReader()
         self.screen_reader.enable()
 
@@ -38,8 +35,6 @@ class DebugWindow(QWidget):
             self.agent.action_requested.connect(self._on_agent_action)
             self.agent.speak_requested.connect(self._on_agent_speech)
             self.agent.emotion_requested.connect(self._on_agent_emotion)
-            self.agent.view_ready.connect(self._on_view_ready)
-            self.agent.view_error.connect(self._on_view_error)
 
         self.setWindowTitle("DeskPet 调试面板")
         self.setMinimumWidth(680)
@@ -279,64 +274,40 @@ class DebugWindow(QWidget):
 
         right.addWidget(particle_group)
 
-        chat_group = QGroupBox("Chat 调试")
-        chat_layout = QVBoxLayout(chat_group)
+        # ── LLM 连通性测试 ──
 
-        chat_input_row = QHBoxLayout()
-        self.chat_input = QLineEdit()
-        self.chat_input.setPlaceholderText("输入消息...")
-        self.chat_input.returnPressed.connect(self._test_chat_think)
-        chat_input_row.addWidget(self.chat_input)
-        self.btn_chat_send = QPushButton("发送")
-        self.btn_chat_send.clicked.connect(self._test_chat_think)
-        chat_input_row.addWidget(self.btn_chat_send)
-        chat_layout.addLayout(chat_input_row)
+        llm_group = QGroupBox("LLM 连通性测试")
+        llm_layout = QVBoxLayout(llm_group)
 
-        chat_btn_row = QHBoxLayout()
-        self.btn_chat_add_ctx = QPushButton("添加上下文")
-        self.btn_chat_add_ctx.clicked.connect(self._chat_add_context)
-        chat_btn_row.addWidget(self.btn_chat_add_ctx)
-        self.btn_chat_clr_ctx = QPushButton("清除上下文")
-        self.btn_chat_clr_ctx.clicked.connect(self._chat_clear_context)
-        chat_btn_row.addWidget(self.btn_chat_clr_ctx)
-        chat_layout.addLayout(chat_btn_row)
+        brain = config.BRAIN or "local"
+        model = config.LLM_MODEL or "(未设置)"
+        url = (config.LLM_URL or "(未设置)") if brain != "ollama" else (config.OLLAMA_BASE_URL or "(未设置)")
+        key_status = "已设置" if config.LLM_KEY else "未设置"
+        self.label_llm_config = QLabel(
+            f"后端: {brain}\n"
+            f"模型: {model}\n"
+            f"地址: {url}\n"
+            f"API Key: {key_status}"
+        )
+        self.label_llm_config.setFont(QFont("Consolas", 9))
+        llm_layout.addWidget(self.label_llm_config)
 
-        self.label_chat_ctx = QLabel("上下文: 0 条")
-        chat_layout.addWidget(self.label_chat_ctx)
+        test_row = QHBoxLayout()
+        self.btn_llm_test = QPushButton("测试连接")
+        self.btn_llm_test.clicked.connect(self._test_llm_connectivity)
+        test_row.addWidget(self.btn_llm_test)
+        self.label_llm_status = QLabel("就绪")
+        test_row.addWidget(self.label_llm_status)
+        test_row.addStretch()
+        llm_layout.addLayout(test_row)
 
-        right.addWidget(chat_group)
+        self.llm_test_output = QTextEdit()
+        self.llm_test_output.setReadOnly(True)
+        self.llm_test_output.setMaximumHeight(80)
+        self.llm_test_output.setFont(QFont("Consolas", 9))
+        llm_layout.addWidget(self.llm_test_output)
 
-        # ── 左栏（续）──
-
-        view_group = QGroupBox("View 调试")
-        view_layout = QVBoxLayout(view_group)
-
-        capture_row = QHBoxLayout()
-        self.btn_capture = QPushButton("截取全屏")
-        self.btn_capture.clicked.connect(self._test_view_capture)
-        capture_row.addWidget(self.btn_capture)
-        self.label_screenshot = QLabel("未截图")
-        capture_row.addWidget(self.label_screenshot)
-        view_layout.addLayout(capture_row)
-
-        view_input_row = QHBoxLayout()
-        self.view_input = QLineEdit()
-        self.view_input.setPlaceholderText("输入分析问题（可选）...")
-        self.view_input.returnPressed.connect(self._test_view_analyze)
-        view_input_row.addWidget(self.view_input)
-        self.btn_view_analyze = QPushButton("分析")
-        self.btn_view_analyze.clicked.connect(self._test_view_analyze)
-        self.btn_view_analyze.setEnabled(False)
-        view_input_row.addWidget(self.btn_view_analyze)
-        view_layout.addLayout(view_input_row)
-
-        self.view_output = QTextEdit()
-        self.view_output.setReadOnly(True)
-        self.view_output.setMaximumHeight(100)
-        self.view_output.setFont(QFont("Microsoft YaHei", 10))
-        view_layout.addWidget(self.view_output)
-
-        left.addWidget(view_group)
+        right.addWidget(llm_group)
 
         log_group = QGroupBox("日志")
         log_layout = QVBoxLayout(log_group)
@@ -482,69 +453,46 @@ class DebugWindow(QWidget):
         self._log(f"particle: \"{effect}\"")
         self.pet.particles.spawn(effect)
 
-    def _test_chat_think(self):
-        prompt = self.chat_input.text().strip()
-        if not prompt:
+    def _test_llm_connectivity(self):
+        """测试 LLM API 连通性。"""
+        import time
+        self._log("LLM 连通性测试...")
+        self.llm_test_output.clear()
+        self.llm_test_output.append("测试中...")
+        self.btn_llm_test.setEnabled(False)
+        self.label_llm_status.setText("测试中...")
+
+        brain = config.BRAIN or "local"
+        if brain == "local" or not self.brain._client:
+            self.llm_test_output.clear()
+            self.llm_test_output.append("⚠ 当前为 local 模式，未配置 LLM 客户端。")
+            self.llm_test_output.append("如需测试请设置 BRAIN=llm 或 ollama 并提供对应配置。")
+            self.label_llm_status.setText("未配置")
+            self.btn_llm_test.setEnabled(True)
             return
-        self._log(f"chat.send(\"{prompt[:40]}\")")
-        self.chat_input.clear()
-        if self.agent:
-            self.agent.trigger("chat", message=prompt)
 
-    def _chat_add_context(self):
-        text = self.chat_input.text().strip()
-        if text:
-            self.brain.add_context(text)
-            self.chat_input.clear()
-            self._chat_update_context_label()
-            self._log(f"上下文 +1: \"{text[:30]}\"")
-
-    def _chat_clear_context(self):
-        self.brain.clear_context()
-        self._chat_update_context_label()
-        self._log("上下文已清除")
-
-    def _chat_update_context_label(self):
-        n = len(self.brain._context)
-        self.label_chat_ctx.setText(f"上下文: {n} 条")
-
-    def _test_view_capture(self):
-        self._log("截取全屏...")
-        self.hide()
-        self._last_screenshot = self.screen_reader.capture_fullscreen()
-        self.show()
-        if self._last_screenshot:
-            w, h = self._last_screenshot.size
-            self.label_screenshot.setText(f"已截图: {w}×{h}")
-            self.btn_view_analyze.setEnabled(True)
-            self._log(f"截图成功: {w}×{h}")
-        else:
-            self.label_screenshot.setText("截图失败")
-            self._log("截图失败")
-
-    def _test_view_analyze(self):
-        if not hasattr(self, '_last_screenshot') or self._last_screenshot is None:
-            self.view_output.setText("请先截取屏幕")
-            return
-        prompt = self.view_input.text().strip()
-        self._log(f"view.analyze(\"{prompt[:30]}\")")
-        self.view_output.clear()
-        self.view_output.append("分析中...")
-        if self.agent:
-            self.agent.analyze_view(image=self._last_screenshot, prompt=prompt)
-        else:
-            reply = self.view_brain.analyze(self._last_screenshot, prompt)
-            self._on_view_ready(reply)
-
-    def _on_view_ready(self, reply: str):
-        self._log(f"  ↳ view: {reply}")
-        self.view_output.clear()
-        self.view_output.append(reply)
-
-    def _on_view_error(self, msg: str):
-        self._log(f"  ↳ VIEW ERROR: {msg}")
-        self.view_output.clear()
-        self.view_output.append(f"[Error] {msg}")
+        start = time.time()
+        try:
+            reply = self.brain._llm_call([
+                {"role": "system", "content": "你是调试助手。"},
+                {"role": "user", "content": "请回复 'OK' 表示联通正常。"},
+            ], max_tokens=50)
+            elapsed = time.time() - start
+            content = reply.choices[0].message.content or "(空响应)"
+            self.llm_test_output.clear()
+            self.llm_test_output.append(f"✅ 连接成功 ({elapsed:.1f}s)")
+            self.llm_test_output.append(f"响应: {content[:200]}")
+            self.label_llm_status.setText("✅ 正常")
+            self._log(f"LLM 连通性测试通过 ({elapsed:.1f}s): {content[:60]}")
+        except Exception as e:
+            elapsed = time.time() - start
+            self.llm_test_output.clear()
+            self.llm_test_output.append(f"❌ 连接失败 ({elapsed:.1f}s)")
+            self.llm_test_output.append(f"错误: {e}")
+            self.label_llm_status.setText("❌ 失败")
+            self._log(f"LLM 连通性测试失败 ({elapsed:.1f}s): {e}")
+        finally:
+            self.btn_llm_test.setEnabled(True)
 
     def closeEvent(self, event):
         self._pos_timer.stop()

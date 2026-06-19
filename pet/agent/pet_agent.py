@@ -5,7 +5,6 @@ from datetime import datetime
 from PySide6.QtCore import QObject, QThread, QThreadPool, QTimer, Signal
 
 from pet.brain.behavior import Behavior, BehaviorOutput
-from pet.brain.view import View
 from pet.agent.scheduler import Scheduler
 from pet.agent.state import StateMachine
 from pet.agent.screen_reader import ScreenReader
@@ -49,8 +48,6 @@ class PetAgent(QObject):
     speak_requested  = Signal(str, int)
     emotion_requested = Signal(str, int)
     state_changed    = Signal(str)
-    view_ready       = Signal(str)
-    view_error       = Signal(str)
     speak_stream_start = Signal()
     speak_stream_chunk = Signal(str)
     speak_stream_end   = Signal(int)
@@ -58,7 +55,6 @@ class PetAgent(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.memory_store = MemoryStore()
-        self.view_brain = View()
         self.screen_reader = ScreenReader()
         self.screen_reader.enable()
         self.vitals = Vitals(parent=self)
@@ -275,13 +271,6 @@ class PetAgent(QObject):
             lines.append("未发现适合跳转的窗口。")
 
         return "\n".join(lines)
-
-    def analyze_view(self, image, prompt: str = ""):
-        self._async_brain(
-            self.view_brain.analyze, image, prompt,
-            on_result=self._on_view_result,
-            on_error=self._on_view_error,
-        )
 
     def _trigger_interact(self, hint: str = "", delay_ms: int = 100,
                           cooldown_ms: int = 15000):
@@ -507,12 +496,5 @@ class PetAgent(QObject):
             self.state_machine.transition(PetState.IDLE)
             self.state_changed.emit(PetState.IDLE.value)
         logger.error(f"[PetAgent] ERROR: {msg}")
-
-    def _on_view_result(self, result):
-        if isinstance(result, str):
-            self.view_ready.emit(result)
-
-    def _on_view_error(self, msg: str):
-        self.view_error.emit(msg)
 
 
