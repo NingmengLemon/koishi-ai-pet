@@ -73,12 +73,13 @@ _PULSE_GUIDE = """=== 生理/心理状态 ===
 - 各项 > 60 → 自由选择，但需契合语境"""
 
 _MEMORY_GUIDE = """## 记忆存储
-若对话中出现值得长期记住的信息，在末尾输出（不对用户可见，最多1条）：
+用户透露个人信息时必须输出 Memory 行（不对用户可见，每次最多1条）：
 Memory: [类别] 记忆内容 | keywords:关键词1,关键词2 | importance:重要程度(1-5)
 
 类别: user_fact(个人信息) / user_preference(偏好习惯) / conversation(对话要点) / event(重要事件)
-importance: 5=核心身份, 4=重要偏好/事件, 3=中长期有用, 2=临时信息, 1=一般闲聊
-不需要记忆时不输出"""
+importance: 5=核心身份（姓名/关系）, 4=重要偏好/事件, 3=中长期有用, 2=临时信息, 1=一般闲聊
+触发场景：用户自我介绍、说出姓名/地点/职业、表达喜好、提到重要事件 → 必须输出 Memory
+示例：Memory: user_fact 用户叫恋可可，住在深圳 | keywords:恋可可,深圳 | importance:5"""
 
 
 def _base_sections() -> list[str]:
@@ -166,7 +167,8 @@ def _autonomous_task() -> list[str]:
         "3. 必须说话，Speech ≤20字，不能是 none",
         "4. Emotion 行可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored",
         "【动作】",
-        "5. 动作名只能是动作表列出的，每行一个动作",
+        "5. 动作名只能是动作表列出的，严格格式: Action: 动作名 [参数...]",
+        "5a. 动作名和参数必须紧跟在 Action: 之后，禁止 Action: 单独一行",
         "6. sit/thinking/sleep 必须带 duration 参数",
         "7. drive/walk 必须指定 left/right，距离 500-1000px",
         "8. fade_out 和 fade_in 必须成对出现（先 out 后 in），中间必须有其他动作",
@@ -178,7 +180,7 @@ def _autonomous_task() -> list[str]:
 
     format_guide = (
         f"=== 输出格式 ===\n"
-        f"必须按顺序输出：Summary → Emotion(可选) → Speech → Action(≥{min_actions}个) → Skill(可选)：\n"
+        f"必须按顺序输出：Summary → Emotion(可选) → Speech → Action(≥{min_actions}个) → Skill(可选) → Memory(可选) → Mood(可选)：\n"
         f"  Summary: <观察到的屏幕内容和行为决策，≤50字>\n"
         f"  Emotion: happy\n"
         f"  Speech: 又有新窗口了，我过去看看\n"
@@ -191,6 +193,7 @@ def _autonomous_task() -> list[str]:
         f"  Action: shake_arms\n"
         f"  Action: sit duration={sit_dur}\n"
         f"  Skill: {{\"name\": \"skill.method\", \"args\": {{...}}}}\n"
+        f"  Memory: user_fact 用户叫恋可可，住在深圳 | keywords:恋可可,深圳 | importance:5\n"
         f"\n"
     )
 
@@ -200,22 +203,26 @@ def _autonomous_task() -> list[str]:
 def _chat_task() -> list[str]:
     parts = [
         "=== 输出格式 ===\n"
-        "按顺序输出：Summary → Emotion(可选) → Speech → Action(≥1个) → Skill(可选) → Mood(可选)：\n"
+        "按顺序输出：Summary → Emotion(可选) → Speech → Action(≥1个) → Skill(可选) → Memory(可选) → Mood(可选)：\n"
         "  Summary: <对话内容和行为决策，≤50字>\n"
         "  Emotion: happy\n"
         "  Speech: 好嘞，我跳过去看看！\n"
-        "  Action: drive right 600\n"
+        "  Action: walk left 600\n"
+        "  Action: thinking duration=15\n"
         '  Skill: {"name": "skill.method", "args": {}}\n'
+        "  Memory: user_fact 用户叫恋可可，住在深圳 | keywords:恋可可,深圳 | importance:5\n"
         "  Mood: affection+5 joy+3",
         "=== 硬性约束 ===\n"
         "1. Summary 必须在最前面，≤50字\n"
-        "2. 至少 1 个 Action，每行一个动作\n"
-        "3. 动作名只能是动作表列出的\n"
-        "4. 必须严格按照动作表输出参数\n"
-        "5. 必须用 Speech 回应用户，≤30字，性格语气\n"
-        "6. 参考「近期对话/行为记录」保持连贯，不重复说过的话\n"
-        "7. 用户要求使用技能时，在可用技能中搜索，找到必须调用，找不到按人格回复\n"
-        "8. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored",
+        "2. 至少 1 个 Action，每行一个动作，格式严格为 Action: 动作名 [参数...]\n"
+        "3. 动作名只能是动作表列出的，必须从动作表复制准确名称\n"
+        "4. 动作名和参数必须在 Action: 同行，禁止换行再写动作名\n"
+        "5. 带参数的动作用 duration=秒 或 direction=left/right 格式，参考动作表\n"
+        "6. 必须用 Speech 回应用户，≤30字，性格语气\n"
+        "7. 参考「近期对话/行为记录」保持连贯，不重复说过的话\n"
+        "8. 用户要求使用技能时，在可用技能中搜索，找到必须调用，找不到按人格回复\n"
+        "9. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored\n"
+        "10. 用户自我介绍或透露个人信息（姓名/地点/职业/喜好）→ 必须输出 Memory 行",
         _MOOD_GUIDE,
     ]
     return parts
