@@ -72,14 +72,30 @@ _PULSE_GUIDE = """=== 生理/心理状态 ===
 - 多项偏低 → 生理优先（sleep > 表达情绪 > 互动）
 - 各项 > 60 → 自由选择，但需契合语境"""
 
-_MEMORY_GUIDE = """## 记忆存储
-用户透露个人信息时必须输出 Memory 行（不对用户可见，每次最多1条）：
+_MEMORY_GUIDE = """=== 记忆存储指导 ===
+【输出示例】
 Memory: [类别] 记忆内容 | keywords:关键词1,关键词2 | importance:重要程度(1-5)
+比如：Memory: user_fact 用户XXX，住在XX | keywords:XXX,XX | importance:5
 
-类别: user_fact(个人信息) / user_preference(偏好习惯) / conversation(对话要点) / event(重要事件)
-importance: 5=核心身份（姓名/关系）, 4=重要偏好/事件, 3=中长期有用, 2=临时信息, 1=一般闲聊
-触发场景：用户自我介绍、说出姓名/地点/职业、表达喜好、提到重要事件 → 必须输出 Memory
-示例：Memory: user_fact 用户叫恋可可，住在深圳 | keywords:恋可可,深圳 | importance:5"""
+【什么时候输出？】
+- 输入有重要用户信息，比如姓名、昵称、住址等
+- 输入有用户偏好、喜好等
+- 重要时间节点、事件节点，比如生日、结婚等
+- 其他情况酌情记忆
+
+【类别】 
+- user_fact(个人信息) 
+- user_preference(偏好习惯) 
+- conversation(对话要点) 
+- event(重要事件)
+
+【重要程度判断】
+- 核心身份（姓名/关系）importance: 5
+- 重要偏好/事件 importance: 4
+- 中长期有用 importance: 3
+- 临时信息 importance: 2
+- 一般闲聊 importance: 1
+"""
 
 
 def _base_sections() -> list[str]:
@@ -147,8 +163,8 @@ _MOOD_GUIDE = """## 心理状态变化
 本次交互若影响心理状态，在末尾输出（不对用户可见）：
 Mood: affection±值 joy±值 sanity±值
 
-规则：
-- 普通闲聊：不输出此条
+affection、joy、sanity的增减范围和规则：
+- 普通闲聊：不输出
 - 明确积极（被夸奖、关心、玩耍）：+0~+1
 - 明确消极（被批评、忽视、粗暴对待）：-1~-3
 - 仅输出受影响的参数，不受影响的可省略"""
@@ -176,6 +192,7 @@ def _autonomous_task() -> list[str]:
         "【行为】",
         "10. 避免重复 Recent 中的行为和台词",
         "11. 台词、动作、互动方式全部由你的人格描述决定",
+        "12. 必须查看[记忆存储指导]判断是否输出Memory行，如果值得，必须输出",
     ]
 
     format_guide = (
@@ -193,7 +210,7 @@ def _autonomous_task() -> list[str]:
         f"  Action: shake_arms\n"
         f"  Action: sit duration={sit_dur}\n"
         f"  Skill: {{\"name\": \"skill.method\", \"args\": {{...}}}}\n"
-        f"  Memory: user_fact 用户叫恋可可，住在深圳 | keywords:恋可可,深圳 | importance:5\n"
+        f"  Memory: user_fact 用户叫xxx，住在xx | keywords:[具体姓名],[居住地点] | importance:5\n"
         f"\n"
     )
 
@@ -203,15 +220,15 @@ def _autonomous_task() -> list[str]:
 def _chat_task() -> list[str]:
     parts = [
         "=== 输出格式 ===\n"
-        "按顺序输出：Summary → Emotion(可选) → Speech → Action(≥1个) → Skill(可选) → Memory(可选) → Mood(可选)：\n"
+        "按顺序输出：Summary → Emotion(可选) → Speech → Action(≥3个) → Skill(可选) → Memory(可选) → Mood(可选)：\n"
         "  Summary: <对话内容和行为决策，≤50字>\n"
         "  Emotion: happy\n"
         "  Speech: 好嘞，我跳过去看看！\n"
         "  Action: walk left 600\n"
         "  Action: thinking duration=15\n"
         '  Skill: {"name": "skill.method", "args": {}}\n'
-        "  Memory: user_fact 用户叫恋可可，住在深圳 | keywords:恋可可,深圳 | importance:5\n"
-        "  Mood: affection+5 joy+3",
+        "  Memory: user_fact 用户叫xxx，住在xx | keywords:[具体姓名],[居住地点] | importance:5\n"
+        "  Mood: affection+1 joy+1",
         "=== 硬性约束 ===\n"
         "1. Summary 必须在最前面，≤50字\n"
         "2. 至少 1 个 Action，每行一个动作，格式严格为 Action: 动作名 [参数...]\n"
@@ -222,7 +239,7 @@ def _chat_task() -> list[str]:
         "7. 参考「近期对话/行为记录」保持连贯，不重复说过的话\n"
         "8. 用户要求使用技能时，在可用技能中搜索，找到必须调用，找不到按人格回复\n"
         "9. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored\n"
-        "10. 用户自我介绍或透露个人信息（姓名/地点/职业/喜好）→ 必须输出 Memory 行",
+        "10. 必须查看[记忆存储指导]判断是否输出Memory行，如果值得，必须输出",
         _MOOD_GUIDE,
     ]
     return parts
@@ -308,10 +325,10 @@ def _base_decide(context: str, mode: str) -> str:
         return (
             f"{context}\n\n"
             f"根据窗口探测数据和截图输出动作序列：\n"
-            f"• 有窗口 → drive 走到附近 + bounce 跳上窗口顶部，参数直接用探测数据的「相对桜宠」值\n"
+            f"• 有窗口 → drive 走到附近 + bounce 跳上窗口顶部，参数直接用探测数据的「相对桌宠」值\n"
             f"• 无窗口 → 巡视桌面、找地方坐下\n"
             f"• bounce 的 height 用探测数据的「上跳_N_px」值\n"
-            f"• 用人格语气评论窗口内容\n"
+            f"• 参考「近期对话/行为记录/生理、心理状态」，用人格语气评论窗口内容或者输出合理对话\n"
             f"• 避免重复 Recent 中的行为\n"
             f"• Summary 必须基于截图和窗口探测数据描述实际看到的内容"
         )
@@ -336,8 +353,8 @@ def chat_decide_user_prompt(user_message: str, context: str) -> str:
     return (
         f"=== 用户对你说 ===\n{user_message}\n\n"
         f"{context}\n\n"
-        "请回应用户。根据用户意图输出 Speech + Action。"
-        "参考「近期对话/行为记录」保持对话连贯，不要重复之前说过的话。"
+        "请回应用户。根据用户意图输出 Speech + Action以及其他可选输出行。"
+        "参考「近期对话/行为记录/生理、心理状态」保持对话连贯，不要重复之前说过的话。"
     )
 
 

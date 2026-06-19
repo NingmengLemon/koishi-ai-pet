@@ -274,6 +274,31 @@ class DebugWindow(QWidget):
 
         right.addWidget(particle_group)
 
+        # ── 上下文存储 ──
+
+        ctx_group = QGroupBox("上下文存储 (BrainMixin)")
+        ctx_layout = QVBoxLayout(ctx_group)
+
+        ctx_btn_row = QHBoxLayout()
+        self.btn_ctx_refresh = QPushButton("刷新")
+        self.btn_ctx_refresh.clicked.connect(self._refresh_context)
+        ctx_btn_row.addWidget(self.btn_ctx_refresh)
+        self.btn_ctx_clear = QPushButton("清空")
+        self.btn_ctx_clear.clicked.connect(self._clear_context)
+        ctx_btn_row.addWidget(self.btn_ctx_clear)
+        self.label_ctx_count = QLabel("共 0 条")
+        ctx_btn_row.addWidget(self.label_ctx_count)
+        ctx_btn_row.addStretch()
+        ctx_layout.addLayout(ctx_btn_row)
+
+        self.ctx_output = QTextEdit()
+        self.ctx_output.setReadOnly(True)
+        self.ctx_output.setMaximumHeight(180)
+        self.ctx_output.setFont(QFont("Consolas", 9))
+        ctx_layout.addWidget(self.ctx_output)
+
+        right.addWidget(ctx_group)
+
         # ── LLM 连通性测试 ──
 
         llm_group = QGroupBox("LLM 连通性测试")
@@ -493,6 +518,33 @@ class DebugWindow(QWidget):
             self._log(f"LLM 连通性测试失败 ({elapsed:.1f}s): {e}")
         finally:
             self.btn_llm_test.setEnabled(True)
+
+    def _refresh_context(self):
+        self.ctx_output.clear()
+        if not self.agent or not hasattr(self.agent.behavior, '_context'):
+            self.ctx_output.append("（无 agent 或 Behavior 不可用）")
+            self.label_ctx_count.setText("共 0 条")
+            return
+        entries = self.agent.behavior._context
+        self.label_ctx_count.setText(f"共 {len(entries)} 条")
+        if not entries:
+            self.ctx_output.append("（空）")
+            return
+        now = __import__('time').time()
+        for i, e in enumerate(reversed(entries), 1):
+            age = int(now - e.timestamp)
+            age_str = f"{age}s" if age < 60 else f"{age // 60}m{age % 60}s"
+            label = {"user": "用户", "assistant": "宠物", "system": "系统"}.get(e.role, e.role)
+            prefix = "★摘要" if e.is_summary else label
+            score = self.agent.behavior._score_entry(e) if hasattr(self.agent.behavior, '_score_entry') else 0
+            self.ctx_output.append(
+                f"#{i} [{prefix}] {score:.1f}分 | {age_str}前\n  {e.content[:120]}"
+            )
+
+    def _clear_context(self):
+        if self.agent and hasattr(self.agent.behavior, 'clear_context'):
+            self.agent.behavior.clear_context()
+            self._refresh_context()
 
     def closeEvent(self, event):
         self._pos_timer.stop()
