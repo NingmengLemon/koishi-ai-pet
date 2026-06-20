@@ -33,6 +33,8 @@ class PetWindow(TransparentWindow):
         self._chat_bubble = None
         self._agent = None
         self._debug_window = None
+        self._log_window = None
+        self._log_relay = None
         self._app = None
         self._event_reaction = False
         self._drag_history: list = []  # [(QPoint, timestamp_ms), ...]
@@ -247,6 +249,17 @@ class PetWindow(TransparentWindow):
         self._debug_window.show()
         self._debug_window.activateWindow()
         self._debug_window.raise_()
+
+    def set_log_relay(self, relay):
+        self._log_relay = relay
+
+    def _show_log_window(self):
+        if self._log_window is None:
+            from pet.ui.log_window import LogWindow
+            self._log_window = LogWindow(self._log_relay)
+        self._log_window.show()
+        self._log_window.activateWindow()
+        self._log_window.raise_()
 
     def _on_falling_started(self):
         self.action_queue.pause()

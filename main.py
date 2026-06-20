@@ -1,8 +1,10 @@
+import ctypes
 import logging
 import os
 import sys
 from logging.handlers import TimedRotatingFileHandler
 from PySide6.QtWidgets import QApplication
+from pet.ui.log_window import _LogRelay, LogWindowHandler
 from pet.ui.pet_window import PetWindow
 from pet.ui.system_tray import SystemTrayManager
 from pet.ui.bubble import SpeechBubble
@@ -42,6 +44,20 @@ def main():
     _file_handler.setLevel(logging.DEBUG)
     logging.getLogger().addHandler(_file_handler)
 
+    # GUI 日志桥接 (INFO 级)
+    _log_relay = _LogRelay()
+    _log_handler = LogWindowHandler(_log_relay, level=logging.INFO)
+    logging.getLogger().addHandler(_log_handler)
+
+    # 隐藏控制台窗口 (仅 Windows)
+    if sys.platform == "win32" and config.HIDE_CONSOLE:
+        try:
+            hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+            if hwnd:
+                ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
+        except Exception:
+            pass
+
     logger.info("===== DeskPet 启动 =====")
     logger.info(f"BRAIN={config.BRAIN}, MODEL={config.LLM_MODEL}")
 
@@ -56,6 +72,7 @@ def main():
     window = PetWindow()
     window.set_agent(agent)
     window.set_app(app)
+    window.set_log_relay(_log_relay)
     agent.set_pet_window(window)  # 供窗口坐标探测用
     bubble = SpeechBubble(window)
     emotion_bubble = EmotionBubble(window)
@@ -87,6 +104,7 @@ def main():
 
     def _shutdown():
         logger.info("shutting down...")
+        logging.getLogger().removeHandler(_log_handler)
         try:
             agent.stop()
             window.shutdown()
