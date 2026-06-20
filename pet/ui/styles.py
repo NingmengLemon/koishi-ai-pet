@@ -194,21 +194,25 @@ QMenu {
     background: """ + _COLOR_SURFACE + """;
     border: 1px solid """ + _COLOR_BORDER + """;
     border-radius: 8px;
-    padding: 4px;
+    padding: 6px 4px;
 }
 QMenu::item {
-    padding: 6px 28px 6px 12px;
+    padding: 7px 32px 7px 14px;
     font-size: 13px;
     color: """ + _COLOR_TEXT + """;
     border-radius: 4px;
+    background: transparent;
 }
 QMenu::item:selected {
     background: #e8e8e8;
 }
+QMenu::item:disabled {
+    color: #bbb;
+}
 QMenu::separator {
     height: 1px;
     background: """ + _COLOR_BORDER + """;
-    margin: 3px 8px;
+    margin: 4px 10px;
 }
 """
 

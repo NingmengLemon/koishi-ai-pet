@@ -1,8 +1,8 @@
 import logging
 
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QMenu
-from PySide6.QtCore import Qt, QPoint, QDateTime, QTimer
-from PySide6.QtGui import QMouseEvent, QAction
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QMenu, QStyle
+from PySide6.QtCore import Qt, QPoint, QDateTime, QTimer, QSize
+from PySide6.QtGui import QMouseEvent, QAction, QPainter, QPainterPath, QColor, QPen, QBrush
 from pet.ui.base_window import TransparentWindow
 from pet.ui.pet_animations import PetAnimator
 from pet.ui.particle import ParticleWidget
@@ -14,8 +14,40 @@ from config import config
 
 logger = logging.getLogger(__name__)
 
+_R = 8  # 菜单圆角半径
 
-class StickyMenu(QMenu):
+
+class _FlatMenuBase(QMenu):
+    """扁平圆角菜单基类 — 自绘圆角背景。"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.Popup
+            | Qt.WindowType.NoDropShadowWindowHint
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setStyleSheet(MENU_QSS)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        path = QPainterPath()
+        path.addRoundedRect(self.rect().adjusted(0, 0, -1, -1), _R, _R)
+        painter.fillPath(path, QColor("#ffffff"))
+        painter.setPen(QPen(QColor("#dddddd"), 1))
+        painter.drawPath(path)
+        # 裁切子项到圆角区域内
+        painter.setClipPath(path)
+        super().paintEvent(event)
+
+    def sizeHint(self):
+        s = super().sizeHint()
+        return QSize(s.width() + 4, s.height() + 4)
+
+
+class StickyMenu(_FlatMenuBase):
     """点击 checkable 项时不关闭菜单。"""
 
     def mouseReleaseEvent(self, event: QMouseEvent):
@@ -186,8 +218,7 @@ class PetWindow(TransparentWindow):
 
     def _show_context_menu(self, pos):
         """右键菜单。"""
-        menu = QMenu()
-        menu.setStyleSheet(MENU_QSS)
+        menu = _FlatMenuBase()
 
         if self._agent:
             # 自主决策开关（mid 已暂停 → 显示"开启"，运行中 → 显示"关闭"）

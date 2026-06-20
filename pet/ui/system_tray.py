@@ -6,8 +6,9 @@ import sys
 import psutil
 
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu
-from PySide6.QtGui import QIcon, QAction, QCursor
-from PySide6.QtCore import QObject, QTimer
+from PySide6.QtGui import QIcon, QAction, QCursor, QPainter, QPainterPath, QColor, QPen
+from PySide6.QtCore import QObject, QTimer, Qt
+from pet.ui.styles import MENU_QSS
 
 from config import config
 
@@ -27,6 +28,28 @@ def _format_bytes(b: int) -> str:
             return f"{b:.1f}{unit}"
         b /= 1024
     return f"{b:.1f}TB"
+
+
+_MENU_R = 8  # 菜单圆角半径
+
+
+def _wrap_menu_paint(menu: QMenu):
+    """让 QMenu 自绘圆角背景（Windows 原生菜单不认 border-radius）。"""
+    _orig = menu.paintEvent
+
+    def _rounded_paint(event):
+        p = QPainter(menu)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        path = QPainterPath()
+        path.addRoundedRect(menu.rect().adjusted(0, 0, -1, -1), _MENU_R, _MENU_R)
+        p.fillPath(path, QColor("#ffffff"))
+        p.setPen(QPen(QColor("#dddddd"), 1))
+        p.drawPath(path)
+        p.setClipPath(path)
+        _orig(event)
+        p.end()
+
+    menu.paintEvent = _rounded_paint
 
 
 class SystemTrayManager(QObject):
@@ -87,7 +110,12 @@ class SystemTrayManager(QObject):
         except Exception:
             pass
 
+        # 扁平圆角菜单（Windows 下需 frameless + 自绘背景）
         menu = QMenu(self.pet)
+        menu.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Popup | Qt.WindowType.NoDropShadowWindowHint)
+        menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        menu.setStyleSheet(MENU_QSS)
+        _wrap_menu_paint(menu)
 
         if self.pet.isVisible():
             hide_action = QAction("隐藏", menu)
