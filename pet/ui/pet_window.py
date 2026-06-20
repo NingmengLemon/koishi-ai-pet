@@ -21,8 +21,8 @@ _R = 8  # 菜单圆角半径
 class _FlatMenuBase(QMenu):
     """扁平圆角菜单基类 — Windows 下自绘圆角背景，macOS 走原生。"""
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(self, title="", parent=None):
+        super().__init__(title, parent)
         self.setStyleSheet(MENU_QSS)
         self._is_win = sys.platform == "win32"
         if self._is_win:
