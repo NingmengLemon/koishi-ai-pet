@@ -94,18 +94,22 @@ class ContextBuilder:
 
     @staticmethod
     def _finalize(messages: list[dict]) -> list[dict]:
-        """若配置了 LLM_SYSTEM_AS_USER，将 system 合并进第一条 user message。
-
-        部分小模型（如 GLM-10B）不支持或不遵守 system role，
-        会把 system prompt 当成正文复读。开启后 system 内容会
-        拼接到第一条 user message 最前面，roles 只剩 user。
-        """
+        """若配置了 LLM_SYSTEM_AS_USER，将 system 合并进第一条 user message"""
         if not config.LLM_SYSTEM_AS_USER:
             return messages
         if len(messages) < 2 or messages[0]["role"] != "system":
             return messages
 
         sys_text = messages[0]["content"]
+        # 防御: 若 system content 本身是 list（如被 cache_control 改写过），提取纯文本
+        if isinstance(sys_text, list):
+            sys_text = "\n\n".join(
+                p.get("text", "") for p in sys_text
+                if isinstance(p, dict) and p.get("type") == "text"
+            )
+        if not isinstance(sys_text, str):
+            return messages  # 无法合并，原样返回
+
         # 找到第一条 user message（兼容 skill round 场景：system 后可能先有 assistant）
         for msg in messages[1:]:
             if msg["role"] != "user":
