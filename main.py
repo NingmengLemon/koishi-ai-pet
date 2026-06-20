@@ -43,7 +43,7 @@ def main():
         "[%(asctime)s] [%(name)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     ))
-    _file_handler.setLevel(logging.DEBUG)
+    _file_handler.setLevel(getattr(logging, config.LOG_LEVEL, logging.INFO))
     logging.getLogger().addHandler(_file_handler)
 
     # GUI 日志桥接 (INFO 级)
