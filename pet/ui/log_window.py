@@ -1,35 +1,19 @@
 """INFO 级日志查看器 —— 托盘右键打开，扁平化圆角风格。"""
 
-import ctypes
 import logging
-import sys
 from collections import deque
 
 from PySide6.QtCore import Qt, Signal, QObject, QPoint
-from PySide6.QtGui import QFont, QTextCursor, QIcon
+from PySide6.QtGui import QFont, QTextCursor, QIcon, QPainter, QPainterPath, QColor, QPen
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QTextEdit, QPushButton, QLabel,
 )
 
 
-# ── Win11 圆角窗口 ──
+# ── 常量 ──
 
-def _apply_win11_rounded(hwnd: int):
-    """启用 Windows 11 原生圆角 (DWMWA_WINDOW_CORNER_PREFERENCE = 33)。"""
-    if sys.platform != "win32":
-        return
-    try:
-        DWMWA_WINDOW_CORNER_PREFERENCE = 33
-        DWMWCP_ROUND = 2
-        ctypes.windll.dwmapi.DwmSetWindowAttribute(
-            hwnd,
-            DWMWA_WINDOW_CORNER_PREFERENCE,
-            ctypes.byref(ctypes.c_int(DWMWCP_ROUND)),
-            ctypes.sizeof(ctypes.c_int),
-        )
-    except Exception:
-        pass
+_RADIUS = 10  # 窗口圆角半径
 
 
 # ── 跨线程日志桥接 ──
@@ -81,14 +65,13 @@ class LogWindowHandler(logging.Handler):
 
 _WINDOW_QSS = """
 QWidget#LogWindowRoot {
-    background: #f0f0f0;
-    border-radius: 10px;
+    background: transparent;
 }
 """
 
 _HEADER_QSS = """
 QWidget#LogHeader {
-    background: #f0f0f0;
+    background: transparent;
 }
 """
 
@@ -153,12 +136,12 @@ class LogWindow(QWidget):
         self.setMinimumSize(520, 350)
         self.resize(620, 440)
 
-        # 无边框
+        # 无边框 + 透明背景（用于 paintEvent 画圆角）
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.Window
         )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
         self.setStyleSheet(_WINDOW_QSS)
 
@@ -243,11 +226,19 @@ class LogWindow(QWidget):
         # 绑定 relay
         relay.set_widget(self)
 
-    # ── 窗口圆角 ──
+    # ── 窗口圆角绘制 ──
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        _apply_win11_rounded(int(self.winId()))
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = self.rect().adjusted(0, 0, -1, -1)
+        path = QPainterPath()
+        path.addRoundedRect(rect, _RADIUS, _RADIUS)
+        # 填充背景
+        painter.fillPath(path, QColor("#f0f0f0"))
+        # 细描边
+        painter.setPen(QPen(QColor("#cccccc"), 1))
+        painter.drawPath(path)
 
     # ── 标题栏拖拽 ──
 
