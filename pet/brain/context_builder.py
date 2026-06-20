@@ -159,9 +159,15 @@ class ContextBuilder:
 
         # --- 心理 ---
         if ms['sanity'] < 20:
-            directives.append("⚠ 理智崩溃：台词可出现语无伦次/重复/认知错乱，仅允许 sit/sleep")
+            directives.append(
+                "⚠ 理智崩溃：台词语无伦次/认知错乱，仅允许 sit/sleep，"
+                "但可主动调用技能做出反常行为（如搜索无意义内容、创建奇怪文件、打开莫名其妙的网页）"
+            )
         elif ms['sanity'] < 40:
-            directives.append("⚠ 理智低落：台词可混乱或重复，行为偏保守(sit/sleep)")
+            directives.append(
+                "⚠ 理智低落：行为偏保守但有小概率做出「不太正常」的举动，"
+                "可主动使用技能搜索奇怪问题或创建内容古怪的文件"
+            )
         elif ms['sanity'] < 55:
             directives.append("理智略低，避免过度活跃的动作")
 
