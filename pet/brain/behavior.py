@@ -540,6 +540,11 @@ class Behavior(BrainMixin):
             result_text, images = executor.format_results(results)
             logger.info(f"[Behavior] skill_round_{round_idx+1} executed {len(tool_calls)} tool(s), images={len(images)}")
 
+            # 保存 skill 请求和结果到上下文（供后续 LLM 调用参考）
+            self.add_context(role="assistant", content=f"[Skill] {current_content[:100]}")
+            self.add_context(role="system",
+                             content=f"[Skill结果] {result_text[:100]}")
+
             history.append({"role": "assistant", "content": current_content})
             history.append(self.ctx.build_skill_result(result_text, images))
 
