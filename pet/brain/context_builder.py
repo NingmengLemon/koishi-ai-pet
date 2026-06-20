@@ -128,19 +128,62 @@ class ContextBuilder:
         return ""
 
     def _build_pulse_status(self) -> str:
-        """生理/心理状态的 prompt 段"""
-        parts = []
-        if self._vitals:
-            ns = self._vitals.numeric_summary()
-            desc = self._vitals.summary()
-            parts.append(f"生理：饱食度 {ns['satiety']:.0f}、精力 {ns['energy']:.0f}（{desc}）")
-        if self._mood:
-            ms = self._mood.numeric_summary()
-            desc = self._mood.summary()
-            parts.append(f"心理：好感 {ms['affection']:.0f}、愉悦 {ms['joy']:.0f}、理智 {ms['sanity']:.0f}（{desc}）")
-        if not parts:
+        """动态 pulse 指令 — 正常时静默，低阈值时输出强制行为指令。"""
+        if not self._vitals or not self._mood:
             return ""
-        return "=== 当前生理/心理状态 ===\n" + "\n".join(parts)
+
+        ns = self._vitals.numeric_summary()
+        ms = self._mood.numeric_summary()
+
+        # 全部 > 60 → 正常，不输出任何内容（避免"狼来了"效应 + 省 token）
+        if (ns['satiety'] > 60 and ns['energy'] > 60
+                and ms['affection'] > 60 and ms['joy'] > 60 and ms['sanity'] > 60):
+            return ""
+
+        directives = []
+
+        # ── 数值展示（精简一行） ──
+        lines = [
+            f"=== 当前状态 ===\n"
+            f"饱食度{ns['satiety']:.0f} 精力{ns['energy']:.0f} "
+            f"好感{ms['affection']:.0f} 愉悦{ms['joy']:.0f} 理智{ms['sanity']:.0f}"
+        ]
+
+        # ── 动态指令（规则不再让 LLM 查表，直接给命令） ──
+
+        # --- 生理 ---
+        if ns['energy'] < 20:
+            directives.append("⚠ 精力衰竭：禁止所有移动类动作(bounce/drive/walk)，必须用 sit 或 sleep 收尾")
+        elif ns['energy'] < 40:
+            directives.append("⚠ 精力不足：动作序列中必须包含 sit 或 sleep，减少移动")
+        elif ns['energy'] < 55:
+            directives.append("精力偏低，优先 sit/sleep 恢复")
+
+        if ns['satiety'] < 20:
+            directives.append("⚠ 极度饥饿：台词必须表达虚弱/焦躁，大概率不理用户指令")
+        elif ns['satiety'] < 40:
+            directives.append("有点饿：台词委婉表达饥饿/想吃东西")
+
+        # --- 心理 ---
+        if ms['sanity'] < 20:
+            directives.append("⚠ 理智崩溃：台词可出现语无伦次/重复/认知错乱，仅允许 sit/sleep")
+        elif ms['sanity'] < 40:
+            directives.append("⚠ 理智低落：台词可混乱或重复，行为偏保守(sit/sleep)")
+        elif ms['sanity'] < 55:
+            directives.append("理智略低，避免过度活跃的动作")
+
+        if ms['joy'] < 30:
+            directives.append("心情低落：禁止 shake_arms，台词简短消极")
+        elif ms['joy'] < 50:
+            directives.append("心情一般，台词偏短，避免过于欢快")
+
+        if ms['affection'] < 40:
+            directives.append("好感偏低：语气保持距离，不带亲昵称呼")
+
+        if not directives:
+            return ""  # 有数值但无指令 → 也跳过
+
+        return "\n".join(lines + directives)
 
     def _prepare_image(self) -> Optional[str]:
         if not config.VISION_ENABLED or not self._screen_reader:
