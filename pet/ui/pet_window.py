@@ -251,15 +251,13 @@ class PetWindow(TransparentWindow):
                 action.toggled.connect(lambda checked, n=name: SKILL_REGISTRY.set_enabled(n, checked))
             menu.addMenu(skill_menu)
 
-            menu.addSeparator()
-
             # 互动反应开关
             on = self._event_reaction
             toggle_mouse = QAction("关闭互动反应" if on else "开启互动反应")
             toggle_mouse.triggered.connect(self._toggle_event_reaction)
             menu.addAction(toggle_mouse)
 
-        menu.addSeparator()
+            menu.addSeparator()
 
         # 隐藏 / 退出
         hide_action = QAction("隐藏桌宠")
