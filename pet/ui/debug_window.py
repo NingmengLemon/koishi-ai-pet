@@ -7,6 +7,11 @@ from datetime import datetime
 
 from PySide6.QtCore import Qt, QPoint, QTimer
 from PySide6.QtGui import QFont, QIcon
+from pet.ui.styles import (
+    WINDOW_QSS, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
+    INPUT_QSS, COMBOBOX_QSS, TEXTEDIT_QSS, LIST_QSS,
+    CHECKBOX_QSS, LABEL_SECONDARY_QSS, LABEL_MONO_QSS,
+)
 
 from pet.ui.bubble import SpeechBubble
 from pet.ui.emotion import EmotionBubble, EMOTION_MAP
@@ -37,12 +42,19 @@ class DebugWindow(QWidget):
             self.agent.emotion_requested.connect(self._on_agent_emotion)
 
         self.setWindowTitle("DeskPet 调试面板")
+        self.setObjectName("FlatWindow")
         self.setMinimumWidth(680)
         try:
             self.setWindowIcon(QIcon("assets/icon/sys_tray.png"))
         except Exception:
             pass
         self._setup_ui()
+        # 扁平化圆角样式
+        self.setStyleSheet(
+            WINDOW_QSS + PANEL_QSS + BUTTON_QSS + BUTTON_PRIMARY_QSS +
+            INPUT_QSS + COMBOBOX_QSS + TEXTEDIT_QSS + LIST_QSS +
+            CHECKBOX_QSS
+        )
 
         self._pos_timer = QTimer(self)
         self._pos_timer.timeout.connect(self._refresh_pos)

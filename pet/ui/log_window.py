@@ -9,6 +9,9 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QTextEdit, QPushButton, QLabel, QComboBox,
 )
+from pet.ui.styles import (
+    TEXTEDIT_QSS, BUTTON_QSS, BUTTON_DANGER_QSS, COMBOBOX_QSS,
+)
 
 
 # ── 常量 ──
@@ -99,81 +102,6 @@ QWidget#LogHeader {
 }
 """
 
-_TEXTEDIT_QSS = """
-QTextEdit {
-    background: #ffffff;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 6px 8px;
-    font-family: "Consolas", "Microsoft YaHei", monospace;
-    font-size: 12px;
-    color: #333;
-    selection-background-color: #b3d9ff;
-}
-QTextEdit:focus {
-    border-color: #aaa;
-}
-"""
-
-_CLOSE_BTN_QSS = """
-QPushButton#LogCloseBtn {
-    background: transparent;
-    border: none;
-    border-radius: 6px;
-    padding: 4px 10px;
-    font-size: 14px;
-    color: #888;
-}
-QPushButton#LogCloseBtn:hover {
-    background: #e81123;
-    color: #fff;
-}
-"""
-
-_LEVEL_COMBO_QSS = """
-QComboBox {
-    background: transparent;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    padding: 1px 6px;
-    font-size: 11px;
-    color: #666;
-    min-width: 72px;
-}
-QComboBox:hover {
-    border-color: #aaa;
-}
-QComboBox::drop-down {
-    subcontrol-origin: padding;
-    subcontrol-position: right center;
-    width: 16px;
-    border: none;
-}
-QComboBox QAbstractItemView {
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    selection-background-color: #e0e0e0;
-    color: #333;
-    font-size: 11px;
-}
-"""
-
-_CLEAR_BTN_QSS = """
-QPushButton#LogClearBtn {
-    background: transparent;
-    border: 1px solid #ccc;
-    border-radius: 10px;
-    padding: 2px 12px;
-    font-size: 12px;
-    color: #555;
-}
-QPushButton#LogClearBtn:hover {
-    background: #e0e0e0;
-    border-color: #aaa;
-}
-"""
-
 _MAX_BLOCK_COUNT = 5000
 
 
@@ -232,7 +160,7 @@ class LogWindow(QWidget):
         close_btn = QPushButton("✕")
         close_btn.setObjectName("LogCloseBtn")
         close_btn.setFixedSize(28, 28)
-        close_btn.setStyleSheet(_CLOSE_BTN_QSS)
+        close_btn.setStyleSheet(BUTTON_DANGER_QSS)
         close_btn.clicked.connect(self.hide)
         header_layout.addWidget(close_btn)
 
@@ -244,15 +172,14 @@ class LogWindow(QWidget):
         self._level_combo = QComboBox()
         self._level_combo.addItems(["DEBUG", "INFO", "WARNING", "ERROR"])
         self._level_combo.setCurrentText(relay.current_level_name())
-        self._level_combo.setStyleSheet(_LEVEL_COMBO_QSS)
+        self._level_combo.setStyleSheet(COMBOBOX_QSS)
         self._level_combo.currentTextChanged.connect(relay.set_level)
         toolbar.addWidget(self._level_combo)
 
         toolbar.addStretch()
 
         clear_btn = QPushButton("清空")
-        clear_btn.setObjectName("LogClearBtn")
-        clear_btn.setStyleSheet(_CLEAR_BTN_QSS)
+        clear_btn.setStyleSheet(BUTTON_QSS)
         clear_btn.clicked.connect(self._clear)
         toolbar.addWidget(clear_btn)
 
@@ -260,7 +187,7 @@ class LogWindow(QWidget):
         self._log_view = QTextEdit()
         self._log_view.setReadOnly(True)
         self._log_view.setFont(QFont("Consolas", 10))
-        self._log_view.setStyleSheet(_TEXTEDIT_QSS)
+        self._log_view.setStyleSheet(TEXTEDIT_QSS)
 
         # ── 组装 ──
         root = QVBoxLayout(self)

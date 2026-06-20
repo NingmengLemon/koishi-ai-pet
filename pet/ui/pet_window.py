@@ -6,6 +6,7 @@ from PySide6.QtGui import QMouseEvent, QAction
 from pet.ui.base_window import TransparentWindow
 from pet.ui.pet_animations import PetAnimator
 from pet.ui.particle import ParticleWidget
+from pet.ui.styles import MENU_QSS
 from pet.action import PetActions, ActionQueue
 from pet.brain.prompts import INTERACT_GRABBED, INTERACT_RELEASED, INTERACT_WINDOW_DISAPPEARED
 from pet.skills.registry import SKILL_REGISTRY
@@ -186,6 +187,7 @@ class PetWindow(TransparentWindow):
     def _show_context_menu(self, pos):
         """右键菜单。"""
         menu = QMenu()
+        menu.setStyleSheet(MENU_QSS)
 
         if self._agent:
             # 自主决策开关（mid 已暂停 → 显示"开启"，运行中 → 显示"关闭"）
