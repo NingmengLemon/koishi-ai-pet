@@ -247,18 +247,18 @@ class ParticleWidget(QWidget):
             self._reposition()
         return super().eventFilter(obj, event)
 
-    # ── 特效触发 ──
+    # ── 默认播放位置（相对于宠物区域的偏移像素，0=宠物顶部） ──
 
-    def spawn(self, effect: str, **kwargs):
-        """触发粒子特效。effect: dust / stars / zzz / hearts"""
-        cx = self.width() // 2
-        cy = self.height() // 2
-        # 微调中心点：dust 在脚底，其余在头顶上方
-        if effect == "dust":
-            cy = self.height() - _MARGIN - 5  # 脚底附近
-        elif effect in ("stars", "hearts", "zzz"):
-            cy = _MARGIN + 10  # 头顶附近
+    _DEFAULT_Y = {
+        "dust":   -1,         # 特殊: 脚底（代码中特殊处理）
+        "stars":  1 / 4,      # 头部附近
+        "hearts": 1 / 4,      # 头部附近
+        "zzz":    1 / 2,      # 窗口中部（sleep 姿势是卧倒的）
+    }
 
+    def spawn(self, effect: str, cx: float | None = None, cy: float | None = None):
+        """触发粒子特效"""
+        # ── effect 校验 ──
         spawner = {
             "dust": _spawn_dust,
             "stars": _spawn_stars,
@@ -266,8 +266,40 @@ class ParticleWidget(QWidget):
             "hearts": _spawn_hearts,
         }.get(effect)
         if spawner is None:
-            logger.warning(f"Unknown particle effect: {effect}")
+            logger.warning(f"Unknown particle effect: {effect!r}, expected one of dust/stars/zzz/hearts")
             return
+
+        # ── cx/cy 校验 ──
+        if cx is not None:
+            if not isinstance(cx, (int, float)):
+                logger.warning(f"spawn({effect!r}): cx must be number, got {type(cx).__name__}")
+                return
+            if not (0 <= cx <= 10000):
+                logger.warning(f"spawn({effect!r}): cx={cx} out of range [0, 10000]")
+                return
+
+        if cy is not None:
+            if not isinstance(cy, (int, float)):
+                logger.warning(f"spawn({effect!r}): cy must be number, got {type(cy).__name__}")
+                return
+            if not (0 <= cy <= 10000):
+                logger.warning(f"spawn({effect!r}): cy={cy} out of range [0, 10000]")
+                return
+
+        if (cx is not None and math.isnan(cx)) or (cy is not None and math.isnan(cy)):
+            logger.warning(f"spawn({effect!r}): cx/cy is NaN")
+            return
+
+        # ── 位置默认值 ──
+        if cx is None:
+            cx = self.width() // 2
+
+        if cy is None:
+            fraction = self._DEFAULT_Y.get(effect, 1 / 3)
+            if effect == "dust":
+                cy = self.height() - _MARGIN - 5  # 脚底
+            else:
+                cy = _MARGIN + int(self._pet.height() * fraction)
 
         new = spawner(cx, cy)
         self._particles.extend(new)
