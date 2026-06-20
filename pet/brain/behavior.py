@@ -148,6 +148,7 @@ class Behavior(BrainMixin):
         messages = self.ctx.build_chat(user_message, context, screenshot=screenshot)
         logger.info(f"[{t}] [Behavior] === LLM REQUEST (chat_decide) ===")
         self._dump_context("chat_decide", messages)
+        self._log_prompt_size(messages, "chat_decide")
         try:
             resp = self._llm_call(messages)
             content = resp.choices[0].message.content or ""
@@ -176,6 +177,7 @@ class Behavior(BrainMixin):
         try:
             messages = self.ctx.build_chat(user_message, context, screenshot=screenshot)
             self._dump_context("chat_stream", messages)
+            self._log_prompt_size(messages, "chat_stream")
             stream = self._llm_call_stream(messages)
             full_content = ""
             line_buffer = ""
@@ -265,10 +267,25 @@ class Behavior(BrainMixin):
             tag="Behavior.stream",
         )
 
+    def _log_prompt_size(self, messages: list, tag: str):
+        """计算并打印 system + user messages 的总字符数。"""
+        total = 0
+        for i, m in enumerate(messages):
+            content = m["content"]
+            if isinstance(content, str):
+                total += len(content)
+            elif isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        total += len(part.get("text", ""))
+        t = datetime.now().strftime("%H:%M:%S")
+        logger.info(f"[{t}] [Behavior]   prompt_chars: {total} ({tag})")
+
     def _call_llm_and_parse(self, messages: list, system_content: str, tag: str) -> BehaviorOutput:
         t = datetime.now().strftime("%H:%M:%S")
         self._apply_cache_control(messages)
         self._dump_context(tag, messages)
+        self._log_prompt_size(messages, tag)
         try:
             resp = self._llm_call(messages)
             content = resp.choices[0].message.content or ""
@@ -288,6 +305,7 @@ class Behavior(BrainMixin):
     def _stream_and_parse(self, messages: list, on_chunk=None, on_stream_end=None, tag: str = "") -> BehaviorOutput:
         self._apply_cache_control(messages)
         self._dump_context(tag, messages)
+        self._log_prompt_size(messages, tag)
         try:
             stream = self._llm_call_stream(messages)
 
@@ -522,6 +540,7 @@ class Behavior(BrainMixin):
             messages = [{"role": "system", "content": sys}] + history
             tag = f"skill_round_{round_idx+1}"
             self._dump_context(tag, messages)
+            self._log_prompt_size(messages, tag)
             try:
                 if on_chunk:
                     current_content = self._stream_text_raw(messages, on_chunk=on_chunk, tag=tag)
