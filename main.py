@@ -12,7 +12,9 @@ from pet.ui.system_tray import SystemTrayManager
 from pet.ui.speech_bubble import SpeechBubble
 from pet.ui.emotion import EmotionBubble
 from pet.ui.chat_bubble import ChatBubble
+from pet.ui.feed_bubble import FeedBubble
 from pet.agent import PetAgent
+from pet.brain.prompts import INTERACT_FED
 from pet.skills import load_skills
 from pet.skills.context import SKILL_CTX
 from config import config
@@ -99,6 +101,12 @@ def main():
         lambda text: agent.trigger("chat", message=text)
     )
 
+    feed_bubble = FeedBubble(window)
+    window.set_feed_bubble(feed_bubble)
+    feed_bubble.feed_submitted.connect(
+        lambda text: agent.trigger("interact", hint=INTERACT_FED.format(food=text))
+    )
+
     agent.action_requested.connect(window.queue_enqueue_action)
     agent.emotion_requested.connect(emotion_bubble.show_emotion)
     agent.emotion_requested.connect(
@@ -110,6 +118,9 @@ def main():
     agent.speak_stream_end.connect(bubble.end_stream)
     agent.state_changed.connect(
         lambda s: chat_bubble.set_busy(s in ("autonomous", "interacting"))
+    )
+    agent.state_changed.connect(
+        lambda s: feed_bubble.set_busy(s in ("autonomous", "interacting"))
     )
 
     window.show()

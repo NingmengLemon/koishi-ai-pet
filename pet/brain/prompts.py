@@ -253,20 +253,24 @@ def _chat_task() -> list[str]:
 
 def _interact_task() -> list[str]:
     return [
-        "你是桌面宠物，用户刚刚对你做了某个动作，需要即时做出自然反应。这是即时反应场景，不需要复杂规划。",
         "=== 输出格式 ===\n"
-        "Summary: <10字内简述>\n"
-        "Emotion: <可选>\n"
-        "Speech: <即时反应，≤20字>\n"
-        "Action: <1-2个动作>\n"
-        "Vitals: <可选，satiety/energy/affection/joy/sanity 增减，根据事件自行决定>",
-        "=== 约束 ===\n"
-        "1. 参考系统提示中的当前生理、心理状态：状态影响你的即时反应和 Vitals 参数变化\n"
-        "3. Speech 简短，是本能反应而非分析，风格由个性决定\n"
-        "4. 只输出 1-2 个 Action\n"
-        "5. 禁止输出 Skill 行\n"
-        "6. 完全由你的个性决定反应方式\n"
-        "7. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored",
+        "按顺序输出：Summary → Emotion(可选) → Speech → Action(1-2个) → Mood(可选) → Vitals(可选)：\n"
+        "  Summary: <互动内容和反应，<=15字>\n"
+        "  Emotion: happy\n"
+        "  Speech: 你怎么抓我呀\n"
+        "  Action: walk left 600\n"
+        "  Action: shake_arms\n"
+        "  Mood: affection+1 joy-1\n"
+        "  Vitals: satiety-2 energy+3",
+        "=== 硬性约束 ===\n"
+        "1. Summary 必须在最前面，≤15字\n"
+        "2. 只输出 1-2 个 Action，每行一个，格式严格为 Action: 动作名 [参数...]\n"
+        "3. 动作名只能是动作表列出的，必须从动作表复制准确名称\n"
+        "4. 动作名和参数必须在 Action: 同行，禁止换行再写动作名\n"
+        "5. Speech 是本能反应而非分析，≤20字，由个性决定语气\n"
+        "6. 禁止输出 Skill 行、Memory 行\n"
+        "7. 参考系统提示中的当前生理/心理状态：状态影响你的即时反应和 Mood/Vitals 参数变化\n"
+        "8. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored",
     ]
 
 
@@ -406,7 +410,6 @@ INTERACT_WINDOW_DISAPPEARED = config.INTERACT_WINDOW_DISAPPEARED_PROMPT or (
 )
 
 INTERACT_FED = config.INTERACT_FED_PROMPT or (
-    "用户给你投喂了 {food}（可能是任何东西），根据你的人格用一句话（≤15字）表达反应。"
-    "同时根据食物类型自行决定所有参数变化，在末尾输出 Vitals: "
-    "（satiety/energy/affection/joy/sanity 均可按情境增减，奇怪的食材可能导致负效果）"
+    "用户给你投喂了{food}，根据你的人格用一句话（≤15字）表达反应。"
+    "同时根据投喂的食物决定Vitals和Mood变化"
 )

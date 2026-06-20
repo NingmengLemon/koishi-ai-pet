@@ -9,7 +9,7 @@ from pet.ui.pet_animations import PetAnimator
 from pet.ui.particle import ParticleWidget
 from pet.ui.styles import MENU_QSS
 from pet.action import PetActions, ActionQueue
-from pet.brain.prompts import INTERACT_GRABBED, INTERACT_RELEASED, INTERACT_WINDOW_DISAPPEARED, INTERACT_FED
+from pet.brain.prompts import INTERACT_GRABBED, INTERACT_RELEASED, INTERACT_WINDOW_DISAPPEARED
 from pet.skills.registry import SKILL_REGISTRY
 from config import config
 
@@ -69,6 +69,7 @@ class PetWindow(TransparentWindow):
         self._setup_ui()
         self._grab_local: QPoint | None = None
         self._chat_bubble = None
+        self._feed_bubble = None
         self._agent = None
         self._debug_window = None
         self._log_window = None
@@ -89,6 +90,10 @@ class PetWindow(TransparentWindow):
         """注入 ChatBubble 引用。"""
         self._chat_bubble = chat_bubble
 
+    def set_feed_bubble(self, feed_bubble):
+        """注入 FeedBubble 引用。"""
+        self._feed_bubble = feed_bubble
+
     def set_agent(self, agent):
         """注入 PetAgent 引用，供右键菜单使用。"""
         self._agent = agent
@@ -98,15 +103,20 @@ class PetWindow(TransparentWindow):
         self._app = app
 
     def enterEvent(self, event):
-        """鼠标进入桌宠区域时显示聊天按钮。"""
-        if self._chat_bubble and self._grab_local is None:
-            self._chat_bubble.show_bubble()
+        """鼠标进入桌宠区域时显示聊天和喂食按钮。"""
+        if self._grab_local is None:
+            if self._chat_bubble:
+                self._chat_bubble.show_bubble()
+            if self._feed_bubble:
+                self._feed_bubble.show_bubble()
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         """鼠标离开桌宠区域时延迟隐藏。"""
         if self._chat_bubble:
             self._chat_bubble.schedule_hide()
+        if self._feed_bubble:
+            self._feed_bubble.schedule_hide()
         super().leaveEvent(event)
 
     def _setup_ui(self):
@@ -153,6 +163,8 @@ class PetWindow(TransparentWindow):
             self._drag_history.clear()
             if self._chat_bubble:
                 self._chat_bubble.hide_bubble()
+            if self._feed_bubble:
+                self._feed_bubble.hide_bubble()
             # 先启动单击检测定时器，等待判断是单击还是拖拽
             self._click_timer.start()
         elif event.button() == Qt.MouseButton.RightButton:
@@ -257,11 +269,6 @@ class PetWindow(TransparentWindow):
             toggle_mouse.triggered.connect(self._toggle_event_reaction)
             menu.addAction(toggle_mouse)
 
-            # 自定义喂食
-            feed_action = QAction("喂食")
-            feed_action.triggered.connect(self._feed_pet)
-            menu.addAction(feed_action)
-
             menu.addSeparator()
 
         # 隐藏 / 退出
@@ -287,18 +294,6 @@ class PetWindow(TransparentWindow):
     def _toggle_event_reaction(self):
         self._event_reaction = not self._event_reaction
         logger.info(f"Event reaction {'enabled' if self._event_reaction else 'disabled'}")
-
-    def _feed_pet(self):
-        """自定义喂食：弹出输入框，触发 LLM 决定饱食度变化"""
-        from PySide6.QtWidgets import QInputDialog
-        food, ok = QInputDialog.getText(self, "喂食", "输入食物名称：")
-        if not ok or not food.strip():
-            return
-        food = food.strip()
-        logger.info(f"[PetWindow] 喂食 {food}")
-        if self._agent and self._event_reaction:
-            hint = INTERACT_FED.format(food=food)
-            self._agent.trigger("interact", hint=hint)
 
     def _show_debug_window(self):
         if self._debug_window is None:
