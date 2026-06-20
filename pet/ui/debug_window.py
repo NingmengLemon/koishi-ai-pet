@@ -44,8 +44,8 @@ class DebugWindow(QWidget):
 
         self.setWindowTitle("DeskPet 调试面板")
         self.setObjectName("FlatWindow")
-        self.setMinimumSize(740, 600)
-        self.resize(780, 680)
+        self.setMinimumWidth(700)
+        self.resize(820, 700)
 
         # 无边框 + 圆角
         self.setWindowFlags(
