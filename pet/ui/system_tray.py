@@ -34,7 +34,7 @@ _MENU_R = 8  # 菜单圆角半径
 
 
 def _wrap_menu_paint(menu: QMenu):
-    """让 QMenu 自绘圆角背景（Windows 原生菜单不认 border-radius）。"""
+    """让 QMenu 自绘圆角背景"""
     _orig = menu.paintEvent
 
     def _rounded_paint(event):
