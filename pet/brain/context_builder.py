@@ -173,7 +173,7 @@ class ContextBuilder:
             directives.append("理智略低，避免过度活跃的动作")
 
         if ms['joy'] < 30:
-            directives.append("心情低落：禁止 shake_arms，台词简短消极")
+            directives.append("心情低落：禁止使用表达开心的动作，台词简短消极")
         elif ms['joy'] < 50:
             directives.append("心情一般，台词偏短，避免过于欢快")
 
