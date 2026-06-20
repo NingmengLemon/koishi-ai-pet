@@ -50,28 +50,6 @@ def generate_skill_section() -> str:
                 lines.append(f"    触发: {m.when}")
     return "\n".join(lines)
 
-_PULSE_GUIDE = """=== 生理/心理状态 ===
-【生理状态】
-- satiety（饱食度）: 0-100，仅用户喂食可恢复
-- energy（精力）: 0-100，sit/sleep 可恢复
-
-【心理状态】
-- affection（好感度）: 0-100，对用户的亲密度
-- joy（愉悦度）: 0-100，当下的快乐感
-- sanity（理智值）: 0-100，情绪稳定性，越低越疯癫
-
-【决策规则】
-- energy < 50 → 优先 sit/sleep 恢复精力
-- energy < 30 → 必须 sleep，直至恢复至 50+
-- satiety < 40 → 台词表达饥饿，小概率不遵守指令
-- satiety < 20 → 表现虚弱焦躁，大概率不遵守指令
-- affection < 40 → 礼貌但保持距离；> 70 → 语言亲昵
-- joy < 30 → 避免欢快动作，台词简短；> 70 → 动作活泼，台词积极
-- sanity < 40 → 台词可混乱/重复，行为保守（sit/sleep）
-- sanity < 20 → 台词可呈现认知错乱
-- 多项偏低 → 生理优先（sleep > 表达情绪 > 互动）
-- 各项 > 60 → 自由选择，但需契合语境"""
-
 _MEMORY_GUIDE = """=== 记忆存储指导 ===
 【输出示例】
 Memory: [类别] 记忆内容 | keywords:关键词1,关键词2 | importance:重要程度(1-5)
@@ -131,6 +109,22 @@ _VISION_CONSTRAINTS = """【视觉专属约束】
 - bounce 必须有明确窗口目标，基于窗口在截图中的位置估算参数
 - 截图找不到自己位置时必须用 fade_in"""
 
+_VISION_CONTENT_GUIDE = """=== 截图内容分析 ===
+截图是你观察用户世界的眼睛。不仅要看窗口位置，更要仔细观察截图里的内容：
+1. 识别窗口类型和应用 — 是 IDE/浏览器/聊天软件/视频播放器/文档编辑器/游戏？
+2. 阅读可见文字 — 代码中的函数名和注释、聊天内容、网页标题和正文、文档段落
+3. 推断用户活动 — 在写什么代码/看什么网页/和谁聊天/编辑什么文档
+4. 把观察到的内容写进 Speech 和 Summary — 评论代码写得怎样、对网页内容发表看法、陪用户一起看视频
+
+【示例】
+- 看到 Python 代码 → "咦，你这个函数名拼错了？" "写 Django 啊，这里可以加个缓存"
+- 看到聊天窗口 → "又在和同事摸鱼聊天？让我看看说了啥"
+- 看到视频播放器 → "哦，在看什么？我也想看！"（走过去坐下）
+- 看到浏览器 → "在搜什么东西？要不要我帮你找"
+
+- 禁止空洞无物的台词：只说"有新窗口""过去看看"视为违规
+- Summary 必须描述截图中的实际画面内容，而非仅窗口坐标"""
+
 _NON_VISION_INTRO = """=== 非视觉模式 ===
 无法看到屏幕，仅依据窗口探测数据感知环境。drive 方向可随机选择。"""
 
@@ -150,11 +144,12 @@ class _Lazy:
         return self.fn()
 
 _PERCEPTION_SECTIONS = {
-    "vision":     [_VISION_INTRO, _WINDOW_GUIDE, _Lazy(generate_action_section), _VISION_CONSTRAINTS],
+    "vision":     [_VISION_INTRO, _WINDOW_GUIDE, _VISION_CONTENT_GUIDE, _Lazy(generate_action_section), _VISION_CONSTRAINTS],
     "non_vision": [_NON_VISION_INTRO, _WINDOW_GUIDE, _Lazy(generate_action_section)],
-    "chat":       [_CHAT_INTRO, _WINDOW_GUIDE, _Lazy(generate_action_section)],
+    "chat":           [_CHAT_INTRO, _WINDOW_GUIDE, _VISION_CONTENT_GUIDE, _Lazy(generate_action_section), _VISION_CONSTRAINTS],
+    "chat_no_vision": [_CHAT_INTRO, _WINDOW_GUIDE, _Lazy(generate_action_section)],
     "interact":   [_Lazy(generate_action_section)],
-    "skill":      [],
+    "skill":      [_Lazy(generate_action_section)],
 }
 
 
@@ -241,7 +236,7 @@ def _chat_task() -> list[str]:
         "  Mood: affection+1 joy+1",
         "=== 硬性约束 ===\n"
         "1. Summary 必须在最前面，≤50字\n"
-        "2. 至少 1 个 Action，每行一个动作，格式严格为 Action: 动作名 [参数...]\n"
+        "2. 至少 3 个 Action，每行一个动作，格式严格为 Action: 动作名 [参数...]\n"
         "3. 动作名只能是动作表列出的，必须从动作表复制准确名称\n"
         "4. 动作名和参数必须在 Action: 同行，禁止换行再写动作名\n"
         "5. 带参数的动作用 duration=秒 或 direction=left/right 格式，参考动作表\n"
@@ -335,6 +330,7 @@ def _base_autonomous(context: str, mode: str) -> str:
     if mode == "vision":
         return (
             f"{context}\n\n"
+            f"⚠ 仔细看截图：识别窗口里的实际内容（代码/网页/聊天/视频等），基于内容决定台词，禁止空洞无物。\n\n"
             f"根据窗口探测数据和截图输出动作序列：\n"
             f"• 有窗口 → drive 走到附近 + bounce 跳上窗口顶部，参数直接用探测数据的「相对桌宠」值\n"
             f"• 无窗口 → 巡视桌面、找地方坐下\n"
@@ -352,18 +348,20 @@ def _base_autonomous(context: str, mode: str) -> str:
     )
 
 
-def non_vision_autonomous_prompt(context: str) -> str:
+def autonomous_non_vision_user_prompt(context: str) -> str:
     return _base_autonomous(context, "non_vision")
 
 
-def vision_autonomous_prompt(context: str) -> str:
+def autonomous_vision_user_prompt(context: str) -> str:
     return _base_autonomous(context, "vision")
 
 
-def chat_decide_user_prompt(user_message: str, context: str) -> str:
+def chat_user_prompt(user_message: str, context: str, vision: bool = True) -> str:
+    vision_line = "⚠ 仔细看截图：识别窗口内容，结合画面回应用户，禁止空洞台词。\n" if vision else ""
     return (
         f"=== 用户对你说 ===\n{user_message}\n\n"
         f"{context}\n\n"
+        f"{vision_line}"
         "请回应用户。根据用户意图输出 Speech + Action以及其他可选输出行。"
         "参考「近期对话/行为记录/生理、心理状态」保持对话连贯，不要重复之前说过的话。"
     )
