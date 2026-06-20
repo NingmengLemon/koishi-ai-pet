@@ -4,6 +4,7 @@ import os
 import sys
 from logging.handlers import TimedRotatingFileHandler
 from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QIcon
 from pet.ui.log_window import _LogRelay, LogWindowHandler
 from pet.ui.pet_window import PetWindow
 from pet.ui.system_tray import SystemTrayManager
@@ -69,6 +70,10 @@ def main():
 
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
+    try:
+        app.setWindowIcon(QIcon("assets/icon/sys_tray.png"))
+    except Exception:
+        pass
 
     agent = PetAgent()
     SKILL_CTX.bind(agent)
