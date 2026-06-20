@@ -68,9 +68,10 @@ class ContextBuilder:
         ]
 
     def build_interact(self, event_hint: str) -> list[dict]:
-        """即时交互模式的 messages（抓取、释放等，无动态数据）"""
+        """即时交互模式的 messages（抓取、释放等）"""
+        system = self._build_system("interact", "interact")
         return [
-            {"role": "system", "content": prompts.build_system_prompt("interact", "interact")},
+            {"role": "system", "content": system},
             {"role": "user",   "content": event_hint},
         ]
 
