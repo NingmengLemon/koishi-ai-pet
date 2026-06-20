@@ -76,14 +76,17 @@ class FileOpsTool:
             return {"error": f"写入失败: {e}"}
         return {"status": "written", "path": abs_path}
 
-    def write_file(self, path: str, content: str) -> dict:
+    def write_file(self, path: str, content: str, mode: str = "w") -> dict:
+        if mode not in ("w", "a"):
+            return {"error": f"不支持的写入模式: {mode!r}，仅支持 w(覆盖) 和 a(追加)"}
         try:
             abs_path = self._check_path(path)
         except PermissionError as e:
             return {"error": str(e)}
+        label = "appended" if mode == "a" else "written"
         try:
-            with open(abs_path, "w", encoding="utf-8") as f:
+            with open(abs_path, mode, encoding="utf-8") as f:
                 f.write(content)
         except OSError as e:
             return {"error": f"写入失败: {e}"}
-        return {"status": "written", "path": abs_path}
+        return {"status": label, "path": abs_path}

@@ -43,11 +43,13 @@ def register(registry):
     )
     registry.add_method(
         SKILL_NAME, "write_file",
-        "写入/覆盖指定文件内容（限桌面/文档下的已有或无文件）",
+        "写入/覆盖/追加文件内容（限桌面/文档。追加时 mode='a'，覆盖 mode='w'）",
         handler=_instance.write_file,
-        when="用户说\"帮我写进去\"\"修改这个文件\"\"覆盖xxx内容\"时",
+        when="用户说\"帮我写进去\"\"修改这个文件\"\"追加到文件末尾\"\"覆盖xxx内容\"时",
         args={
             "path": {"type": "str", "required": True, "desc": "文件路径"},
             "content": {"type": "str", "required": True, "desc": "写入内容"},
+            "mode": {"type": "str", "required": False, "default": "w",
+                     "desc": "写入模式: w=覆盖, a=追加"},
         },
     )
