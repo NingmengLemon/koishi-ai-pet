@@ -91,9 +91,9 @@ class Behavior(BrainMixin):
         if not self._client:
             return self._decide_local()
 
-            messages = self.ctx.build_autonomous_decide(context, screenshot=screenshot)
+        messages = self.ctx.build_autonomous_decide(context, screenshot=screenshot)
         is_vision = isinstance(messages[1]["content"], list)
-        tag = "vision" if is_vision else "non_vision"
+        tag = "autonomous_vision" if is_vision else "autonomous_non_vision"
         ctx_preview = context[:60] if context else "(empty)"
         logger.info(f"[{t}] [Behavior] === LLM REQUEST ({tag}) ===")
         logger.info(f"[{t}] [Behavior]   model: {self._model}, context({len(context)} chars): \"{ctx_preview}\"")
@@ -148,23 +148,13 @@ class Behavior(BrainMixin):
             return self._chat_decide_local(user_message)
 
         messages = self.ctx.build_chat(user_message, context, screenshot=screenshot)
-        logger.info(f"[{t}] [Behavior] === LLM REQUEST (chat_decide) ===")
-        self._dump_context("chat_decide", messages)
-        self._log_prompt_size(messages, "chat_decide")
-        try:
-            resp = self._llm_call(messages)
-            content = resp.choices[0].message.content or ""
-            logger.info(f"[{t}] [Behavior] === LLM RESPONSE (chat_decide) ===")
-            logger.info(f"[{t}] [Behavior]   raw: {content}")
-            result = self._parse_behavior(content)
-            logger.info(f"[{t}] [Behavior]   parsed → {result}")
-            return result
-        except Exception as e:
-            logger.error(f"[{t}] [Behavior] chat_decide failed: {e}")
-            return BehaviorOutput(
-                actions=[ActionStep("look_around", kwargs={"duration": 5})],
-                speech="喔...我好像没听清",
-            )
+        is_vision = isinstance(messages[1]["content"], list)
+        tag = "chat_vision" if is_vision else "chat_non_vision"
+        logger.info(f"[{t}] [Behavior] === LLM REQUEST ({tag}) ===")
+        logger.info(f"[{t}] [Behavior]   model: {self._model}")
+        logger.info(f"[{t}] [Behavior]   history: {self.context_count()} entries")
+
+        return self._call_llm_and_parse(messages, messages[0]["content"], tag)
 
     def chat_decide_stream(self, user_message: str, context: str, screenshot: bool = True,
                            on_chunk=None, on_stream_end=None) -> BehaviorOutput:
@@ -178,74 +168,9 @@ class Behavior(BrainMixin):
             )
         try:
             messages = self.ctx.build_chat(user_message, context, screenshot=screenshot)
-            self._dump_context("chat_stream", messages)
-            self._log_prompt_size(messages, "chat_stream")
-            stream = self._llm_call_stream(messages)
-            full_content = ""
-            line_buffer = ""
-            in_speech = False
-            prefix_consumed = False
-            speech_streamed = False
-
-            for chunk in stream:
-                if not chunk.choices:
-                    continue
-                delta = chunk.choices[0].delta.content
-                if delta is None:
-                    continue
-                full_content += delta
-
-                delta_speech = ""
-                for char in delta:
-                    if char in ("\n", "\r"):
-                        line_buffer = ""
-                        in_speech = False
-                        prefix_consumed = False
-                    else:
-                        line_buffer += char
-                        if not in_speech:
-                            stripped = line_buffer.lstrip()
-                            if stripped.lower().startswith("speech:"):
-                                in_speech = True
-                                prefix = "Speech: "
-                                if len(stripped) > len(prefix):
-                                    prefix_consumed = True
-                                    delta_speech += stripped[len(prefix):]
-                            elif len(stripped) >= 8:
-                                pass
-                        else:
-                            if not prefix_consumed:
-                                stripped = line_buffer.lstrip()
-                                prefix = "Speech: "
-                                if len(stripped) > len(prefix):
-                                    prefix_consumed = True
-                                    delta_speech += stripped[len(prefix):]
-                            else:
-                                delta_speech += char
-
-                if delta_speech and on_chunk:
-                    on_chunk(delta_speech)
-                    speech_streamed = True
-
-            logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] === LLM RESPONSE (chat_stream) ===")
-            logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {full_content}")
-
-            if "skill:" in full_content.lower():
-                if on_stream_end:
-                    on_stream_end()
-                system_content = messages[0]["content"]
-                result = self._execute_with_skills(full_content, system_content, on_chunk=on_chunk, on_stream_end=on_stream_end)
-                return result
-
-            result = self._parse_behavior(full_content)
-            result.speech_streamed = speech_streamed
-            return result
-        except Exception as e:
-            logger.error(f"[Behavior] chat_decide_stream failed: {type(e).__name__}: {e}")
-            return BehaviorOutput(
-                actions=[ActionStep("look_around", kwargs={"duration": 5})],
-                speech="喔...我好像没听清",
-            )
+            is_vision = isinstance(messages[1]["content"], list)
+            tag = "chat_decide_vision_stream" if is_vision else "chat_decide_stream"
+            return self._stream_and_parse(messages, on_chunk=on_chunk, on_stream_end=on_stream_end, tag=tag)
         finally:
             self._lock.release()
 
