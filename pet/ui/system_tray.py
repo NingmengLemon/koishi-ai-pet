@@ -98,11 +98,6 @@ class SystemTrayManager(QObject):
             show_action.triggered.connect(self.pet.show)
             menu.addAction(show_action)
 
-        log_action = QAction("日志", menu)
-        log_action.triggered.connect(self.pet._show_log_window)
-        menu.addAction(log_action)
-        menu.addSeparator()
-
         quit_action = QAction("退出", menu)
         quit_action.triggered.connect(self.app.quit)
         menu.addAction(quit_action)

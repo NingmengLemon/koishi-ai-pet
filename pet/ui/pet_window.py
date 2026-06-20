@@ -199,6 +199,11 @@ class PetWindow(TransparentWindow):
             debug_action.triggered.connect(self._show_debug_window)
             menu.addAction(debug_action)
 
+            # 日志窗口
+            log_action = QAction("日志")
+            log_action.triggered.connect(self._show_log_window)
+            menu.addAction(log_action)
+
             # 技能开关子菜单（勾选不关闭）
             skill_menu = StickyMenu("技能", menu)
             for name in SKILL_REGISTRY.skill_names:

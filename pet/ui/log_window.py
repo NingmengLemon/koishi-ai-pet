@@ -328,6 +328,9 @@ class LogWindow(QWidget):
             cursor.deleteChar()
 
     def closeEvent(self, event):
-        """关闭即隐藏，保留日志历史。"""
-        self.hide()
-        event.ignore()
+        """X 按钮 → 隐藏保留历史；程序退出 → 正常关闭。"""
+        if event.spontaneous():
+            self.hide()
+            event.ignore()
+        else:
+            event.accept()
