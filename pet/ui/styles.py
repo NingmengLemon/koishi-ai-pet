@@ -1,5 +1,14 @@
 """共享 QSS 样式库 —— 扁平化圆角风格。"""
 
+import os
+
+# ── 资源路径 ──
+
+_PROJECT_ROOT = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "..",
+)
+ICON_PATH = os.path.join(_PROJECT_ROOT, "assets", "icon", "sys_tray.png")
+
 # ── 色彩 ──
 
 _COLOR_BG         = "#f0f0f0"

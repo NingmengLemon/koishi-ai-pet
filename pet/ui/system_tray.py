@@ -8,16 +8,11 @@ import psutil
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu
 from PySide6.QtGui import QIcon, QAction, QCursor, QPainter, QPainterPath, QColor, QPen
 from PySide6.QtCore import QObject, QTimer, Qt
-from pet.ui.styles import MENU_QSS
+from pet.ui.styles import ICON_PATH, MENU_QSS
 
 from config import config
 
 logger = logging.getLogger(__name__)
-
-_ICON_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "assets", "icon", "sys_tray.png",
-)
 
 _PROCESS = psutil.Process(os.getpid())
 
@@ -64,7 +59,7 @@ class SystemTrayManager(QObject):
             return
 
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(QIcon(_ICON_PATH))
+        self.tray_icon.setIcon(QIcon(ICON_PATH))
         self._update_tooltip()
 
         self.tray_icon.activated.connect(self._on_activated)

@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QPushButton, QLabel, QComboBox,
 )
 from pet.ui.styles import (
-    TEXTEDIT_QSS, BUTTON_QSS, BUTTON_DANGER_QSS, COMBOBOX_QSS,
+    ICON_PATH, TEXTEDIT_QSS, BUTTON_QSS, BUTTON_DANGER_QSS, COMBOBOX_QSS,
 )
 
 
@@ -128,7 +128,7 @@ class LogWindow(QWidget):
 
         # 窗口图标 (与托盘一致)
         try:
-            self.setWindowIcon(QIcon("assets/icon/sys_tray.png"))
+            self.setWindowIcon(QIcon(ICON_PATH))
         except Exception:
             pass
 
@@ -144,7 +144,7 @@ class LogWindow(QWidget):
         # 图标
         icon_label = QLabel()
         try:
-            icon_label.setPixmap(QIcon("assets/icon/sys_tray.png").pixmap(18, 18))
+            icon_label.setPixmap(QIcon(ICON_PATH).pixmap(18, 18))
         except Exception:
             pass
         header_layout.addWidget(icon_label)

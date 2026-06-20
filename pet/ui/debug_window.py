@@ -9,7 +9,7 @@ from datetime import datetime
 from PySide6.QtCore import Qt, QPoint, QTimer, QSize
 from PySide6.QtGui import QFont, QIcon, QPainter, QPainterPath, QColor, QPen
 from pet.ui.styles import (
-    WINDOW_QSS, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
+    ICON_PATH, WINDOW_QSS, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
     BUTTON_DANGER_QSS, INPUT_QSS, COMBOBOX_QSS, TEXTEDIT_QSS,
     LIST_QSS, CHECKBOX_QSS, LABEL_SECONDARY_QSS, LABEL_MONO_QSS,
 )
@@ -56,7 +56,7 @@ class DebugWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
         try:
-            self.setWindowIcon(QIcon("assets/icon/sys_tray.png"))
+            self.setWindowIcon(QIcon(ICON_PATH))
         except Exception:
             pass
 
@@ -91,7 +91,7 @@ class DebugWindow(QWidget):
 
         try:
             icon_lbl = QLabel()
-            icon_lbl.setPixmap(QIcon("assets/icon/sys_tray.png").pixmap(18, 18))
+            icon_lbl.setPixmap(QIcon(ICON_PATH).pixmap(18, 18))
             header_layout.addWidget(icon_lbl)
         except Exception:
             pass
