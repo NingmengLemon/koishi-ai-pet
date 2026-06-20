@@ -404,5 +404,6 @@ INTERACT_WINDOW_DISAPPEARED = config.INTERACT_WINDOW_DISAPPEARED_PROMPT or (
 )
 
 INTERACT_FED = config.INTERACT_FED_PROMPT or (
-    "用户喂你吃了 {food}，根据你的人格用一句话（≤15字）表达反应"
+    "用户喂你吃了 {food}，根据你的人格用一句话（≤15字）表达反应。"
+    "同时在末尾输出 Vitals: satiety±值（根据食物美味程度和环境自行决定增减）"
 )

@@ -257,12 +257,10 @@ class PetWindow(TransparentWindow):
             toggle_mouse.triggered.connect(self._toggle_event_reaction)
             menu.addAction(toggle_mouse)
 
-            # 喂食子菜单
-            feed_menu = QMenu("喂食", menu)
-            for food in ("蛋糕", "饼干", "苹果", "冰淇淋", "寿司"):
-                action = feed_menu.addAction(food)
-                action.triggered.connect(lambda checked, f=food: self._feed_pet(f))
-            menu.addMenu(feed_menu)
+            # 自定义喂食
+            feed_action = QAction("喂食")
+            feed_action.triggered.connect(self._feed_pet)
+            menu.addAction(feed_action)
 
             menu.addSeparator()
 
@@ -290,11 +288,14 @@ class PetWindow(TransparentWindow):
         self._event_reaction = not self._event_reaction
         logger.info(f"Event reaction {'enabled' if self._event_reaction else 'disabled'}")
 
-    def _feed_pet(self, food: str):
-        """喂食：增加饱食度 + 触发互动反应"""
-        if self._agent:
-            self._agent.vitals.modify_satiety(15)
-            logger.info(f"[PetWindow] 喂食 {food}，饱食度 +15")
+    def _feed_pet(self):
+        """自定义喂食：弹出输入框，触发 LLM 决定饱食度变化"""
+        from PySide6.QtWidgets import QInputDialog
+        food, ok = QInputDialog.getText(self, "喂食", "输入食物名称：")
+        if not ok or not food.strip():
+            return
+        food = food.strip()
+        logger.info(f"[PetWindow] 喂食 {food}")
         if self._agent and self._event_reaction:
             hint = INTERACT_FED.format(food=food)
             self._agent.trigger("interact", hint=hint)

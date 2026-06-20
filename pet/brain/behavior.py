@@ -33,6 +33,7 @@ class BehaviorOutput:
     memory_line: Optional[str] = None
     emotion: Optional[str] = None
     mood_deltas: Optional[dict] = None  # {"affection": ±值, "joy": ±值, "sanity": ±值}
+    vitals_deltas: Optional[dict] = None  # {"satiety": ±值, "energy": ±值}
 
 
 class Behavior(BrainMixin):
@@ -246,6 +247,7 @@ class Behavior(BrainMixin):
             memory_holder = []
             emotion_holder = []
             mood_holder = []
+            vitals_holder = []
             speech_streamed = False
             line_type = None
             speech_prefix_consumed = False
@@ -260,7 +262,7 @@ class Behavior(BrainMixin):
                 delta_speech = ""
                 for char in delta:
                     if char in ("\n", "\r"):
-                        self._finish_line(buffer, actions, speech_parts, skill_lines, summary_holder, memory_holder, emotion_holder, mood_holder)
+                        self._finish_line(buffer, actions, speech_parts, skill_lines, summary_holder, memory_holder, emotion_holder, mood_holder, vitals_holder)
                         buffer = ""
                         line_type = None
                         speech_prefix_consumed = False
@@ -284,6 +286,8 @@ class Behavior(BrainMixin):
                                 line_type = "emotion"
                             elif lower.startswith("mood:"):
                                 line_type = "mood"
+                            elif lower.startswith("vitals:"):
+                                line_type = "vitals"
                             elif len(stripped) >= 8:
                                 line_type = "other"
 
@@ -302,7 +306,7 @@ class Behavior(BrainMixin):
                     speech_streamed = True
 
             if buffer.strip():
-                self._finish_line(buffer, actions, speech_parts, skill_lines, summary_holder, memory_holder, emotion_holder, mood_holder)
+                self._finish_line(buffer, actions, speech_parts, skill_lines, summary_holder, memory_holder, emotion_holder, mood_holder, vitals_holder)
 
             # Skill 调用 → 执行技能后二次 LLM 调用
             if skill_lines:
@@ -324,12 +328,14 @@ class Behavior(BrainMixin):
                 [f"Action: {a.name} {' '.join(map(str, a.args))} {' '.join(f'{k}={v}' for k, v in a.kwargs.items())}".strip() for a in actions] +
                 skill_lines +
                 ([f"Memory: {memory_holder[0]}"] if memory_holder else []) +
-                ([f"Mood: {mood_holder[0]}"] if mood_holder else [])
+                ([f"Mood: {mood_holder[0]}"] if mood_holder else []) +
+                ([f"Vitals: {vitals_holder[0]}"] if vitals_holder else [])
             )
             logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] === LLM RESPONSE ({tag}) ===")
             logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {raw}")
 
             mood_deltas = self._parse_mood_line(mood_holder[0]) if mood_holder else None
+            vitals_deltas = self._parse_vitals_line(vitals_holder[0]) if vitals_holder else None
             return BehaviorOutput(
                 actions=actions,
                 speech=" ".join(speech_parts),
@@ -338,6 +344,7 @@ class Behavior(BrainMixin):
                 memory_line=memory_holder[0] if memory_holder else None,
                 emotion=emotion_holder[0] if emotion_holder else None,
                 mood_deltas=mood_deltas,
+                vitals_deltas=vitals_deltas,
             )
 
         except Exception as e:
@@ -351,6 +358,7 @@ class Behavior(BrainMixin):
         memory_line = None
         emotion = None
         mood_line = None
+        vitals_line = None
         for line in content.split("\n"):
             line = line.strip()
             if not line:
@@ -373,12 +381,17 @@ class Behavior(BrainMixin):
                 emotion = line.split(":", 1)[1].strip()
             elif lower.startswith("mood:") and mood_line is None:
                 mood_line = line.split(":", 1)[1].strip()
+            elif lower.startswith("vitals:") and vitals_line is None:
+                vitals_line = line.split(":", 1)[1].strip()
         if not actions:
             actions.append(ActionStep("idle"))
         mood_deltas = self._parse_mood_line(mood_line) if mood_line else None
-        return BehaviorOutput(actions=actions, speech=speech, summary=summary, memory_line=memory_line, emotion=emotion, mood_deltas=mood_deltas)
+        vitals_deltas = self._parse_vitals_line(vitals_line) if vitals_line else None
+        return BehaviorOutput(actions=actions, speech=speech, summary=summary, memory_line=memory_line, emotion=emotion, mood_deltas=mood_deltas, vitals_deltas=vitals_deltas)
 
-    def _finish_line(self, buffer, actions, speech_parts, skill_lines, summary_holder=None, memory_holder=None, emotion_holder=None, mood_holder=None):
+    def _finish_line(self, buffer, actions, speech_parts, skill_lines,
+                      summary_holder=None, memory_holder=None, emotion_holder=None,
+                      mood_holder=None, vitals_holder=None):
         line = buffer.strip()
         if not line:
             return
@@ -404,6 +417,9 @@ class Behavior(BrainMixin):
         elif lower.startswith("mood:"):
             if mood_holder is not None:
                 mood_holder.append(line.split(":", 1)[1].strip())
+        elif lower.startswith("vitals:"):
+            if vitals_holder is not None:
+                vitals_holder.append(line.split(":", 1)[1].strip())
 
     @staticmethod
     def _parse_mood_line(raw: str) -> dict | None:
@@ -411,6 +427,18 @@ class Behavior(BrainMixin):
         import re
         deltas = {}
         pattern = re.compile(r'(affection|joy|sanity)\s*([+-]\s*\d+)', re.IGNORECASE)
+        for match in pattern.finditer(raw):
+            key = match.group(1).lower()
+            value = float(match.group(2).replace(" ", ""))
+            deltas[key] = value
+        return deltas if deltas else None
+
+    @staticmethod
+    def _parse_vitals_line(raw: str) -> dict | None:
+        """解析 Vitals 行，格式: satiety+15 energy-3"""
+        import re
+        deltas = {}
+        pattern = re.compile(r'(satiety|energy)\s*([+-]\s*\d+)', re.IGNORECASE)
         for match in pattern.finditer(raw):
             key = match.group(1).lower()
             value = float(match.group(2).replace(" ", ""))
