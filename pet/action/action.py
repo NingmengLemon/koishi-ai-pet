@@ -165,8 +165,8 @@ class PetActions(QObject):
                      f"from={self._walk_start_x} to={self._walk_target_x}")
         return "drive"
 
-    def _stop_walk(self, switch_idle: bool = True):
-        """停止行走，恢复 gravity timer，emit walk_finished。"""
+    def _stop_drive(self, switch_idle: bool = True):
+        """停止移动，恢复 gravity timer，emit walk_finished。"""
         if not self._walking:
             return
         self._walking = False
@@ -179,7 +179,7 @@ class PetActions(QObject):
         self.gravity.resume_timer()
         if switch_idle:
             self._anim.play("idle")
-        logger.info(f"[PetActions] _stop_walk at x={self._window.x()}")
+        logger.info(f"[PetActions] _stop_drive at x={self._window.x()}")
         self.walk_finished.emit()
 
     def _driving_tick(self):
@@ -231,7 +231,7 @@ class PetActions(QObject):
                     g._standing_title = ""
                     g._standing_rect = None
                     g._cached_effective_bottom = None
-                    self._stop_walk(switch_idle=False)
+                    self._stop_drive(switch_idle=False)
                     g.standing_lost.emit(lost_title)
                     if not g._falling:
                         g._falling = True
@@ -261,7 +261,7 @@ class PetActions(QObject):
                         g._standing_title = ""
                         g._standing_rect = None
                         g._cached_effective_bottom = None
-                        self._stop_walk(switch_idle=False)
+                        self._stop_drive(switch_idle=False)
                         g.standing_lost.emit(lost_title)
                         if not g._falling:
                             g._falling = True
@@ -276,7 +276,7 @@ class PetActions(QObject):
                         g._standing_title = ""
                         g._standing_rect = None
                         g._cached_effective_bottom = None
-                        self._stop_walk(switch_idle=False)
+                        self._stop_drive(switch_idle=False)
                         g.standing_lost.emit(lost_title)
                         if not g._falling:
                             g._falling = True
@@ -330,7 +330,7 @@ class PetActions(QObject):
         self._window.move(clamped.x(), clamped.y())
 
         if reached_target or hit_edge:
-            self._stop_walk()
+            self._stop_drive()
 
     def fade_in(self, duration=300):
         """窗口淡入。"""
