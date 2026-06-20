@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QPoint, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QIcon
 
 from pet.ui.bubble import SpeechBubble
 from pet.ui.emotion import EmotionBubble, EMOTION_MAP
@@ -38,6 +38,10 @@ class DebugWindow(QWidget):
 
         self.setWindowTitle("DeskPet 调试面板")
         self.setMinimumWidth(680)
+        try:
+            self.setWindowIcon(QIcon("assets/icon/sys_tray.png"))
+        except Exception:
+            pass
         self._setup_ui()
 
         self._pos_timer = QTimer(self)
