@@ -6,12 +6,12 @@ from PySide6.QtWidgets import (
 )
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QPoint, QTimer
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtCore import Qt, QPoint, QTimer, QSize
+from PySide6.QtGui import QFont, QIcon, QPainter, QPainterPath, QColor, QPen
 from pet.ui.styles import (
     WINDOW_QSS, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
-    INPUT_QSS, COMBOBOX_QSS, TEXTEDIT_QSS, LIST_QSS,
-    CHECKBOX_QSS, LABEL_SECONDARY_QSS, LABEL_MONO_QSS,
+    BUTTON_DANGER_QSS, INPUT_QSS, COMBOBOX_QSS, TEXTEDIT_QSS,
+    LIST_QSS, CHECKBOX_QSS, LABEL_SECONDARY_QSS, LABEL_MONO_QSS,
 )
 
 from pet.ui.bubble import SpeechBubble
@@ -44,15 +44,24 @@ class DebugWindow(QWidget):
 
         self.setWindowTitle("DeskPet 调试面板")
         self.setObjectName("FlatWindow")
-        self.setMinimumWidth(680)
+        self.setMinimumSize(700, 500)
+        self.resize(740, 560)
+
+        # 无边框 + 圆角
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.Window
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+
         try:
             self.setWindowIcon(QIcon("assets/icon/sys_tray.png"))
         except Exception:
             pass
+
         self._setup_ui()
-        # 扁平化圆角样式
         self.setStyleSheet(
-            WINDOW_QSS + PANEL_QSS + BUTTON_QSS + BUTTON_PRIMARY_QSS +
+            PANEL_QSS + BUTTON_QSS + BUTTON_PRIMARY_QSS +
             INPUT_QSS + COMBOBOX_QSS + TEXTEDIT_QSS + LIST_QSS +
             CHECKBOX_QSS
         )
@@ -66,12 +75,50 @@ class DebugWindow(QWidget):
         self.label_pet_pos.setText(f"({pos.x()}, {pos.y()})")
 
     def _setup_ui(self):
-        root = QHBoxLayout(self)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(6, 4, 6, 6)
+        root.setSpacing(4)
 
+        # ── 自定义标题栏 ──
+        header = QWidget()
+        header.setObjectName("LogHeader")
+        header.setFixedHeight(34)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(10, 0, 4, 0)
+        header_layout.setSpacing(6)
+
+        try:
+            icon_lbl = QLabel()
+            icon_lbl.setPixmap(QIcon("assets/icon/sys_tray.png").pixmap(18, 18))
+            header_layout.addWidget(icon_lbl)
+        except Exception:
+            pass
+
+        title_lbl = QLabel("DeskPet 调试面板")
+        title_lbl.setStyleSheet("font-size:13px; color:#444; font-weight:bold; background:transparent;")
+        header_layout.addWidget(title_lbl)
+        header_layout.addStretch()
+
+        close_btn = QPushButton("✕")
+        close_btn.setFixedSize(28, 28)
+        close_btn.setStyleSheet(BUTTON_DANGER_QSS)
+        close_btn.clicked.connect(self.close)
+        header_layout.addWidget(close_btn)
+
+        root.addWidget(header)
+
+        # ── 拖拽 ──
+        header.mousePressEvent = self._header_press
+        header.mouseMoveEvent = self._header_move
+        self._drag_pos: QPoint | None = None
+
+        # ── 正文区域 ──
+        body = QHBoxLayout()
         left = QVBoxLayout()
         right = QVBoxLayout()
-        root.addLayout(left, 1)
-        root.addLayout(right, 1)
+        body.addLayout(left, 1)
+        body.addLayout(right, 1)
+        root.addLayout(body, 1)
 
         # ── 左栏 ──
 
@@ -568,6 +615,30 @@ class DebugWindow(QWidget):
         if self.agent and hasattr(self.agent.behavior, 'clear_context'):
             self.agent.behavior.clear_context()
             self._refresh_context()
+
+    # ── 圆角背景 ──
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = self.rect().adjusted(0, 0, -1, -1)
+        path = QPainterPath()
+        path.addRoundedRect(rect, 10, 10)
+        painter.fillPath(path, QColor("#f0f0f0"))
+        painter.setPen(QPen(QColor("#cccccc"), 1))
+        painter.drawPath(path)
+
+    # ── 标题栏拖拽 ──
+
+    def _header_press(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint()
+
+    def _header_move(self, event):
+        if self._drag_pos is not None:
+            delta = event.globalPosition().toPoint() - self._drag_pos
+            self.move(self.pos() + delta)
+            self._drag_pos = event.globalPosition().toPoint()
 
     def closeEvent(self, event):
         self._pos_timer.stop()
