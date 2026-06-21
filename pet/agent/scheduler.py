@@ -125,6 +125,8 @@ class Scheduler(QObject):
 
     def stop(self):
         self._idle_check.stop()
+        for key in list(self._alarm_timers):
+            self._cleanup_alarm_timer(key)
         if not self._timers:
             return
         ts = datetime.now().strftime("%H:%M:%S")
@@ -132,10 +134,6 @@ class Scheduler(QObject):
         for t in self._timers.values():
             t.stop()
             t.deleteLater()
-        for t in self._alarm_timers.values():
-            t.stop()
-            t.deleteLater()
-        self._alarm_timers.clear()
         self._timers.clear()
         self._manually_paused.clear()
         self._idle_paused = False
@@ -212,16 +210,13 @@ class Scheduler(QObject):
         delay_ms = max(0, timestamp_ms - now_ms)
 
         # 用 callback 的函数名作为 key，同 callback 覆盖旧 alarm
-        key = getattr(callback, "__name__", str(id(callback)))
+        key = str(id(callback))
 
         # 覆盖旧 timer
-        old = self._alarm_timers.pop(key, None)
-        if old is not None:
-            old.stop()
-            old.deleteLater()
+        self._cleanup_alarm_timer(key)
 
         def _fire():
-            self._alarm_timers.pop(key, None)
+            self._cleanup_alarm_timer(key)
             try:
                 callback()
             except Exception:
@@ -233,3 +228,10 @@ class Scheduler(QObject):
         t.start(delay_ms)
         self._alarm_timers[key] = t
         logger.info(f"[Scheduler] alarm '{key}' scheduled in {delay_ms}ms")
+
+    def _cleanup_alarm_timer(self, key: str):
+        """Stop and delete a single alarm timer by key (idempotent)."""
+        t = self._alarm_timers.pop(key, None)
+        if t is not None:
+            t.stop()
+            t.deleteLater()
