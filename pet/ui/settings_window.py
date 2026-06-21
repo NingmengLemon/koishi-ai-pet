@@ -406,7 +406,7 @@ class SettingsWindow(QWidget):
                 result[key] = widget.currentText()
             elif isinstance(widget, QTextEdit):
                 result[key] = widget.toPlainText()
-        return result
+        return result, invalid_keys
 
     def _on_save(self):
         """保存所有修改并即时生效。"""
