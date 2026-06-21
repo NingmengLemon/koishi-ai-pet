@@ -182,8 +182,8 @@ class SettingsWindow(QWidget):
         """)
         self._tabs.addTab(self._build_connection_tab(), "连接")
         self._tabs.addTab(self._build_behavior_tab(), "行为")
-        self._tabs.addTab(self._build_appearance_tab(), "外观")
         self._tabs.addTab(self._build_personality_tab(), "提示词")
+        self._tabs.addTab(self._build_appearance_tab(), "通用")
         layout.addWidget(self._tabs, stretch=1)
 
         # 底部操作栏
@@ -336,6 +336,12 @@ class SettingsWindow(QWidget):
         sched_form.addRow("", self._check("SCHEDULER_AUTO_START_MID", "默认开启自动行动"))
         layout.addWidget(sched_group)
 
+        # Vision
+        vision_row = QFormLayout()
+        vision_row.addRow("", self._check("VISION_ENABLED", "开启视觉理解（须模型支持多模态）"))
+        vision_row.addRow("截图缩放比例:", self._line("VISION_SCALE", "1"))
+        layout.addLayout(vision_row)
+
         # 理智
         sanity_row = QFormLayout()
         sanity_row.addRow("理智临界值:", self._line("SANITY_CRITICAL_THRESHOLD", "20"))
@@ -354,8 +360,6 @@ class SettingsWindow(QWidget):
         form = QFormLayout()
         form.setSpacing(6)
 
-        form.addRow("", self._check("VISION_ENABLED", "Vision（截图理解）"))
-        form.addRow("截图缩放比例:", self._line("VISION_SCALE", "1"))
         form.addRow("技能插件(逗号分隔,*=全部):", self._line("SKILLS_ENABLED", "*"))
 
         # 需重启提示
