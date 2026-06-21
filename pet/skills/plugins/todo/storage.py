@@ -10,7 +10,18 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_DB = str(Path(__file__).resolve().parent.parent.parent.parent.parent / "pet.db")
+def _find_project_root() -> Path:
+    """从当前文件向上查找包含 config.py 的目录作为项目根。"""
+    cur = Path(__file__).resolve().parent
+    for _ in range(10):
+        if (cur / "config.py").exists():
+            return cur
+        cur = cur.parent
+    # 回退：假设 pet/skills/plugins/todo/ → 4 层 parent
+    return Path(__file__).resolve().parent.parent.parent.parent.parent
+
+
+_DEFAULT_DB = str(_find_project_root() / "pet.db")
 
 
 class TodoStorage:
@@ -23,9 +34,8 @@ class TodoStorage:
 
     def _create_table(self):
         with self._lock:
-            self._conn.execute("DROP TABLE IF EXISTS todos")
             self._conn.execute("""
-                CREATE TABLE todos (
+                CREATE TABLE IF NOT EXISTS todos (
                     id         INTEGER PRIMARY KEY AUTOINCREMENT,
                     title      TEXT NOT NULL,
                     status     TEXT NOT NULL DEFAULT 'pending',

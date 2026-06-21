@@ -127,16 +127,16 @@ def main():
     agent.state_changed.connect(
         lambda s: feed_bubble.set_busy(s in ("autonomous", "interacting"))
     )
-    agent.notify_requested.connect(
-        lambda t, m, d: tray.tray_icon.showMessage(t, m, QSystemTrayIcon.MessageIcon.Information, d)
-        if tray.tray_icon else None
-    )
-
     window.show()
     agent.start()
 
     tray = SystemTrayManager(app, window)
     logger.info("SystemTrayManager ready")
+
+    agent.notify_requested.connect(
+        lambda t, m, d: tray.tray_icon.showMessage(t, m, QSystemTrayIcon.MessageIcon.Information, d)
+        if tray.tray_icon else None
+    )
 
     def _shutdown():
         logger.info("shutting down...")

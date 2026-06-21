@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+import atexit
 
 from pet.skills.plugins.todo.core import TodoListTool
 from pet.skills.context import SKILL_CTX
@@ -19,6 +20,8 @@ try:
 except Exception as e:
     logger.error(f"[todo] Failed to initialize TodoListTool: {e}")
     _instance = None
+else:
+    atexit.register(_instance.close)
 
 # 持有面板引用防 GC 回收
 _panel = None
@@ -94,7 +97,7 @@ def register(registry):
     )
 
     registry.add_method(
-        SKILL_NAME, "complete",
+        SKILL_NAME, "toggle",
         "切换任务完成状态（已完成↔恢复待办）",
         handler=_complete_with_notify,
         when="用户说「完成了」「做完了」「恢复这个任务」时",

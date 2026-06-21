@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QPushButton, QLabel, QMessageBox,
     QDialog, QLineEdit, QFormLayout, QDialogButtonBox,
 )
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import Qt
 
 from pet.skills.plugins.todo import _instance as _todo_instance
 from pet.skills.plugins.todo.style import LIST_QSS, BUTTON_QSS

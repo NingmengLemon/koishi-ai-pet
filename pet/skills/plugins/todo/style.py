@@ -27,40 +27,6 @@ QPushButton:pressed {
 }
 """
 
-COMBOBOX_QSS = """
-QComboBox {
-    background: """ + _COLOR_SURFACE + """;
-    border: 1px solid """ + _COLOR_BORDER + """;
-    border-radius: 6px;
-    padding: 3px 8px;
-    font-size: 12px;
-    color: """ + _COLOR_TEXT + """;
-    min-width: 64px;
-}
-QComboBox:hover {
-    border-color: """ + _COLOR_BORDER_FOCUS + """;
-}
-QComboBox::drop-down {
-    subcontrol-origin: padding;
-    subcontrol-position: right center;
-    width: 16px;
-    border: none;
-}
-QComboBox QAbstractItemView {
-    background: """ + _COLOR_SURFACE + """;
-    border: 1px solid """ + _COLOR_BORDER + """;
-    border-radius: 4px;
-    selection-background-color: #e0e0e0;
-    color: """ + _COLOR_TEXT + """;
-    font-size: 9pt;
-    outline: none;
-}
-QComboBox QAbstractItemView::item {
-    font-size: 9pt;
-    padding: 2px 4px;
-}
-"""
-
 LIST_QSS = """
 QListWidget {
     background: """ + _COLOR_SURFACE + """;
@@ -78,13 +44,5 @@ QListWidget::item {
 QListWidget::item:selected {
     background: #e0e0e0;
     color: """ + _COLOR_TEXT + """;
-}
-"""
-
-PANEL_QSS = """
-QWidget#todoPanel {
-    background: """ + _COLOR_SURFACE + """;
-    border: 1px solid """ + _COLOR_BORDER + """;
-    border-radius: 8px;
 }
 """
