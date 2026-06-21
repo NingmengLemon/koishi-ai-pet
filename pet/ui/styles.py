@@ -11,10 +11,11 @@ ICON_PATH = os.path.join(_PROJECT_ROOT, "assets", "icon", "sys_tray.png")
 SETTING_ICON_PATH = os.path.join(_PROJECT_ROOT, "assets", "icon", "setting.png")
 SHOW_ICON_PATH = os.path.join(_PROJECT_ROOT, "assets", "icon", "show.png")
 HIDE_ICON_PATH = os.path.join(_PROJECT_ROOT, "assets", "icon", "hide.png")
+CHECKMARK_SVG = os.path.join(_PROJECT_ROOT, "assets", "icon", "checkmark.svg").replace("\\", "/")
 
 # ── 色彩 ──
 
-_COLOR_BG         = "#f0f0f0"
+_COLOR_BG         = "#f5f2ed"
 _COLOR_SURFACE     = "#ffffff"
 _COLOR_BORDER      = "#ddd"
 _COLOR_BORDER_DARK = "#ccc"
@@ -242,6 +243,22 @@ QCheckBox {
     color: """ + _COLOR_TEXT + """;
     spacing: 6px;
 }
+QCheckBox::indicator {
+    width: 14px;
+    height: 14px;
+    background: """ + _COLOR_SURFACE + """;
+    border: 1px solid """ + _COLOR_BORDER_FOCUS + """;
+    border-radius: 3px;
+}
+QCheckBox::indicator:checked {
+    background: """ + _COLOR_SURFACE + """;
+    image: url(""" + CHECKMARK_SVG + """);
+    border-color: """ + _COLOR_ACCENT + """;
+    border-width: 2px;
+}
+QCheckBox::indicator:hover {
+    border-color: """ + _COLOR_ACCENT + """;
+}
 """
 
 # ── 标签 ──
@@ -273,17 +290,15 @@ QTabWidget::pane {
     border-radius: 6px;
     background: """ + _COLOR_SURFACE + """;
     padding: 4px;
+    top: -1px;
 }
 QTabBar::tab {
-    background: """ + _COLOR_SURFACE + """;
-    border: 1px solid """ + _COLOR_BORDER + """;
-    border-bottom: none;
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
-    padding: 6px 14px;
+    background: """ + _COLOR_BG + """;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 8px 0;
     font-size: 12px;
     color: """ + _COLOR_TEXT_SEC + """;
-    margin-right: 2px;
 }
 QTabBar::tab:selected {
     background: """ + _COLOR_SURFACE + """;

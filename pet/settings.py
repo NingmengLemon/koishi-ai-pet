@@ -15,8 +15,6 @@ def settings_path() -> str:
     Windows: %APPDATA%/DeskPet/settings.json
     macOS:   ~/Library/Application Support/DeskPet/settings.json
     Linux:   ~/.config/DeskPet/settings.json
-
-    不依赖 QStandardPaths，避免 QApplication 未初始化时路径错误。
     """
     if sys.platform == "win32":
         base = os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))

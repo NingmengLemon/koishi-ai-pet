@@ -6,7 +6,7 @@ import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QLineEdit, QCheckBox, QComboBox, QTextEdit, QTabWidget,
-    QFormLayout, QGroupBox, QMessageBox, QScrollArea,
+    QFormLayout, QGroupBox, QMessageBox, QScrollArea, QMenu,
 )
 from PySide6.QtCore import Qt, QThread, Signal, QObject
 from PySide6.QtGui import QIcon, QFont, QPainter, QPainterPath, QPen, QColor
@@ -50,6 +50,24 @@ class _LLMTestWorker(QObject):
             self.finished.emit(False, str(e), elapsed)
 
 
+class _ModelsFetchWorker(QObject):
+    """子线程获取模型列表。"""
+    finished = Signal(bool, list, str)  # success, model_ids, error_msg
+
+    def __init__(self, client):
+        super().__init__()
+        self._client = client
+
+    def run(self):
+        try:
+            resp = self._client.models.list()
+            model_ids = [m.id for m in resp.data]
+            model_ids.sort()
+            self.finished.emit(True, model_ids, "")
+        except Exception as e:
+            self.finished.emit(False, [], str(e))
+
+
 class SettingsWindow(QWidget):
     _instance: SettingsWindow | None = None
 
@@ -72,10 +90,13 @@ class SettingsWindow(QWidget):
         self.agent = agent
         self._llm_thread = None
         self._llm_worker = None
+        self._models_thread = None
+        self._models_worker = None
         self._fields = {}
+        self._snapshot = {}
 
         self.setObjectName("settingsWindow")
-        self.setWindowTitle("⚙ 设置")
+        self.setWindowTitle("设置")
         self.resize(_W, _H)
         self.setFixedSize(_W, _H)
         self.setWindowFlags(
@@ -131,7 +152,7 @@ class SettingsWindow(QWidget):
         except Exception:
             pass
 
-        title = QLabel("⚙ 设置")
+        title = QLabel("设置")
         title.setStyleSheet(f"font-size:13px; color:{_COLOR_TEXT_TITLE}; font-weight:bold; background:transparent;")
         title_row.addWidget(title)
         title_row.addStretch()
@@ -153,7 +174,11 @@ class SettingsWindow(QWidget):
 
         # Tab Widget
         self._tabs = QTabWidget()
+        self._tabs.setDocumentMode(True)
         self._tabs.tabBar().setExpanding(True)
+        self._tabs.tabBar().setStyleSheet(f"""
+            QTabBar {{ background: {_COLOR_BG}; }}
+        """)
         self._tabs.addTab(self._build_connection_tab(), "连接")
         self._tabs.addTab(self._build_behavior_tab(), "行为")
         self._tabs.addTab(self._build_appearance_tab(), "外观")
@@ -173,6 +198,19 @@ class SettingsWindow(QWidget):
         btn_save.clicked.connect(self._on_save)
         bottom.addWidget(btn_save)
         layout.addLayout(bottom)
+
+    # ── 无图标消息框 ──
+
+    def _msg(self, title: str, text: str, *,
+             icon: QMessageBox.Icon = QMessageBox.Icon.NoIcon,
+             warning: bool = False):
+        """显示无图标的消息框。warning=True 时用 Warning 图标，否则 NoIcon。"""
+        box = QMessageBox(self)
+        box.setWindowTitle(title)
+        box.setText(text)
+        box.setIcon(icon if warning else QMessageBox.Icon.NoIcon)
+        box.addButton("确定", QMessageBox.ButtonRole.AcceptRole)
+        box.exec()
 
     # ── 值控件映射 ──
     # _fields: dict[str, QWidget] — key 是 Config 属性名
@@ -240,7 +278,18 @@ class SettingsWindow(QWidget):
         key_row.addWidget(self._key_toggle)
         form.addRow("API Key:", key_row)
 
-        form.addRow("模型名称:", self._line("LLM_MODEL", "gpt-4o"))
+        # 模型名称 + 获取按钮
+        model_row = QHBoxLayout()
+        self._model_edit = QLineEdit()
+        self._model_edit.setPlaceholderText("gpt-4o")
+        self._fields["LLM_MODEL"] = self._model_edit
+        model_row.addWidget(self._model_edit)
+        self._btn_fetch_models = QPushButton("获取列表")
+        self._btn_fetch_models.setStyleSheet(BUTTON_QSS)
+        self._btn_fetch_models.setFixedWidth(72)
+        self._btn_fetch_models.clicked.connect(self._fetch_models)
+        model_row.addWidget(self._btn_fetch_models)
+        form.addRow("模型名称:", model_row)
         form.addRow("请求超时(秒):", self._line("LLM_TIMEOUT", "30"))
         form.addRow("最大重试次数:", self._line("LLM_MAX_RETRIES", "3"))
         form.addRow("重试延迟(秒):", self._line("LLM_RETRY_DELAY", "1"))
@@ -349,7 +398,9 @@ class SettingsWindow(QWidget):
         form.setContentsMargins(8, 8, 8, 8)
 
         form.addWidget(QLabel("宠物人格 Prompt"))
-        form.addWidget(self._text_area("PET_PERSONALITY"), stretch=3)
+        te = self._text_area("PET_PERSONALITY")
+        te.setMinimumHeight(240)
+        form.addWidget(te)
 
         sep = QLabel()
         sep.setFixedHeight(8)
@@ -361,7 +412,7 @@ class SettingsWindow(QWidget):
                            ("窗口消失", "INTERACT_WINDOW_DISAPPEARED_PROMPT"),
                            ("喂食", "INTERACT_FED_PROMPT")]:
             form.addWidget(QLabel(label))
-            form.addWidget(self._text_area(key), stretch=1)
+            form.addWidget(self._text_area(key))
 
         scroll.setWidget(content)
         layout.addWidget(scroll)
@@ -388,6 +439,39 @@ class SettingsWindow(QWidget):
                 widget.setCurrentIndex(max(idx, 0))
             elif isinstance(widget, QTextEdit):
                 widget.setPlainText(str(value))
+        self._take_snapshot()
+
+    def _take_snapshot(self):
+        """记录当前各控件的值，用于后续 dirty 检测。"""
+        self._snapshot = {}
+        for key, widget in self._fields.items():
+            if isinstance(widget, QLineEdit):
+                self._snapshot[key] = widget.text()
+            elif isinstance(widget, QCheckBox):
+                self._snapshot[key] = widget.isChecked()
+            elif isinstance(widget, QComboBox):
+                self._snapshot[key] = widget.currentText()
+            elif isinstance(widget, QTextEdit):
+                self._snapshot[key] = widget.toPlainText()
+
+    def _is_dirty(self) -> bool:
+        """比较当前控件值与上次快照，判断是否有未保存的修改。"""
+        if not hasattr(self, '_snapshot'):
+            return False
+        for key, widget in self._fields.items():
+            if isinstance(widget, QLineEdit):
+                current = widget.text()
+            elif isinstance(widget, QCheckBox):
+                current = widget.isChecked()
+            elif isinstance(widget, QComboBox):
+                current = widget.currentText()
+            elif isinstance(widget, QTextEdit):
+                current = widget.toPlainText()
+            else:
+                continue
+            if self._snapshot.get(key) != current:
+                return True
+        return False
 
     def _collect_values(self) -> tuple[dict, list[str]]:
         """从控件收集当前值，返回 (values, invalid_keys)。
@@ -437,10 +521,8 @@ class SettingsWindow(QWidget):
             # 构建字段友好名称映射
             name_map = {k: v[0] for k, v in _KEY_META.items()}
             bad_names = ", ".join(name_map.get(k, k) for k in invalid_keys)
-            QMessageBox.warning(
-                self, "输入有误",
-                f"以下字段包含无效数值，未能保存：\n{bad_names}\n\n请检查数值型字段."
-            )
+            self._msg("输入有误",
+                      f"以下字段包含无效数值，未能保存：\n{bad_names}\n\n请检查数值型字段.")
             return
         needs_restart_keys = []
         needs_rebuild_client = False
@@ -477,12 +559,10 @@ class SettingsWindow(QWidget):
                 logger.exception(f"[Settings] scheduler.update_config failed: {e}")
 
         if needs_restart_keys:
-            QMessageBox.warning(
-                self, "设置已保存",
-                f"以下设置将在下次启动后生效：\n{', '.join(needs_restart_keys)}"
-            )
+            self._msg("设置已保存", "已保存。部分设置须重启后生效。")
         else:
-            QMessageBox.information(self, "设置已保存", "所有设置已即时生效。")
+            self._msg("设置已保存", "所有设置已即时生效。")
+        self._take_snapshot()
 
     def _on_reset(self):
         """重置当前 tab 的所有字段为 .env 默认值。"""
@@ -513,7 +593,7 @@ class SettingsWindow(QWidget):
             except Exception as e:
                 logger.exception(f"[Settings] scheduler.update_config after reset: {e}")
 
-        QMessageBox.information(self, "已重置", f"{category} 设置已重置为默认值。")
+        self._msg("已重置", f"{category} 设置已重置为默认值。")
 
     # ── LLM 连通性测试 ──
 
@@ -555,13 +635,103 @@ class SettingsWindow(QWidget):
             self._label_test.setText("❌ 失败")
         self._btn_test.setEnabled(True)
 
+    # ── 获取模型列表 ──
+
+    def _fetch_models(self):
+        """根据当前表单值临时创建 client 获取模型列表，不依赖已保存的 client。"""
+        if self._models_thread and self._models_thread.isRunning():
+            return
+
+        brain = self._brain_combo.currentText()
+        if brain == "local":
+            self._msg("提示", "当前为 local 模式，无需远程模型。")
+            return
+
+        url = self._fields["LLM_URL"].text().strip() if "LLM_URL" in self._fields else ""
+        key = self._fields["LLM_KEY"].text().strip() if "LLM_KEY" in self._fields else ""
+        ollama_url = self._fields["OLLAMA_BASE_URL"].text().strip() if "OLLAMA_BASE_URL" in self._fields else ""
+
+        if brain == "ollama":
+            base_url = ollama_url or config.OLLAMA_BASE_URL
+            api_key = "ollama"
+        else:
+            base_url = url
+            api_key = key
+
+        if not base_url or (brain != "ollama" and not api_key):
+            self._msg("提示", "请先填写 API 地址和 Key。")
+            return
+
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url=base_url, timeout=config.LLM_TIMEOUT)
+
+        self._btn_fetch_models.setEnabled(False)
+        self._btn_fetch_models.setText("获取中…")
+
+        self._models_thread = QThread()
+        self._models_worker = _ModelsFetchWorker(client)
+        self._models_worker.moveToThread(self._models_thread)
+        self._models_thread.started.connect(self._models_worker.run)
+        self._models_worker.finished.connect(self._on_models_fetched)
+        self._models_worker.finished.connect(self._models_thread.quit)
+        self._models_thread.start()
+
+    def _on_models_fetched(self, success: bool, model_ids: list, error_msg: str):
+        self._btn_fetch_models.setEnabled(True)
+        self._btn_fetch_models.setText("获取列表")
+
+        if not success:
+            self._msg("获取失败", f"无法获取模型列表：\n{error_msg}")
+            return
+
+        if not model_ids:
+            self._msg("提示", "未找到可用模型。")
+            return
+
+        # 弹出菜单供选择
+        menu = QMenu(self)
+        for mid in model_ids:
+            action = menu.addAction(mid)
+            action.triggered.connect(lambda checked=False, m=mid: self._model_edit.setText(m))
+
+        # 在按钮下方弹出
+        pos = self._btn_fetch_models.mapToGlobal(
+            self._btn_fetch_models.rect().bottomLeft()
+        )
+        menu.exec(pos)
+
     # ── 窗口事件 ──
 
     def closeEvent(self, event):
-        """清理 LLM 测试线程。"""
+        """关闭前检查未保存修改，清理后台线程。"""
+        if self._is_dirty():
+            box = QMessageBox(self)
+            box.setWindowTitle("未保存")
+            box.setText("有修改尚未保存，是否保存？")
+            box.setIcon(QMessageBox.Icon.NoIcon)
+            btn_save = box.addButton("保存", QMessageBox.ButtonRole.AcceptRole)
+            btn_discard = box.addButton("不保存", QMessageBox.ButtonRole.DestructiveRole)
+            btn_cancel = box.addButton("取消", QMessageBox.ButtonRole.RejectRole)
+            box.setDefaultButton(btn_cancel)
+            box.exec()
+            clicked = box.clickedButton()
+
+            if clicked == btn_save:
+                self._on_save()
+                # 如果保存失败（无效字段），取消关闭
+                if self._is_dirty():
+                    event.ignore()
+                    return
+            elif clicked == btn_cancel:
+                event.ignore()
+                return
+
         if self._llm_thread is not None and self._llm_thread.isRunning():
             self._llm_thread.quit()
             self._llm_thread.wait(2000)
+        if self._models_thread is not None and self._models_thread.isRunning():
+            self._models_thread.quit()
+            self._models_thread.wait(2000)
         super().closeEvent(event)
 
     # ── 窗口拖拽 ──
