@@ -13,11 +13,11 @@ from PySide6.QtGui import QIcon, QFont, QPainter, QPainterPath, QPen, QColor
 
 from config import config, _KEY_META
 from pet.ui.styles import (
-    ICON_PATH, SETTING_ICON_PATH, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
+    ICON_PATH, SETTING_ICON_PATH, SHOW_ICON_PATH, HIDE_ICON_PATH, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
     INPUT_QSS, COMBOBOX_QSS, TEXTEDIT_QSS, CHECKBOX_QSS,
     TAB_BAR_QSS,
-    _COLOR_BG, _COLOR_BORDER, _COLOR_BORDER_DARK, _COLOR_TEXT_TITLE,
-    _COLOR_TEXT_SEC, _COLOR_TEXT_MUTED, _COLOR_DANGER, _COLOR_WARNING, _COLOR_HOVER_BG,
+    _COLOR_BG, _COLOR_BORDER_DARK, _COLOR_TEXT_TITLE,
+    _COLOR_TEXT_SEC, _COLOR_TEXT_MUTED, _COLOR_DANGER, _COLOR_WARNING,
 )
 
 logger = logging.getLogger(__name__)
@@ -136,10 +136,10 @@ class SettingsWindow(QWidget):
         title_row.addWidget(title)
         title_row.addStretch()
         btn_close = QPushButton("✕")
-        btn_close.setFixedSize(42, 42)
+        btn_close.setFixedSize(36, 36)
         btn_close.setStyleSheet(f"""
-            QPushButton {{ background: transparent; border: none; border-radius: 21px;
-                         font-size: 20px; color: {_COLOR_TEXT_MUTED}; }}
+            QPushButton {{ background: transparent; border: none; border-radius: 18px;
+                         font-size: 18px; color: {_COLOR_TEXT_MUTED}; }}
             QPushButton:hover {{ background: {_COLOR_DANGER}; color: #fff; }}
         """)
         btn_close.clicked.connect(self.close)
@@ -224,17 +224,17 @@ class SettingsWindow(QWidget):
         self._llm_key_edit.setPlaceholderText("sk-...")
         self._fields["LLM_KEY"] = self._llm_key_edit
         key_row.addWidget(self._llm_key_edit)
-        self._key_toggle = QPushButton("👁")
+        self._key_toggle = QPushButton()
+        self._key_toggle.setIcon(QIcon(SHOW_ICON_PATH))
         self._key_toggle.setFixedWidth(28)
         self._key_toggle.setCheckable(True)
-        self._key_toggle.setStyleSheet(f"""
-            QPushButton {{ background: transparent; border: 1px solid {_COLOR_BORDER}; border-radius: 4px; font-size: 14px; }}
-            QPushButton:checked {{ background: {_COLOR_HOVER_BG}; }}
-        """)
         self._key_toggle.toggled.connect(
-            lambda checked: self._llm_key_edit.setEchoMode(
-                QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
-            )
+            lambda checked: (
+                self._key_toggle.setIcon(QIcon(HIDE_ICON_PATH if checked else SHOW_ICON_PATH)),
+                self._llm_key_edit.setEchoMode(
+                    QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
+                )
+            )[:0]  # suppress True from lambda
         )
         key_row.addWidget(self._key_toggle)
         form.addRow("API Key:", key_row)
