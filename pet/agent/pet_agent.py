@@ -52,6 +52,7 @@ class PetAgent(QObject):
     speak_stream_start = Signal()
     speak_stream_chunk = Signal(str)
     speak_stream_end   = Signal(int)
+    notify_requested   = Signal(str, str, int)  # title, message, duration_ms
 
     def __init__(self, parent=None):
         super().__init__(parent)

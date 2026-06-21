@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 from logging.handlers import TimedRotatingFileHandler
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 from PySide6.QtGui import QIcon
 from pet.ui.log_window import _LogRelay, LogWindowHandler
 from pet.ui.styles import ICON_PATH
@@ -126,6 +126,10 @@ def main():
     )
     agent.state_changed.connect(
         lambda s: feed_bubble.set_busy(s in ("autonomous", "interacting"))
+    )
+    agent.notify_requested.connect(
+        lambda t, m, d: tray.tray_icon.showMessage(t, m, QSystemTrayIcon.MessageIcon.Information, d)
+        if tray.tray_icon else None
     )
 
     window.show()

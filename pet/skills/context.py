@@ -55,6 +55,11 @@ class SkillContext:
             self._agent.trigger("interact", hint=hint,
                                 delay_ms=delay_ms, cooldown_ms=cooldown_ms)
 
+    def notify(self, title: str, message: str, duration: int = 5000):
+        """弹出 Windows 托盘通知。"""
+        if self._check_agent():
+            self._agent.notify_requested.emit(title, message, duration)
+
     def register_tick(self, name: str, callback: Callable[[], None]):
         """注册定时回调到 fast / mid / slow tick，内部转发给 Scheduler。"""
         if self._check_agent():
@@ -75,7 +80,6 @@ class SkillContext:
     def get_panel_factory(self, skill_name: str) -> Callable | None:
         """获取指定技能的 panel 工厂。"""
         return self._panels.get(skill_name)
-
 
     def on_bind(self, callback: Callable[[], None]):
         """注册回调：agent 绑定后立即执行（已绑定时立即调用）。"""
