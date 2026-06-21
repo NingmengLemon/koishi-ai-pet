@@ -15,7 +15,7 @@ from config import config, _KEY_META
 from pet.ui.styles import (
     ICON_PATH, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
     INPUT_QSS, COMBOBOX_QSS, TEXTEDIT_QSS, CHECKBOX_QSS,
-    LABEL_SECONDARY_QSS, TAB_BAR_QSS,
+    TAB_BAR_QSS,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,6 +70,7 @@ class SettingsWindow(QWidget):
         self.agent = agent
         self._llm_thread = None
         self._llm_worker = None
+        self._fields = {}
 
         self.setObjectName("settingsWindow")
         self.setWindowTitle("⚙ 设置")
@@ -290,7 +291,8 @@ class SettingsWindow(QWidget):
         prompt_layout = QVBoxLayout(prompt_group)
         for label, key in [("抓取", "INTERACT_GRABBED_PROMPT"),
                            ("放下", "INTERACT_RELEASED_PROMPT"),
-                           ("窗口消失", "INTERACT_WINDOW_DISAPPEARED_PROMPT")]:
+                           ("窗口消失", "INTERACT_WINDOW_DISAPPEARED_PROMPT"),
+                           ("喂食", "INTERACT_FED_PROMPT")]:
             prompt_layout.addWidget(QLabel(label))
             prompt_layout.addWidget(self._text_area(key))
         layout.addWidget(prompt_group)
@@ -484,6 +486,15 @@ class SettingsWindow(QWidget):
             self._test_output.append(f"错误: {content}")
             self._label_test.setText("❌ 失败")
         self._btn_test.setEnabled(True)
+
+    # ── 窗口事件 ──
+
+    def closeEvent(self, event):
+        """清理 LLM 测试线程。"""
+        if self._llm_thread is not None and self._llm_thread.isRunning():
+            self._llm_thread.quit()
+            self._llm_thread.wait(2000)
+        super().closeEvent(event)
 
     # ── 窗口拖拽 ──
 
