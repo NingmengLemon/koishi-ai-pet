@@ -370,7 +370,7 @@ class SettingsWindow(QWidget):
         sched_form = QFormLayout(sched_group)
         sched_form.setSpacing(8)
         sched_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-        sched_form.addRow("自主行动间隔(ms):", self._line("SCHEDULER_MID_MS", "300000", QIntValidator(1000, 3600000)))
+        sched_form.addRow("自主行动间隔(ms):", self._line("SCHEDULER_MID_MS", "300000", QIntValidator(60000, 3600000)))
         sched_form.addRow("", self._check("SCHEDULER_AUTO_START_MID", "默认开启自动行动"))
         layout.addWidget(sched_group)
 
