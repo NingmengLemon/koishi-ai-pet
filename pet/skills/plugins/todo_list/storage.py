@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 import threading
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -106,8 +106,9 @@ class TodoStorage:
         allowed = {"title", "priority", "category", "due_date", "notes"}
         updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
         if not updates:
-            row = self._conn.execute(
-                "SELECT * FROM todos WHERE id=?", (todo_id,)).fetchone()
+            with self._lock:
+                row = self._conn.execute(
+                    "SELECT * FROM todos WHERE id=?", (todo_id,)).fetchone()
             return dict(row) if row else None
         set_clause = ", ".join(f"{k}=?" for k in updates)
         values = list(updates.values()) + [todo_id]
@@ -122,25 +123,45 @@ class TodoStorage:
 
     def get_due(self, now_iso: str, precision_minutes: int = 5) -> list[dict]:
         """查询已到期或将在 precision_minutes 内到期的未完成任务。"""
+        if precision_minutes > 0:
+            window_end = (
+                datetime.fromisoformat(now_iso)
+                + timedelta(minutes=precision_minutes)
+            ).isoformat()
+        else:
+            window_end = now_iso
         with self._lock:
             rows = self._conn.execute(
                 """SELECT * FROM todos
                    WHERE status='pending' AND due_date IS NOT NULL
                    AND due_date <= ?
                    ORDER BY due_date ASC""",
-                (now_iso,)
+                (window_end,)
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_pending_alarms(self) -> list[dict]:
-        """启动时加载：所有未完成且带 due_date 的任务。"""
+    def get_pending_alarms(self, now_iso: str | None = None) -> list[dict]:
+        """启动时加载：所有未完成且带 due_date 的任务。
+
+        Args:
+            now_iso: 当前时间的 ISO 字符串（含时区一致）。为 None 时回退到 datetime('now') 遗留行为。
+        """
         with self._lock:
-            rows = self._conn.execute(
-                """SELECT * FROM todos
-                   WHERE status='pending' AND due_date IS NOT NULL
-                   AND due_date > datetime('now')
-                   ORDER BY due_date ASC"""
-            ).fetchall()
+            if now_iso is not None:
+                rows = self._conn.execute(
+                    """SELECT * FROM todos
+                       WHERE status='pending' AND due_date IS NOT NULL
+                       AND due_date > ?
+                       ORDER BY due_date ASC""",
+                    (now_iso,)
+                ).fetchall()
+            else:
+                rows = self._conn.execute(
+                    """SELECT * FROM todos
+                       WHERE status='pending' AND due_date IS NOT NULL
+                       AND due_date > datetime('now')
+                       ORDER BY due_date ASC"""
+                ).fetchall()
         return [dict(r) for r in rows]
 
     def close(self):
