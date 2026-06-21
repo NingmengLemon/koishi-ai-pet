@@ -361,7 +361,7 @@ QTabBar::tab {
     color: """ + _COLOR_TEXT_SEC + """;
 }
 QTabBar::tab:selected {
-    background: """ + _COLOR_SURFACE + """;
+    background: """ + _COLOR_BG + """;
     color: """ + _COLOR_TEXT + """;
     font-weight: bold;
     border-bottom: 2px solid """ + _COLOR_ACCENT + """;
