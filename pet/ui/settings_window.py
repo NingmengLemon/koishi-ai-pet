@@ -349,7 +349,7 @@ class SettingsWindow(QWidget):
         form.setContentsMargins(8, 8, 8, 8)
 
         form.addWidget(QLabel("宠物人格 Prompt"))
-        form.addWidget(self._text_area("PET_PERSONALITY"), stretch=2)
+        form.addWidget(self._text_area("PET_PERSONALITY"), stretch=3)
 
         sep = QLabel()
         sep.setFixedHeight(8)
@@ -362,8 +362,6 @@ class SettingsWindow(QWidget):
                            ("喂食", "INTERACT_FED_PROMPT")]:
             form.addWidget(QLabel(label))
             form.addWidget(self._text_area(key), stretch=1)
-
-        form.addStretch()
 
         scroll.setWidget(content)
         layout.addWidget(scroll)
