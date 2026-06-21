@@ -123,6 +123,20 @@ class Scheduler(QObject):
             f"slow={'ON' if auto_slow else 'PAUSED'}({intervals['slow']}ms)"
         )
 
+    def update_config(self):
+        """运行时更新调度器配置（设置界面修改调度参数后调用）。
+
+        重建定时器但保留已注册的回调和手动暂停状态。
+        """
+        if not self._initialized:
+            return
+        auto_fast = "fast" not in self._manually_paused and self._timers.get("fast", QTimer()).isActive()
+        auto_mid = "mid" not in self._manually_paused and self._timers.get("mid", QTimer()).isActive()
+        auto_slow = "slow" not in self._manually_paused and self._timers.get("slow", QTimer()).isActive()
+        self._idle_timeout_ms = config.SCHEDULER_IDLE_TIMEOUT_MS
+        self.init(auto_fast=auto_fast, auto_mid=auto_mid, auto_slow=auto_slow)
+        logger.info("[Scheduler] config updated — timers rebuilt")
+
     def stop(self):
         self._idle_check.stop()
         for key in list(self._alarm_timers):

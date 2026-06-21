@@ -83,6 +83,13 @@ class Behavior(BrainMixin):
             self._client = None
             logger.warning(f"[Behavior] No client (BRAIN={brain}, key empty={not bool(key)}) → local fallback")
 
+    def rebuild_client(self):
+        """运行时重建 LLM 客户端（设置界面修改连接配置后调用）。"""
+        with self._lock:
+            self._setup()
+        client_type = "None (local)" if self._client is None else f"{type(self._client).__name__}(model={self._model})"
+        logger.info(f"[Behavior] rebuild_client: {client_type}")
+
     @property
     def has_vision(self) -> bool:
         return self._client is not None and config.VISION_ENABLED
