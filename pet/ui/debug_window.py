@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 )
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QPoint, QTimer, QSize, QThread, Signal, QObject
+from PySide6.QtCore import Qt, QPoint, QTimer, QSize
 from PySide6.QtGui import QFont, QIcon, QPainter, QPainterPath, QColor, QPen
 from pet.ui.styles import (
     ICON_PATH, WINDOW_QSS, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
@@ -19,30 +19,6 @@ from pet.ui.emotion import EmotionBubble, EMOTION_MAP
 from pet.ui.particle import ParticleWidget
 from pet.brain.behavior import Behavior
 from config import config
-
-
-class _LLMTestWorker(QObject):
-    """在子线程中执行 LLM 连通性测试。"""
-    finished = Signal(bool, str, float)  # success, content_or_error, elapsed
-
-    def __init__(self, brain):
-        super().__init__()
-        self._brain = brain
-
-    def run(self):
-        import time
-        start = time.time()
-        try:
-            reply = self._brain._llm_call([
-                {"role": "system", "content": "你是调试助手。"},
-                {"role": "user", "content": "请回复 'OK' 表示联通正常。"},
-            ], max_tokens=50)
-            elapsed = time.time() - start
-            content = reply.choices[0].message.content or "(空响应)"
-            self.finished.emit(True, content, elapsed)
-        except Exception as e:
-            elapsed = time.time() - start
-            self.finished.emit(False, str(e), elapsed)
 
 
 class DebugWindow(QWidget):
@@ -90,7 +66,6 @@ class DebugWindow(QWidget):
 
         self._pos_timer = QTimer(self)
         self._pos_timer.timeout.connect(self._refresh_pos)
-        self._pos_timer.timeout.connect(self._refresh_llm_stats)
         self._pos_timer.start(1000)
 
     def showEvent(self, event):
@@ -429,51 +404,6 @@ class DebugWindow(QWidget):
 
         right.addWidget(ctx_group)
 
-        # ── LLM 连通性测试 ──
-
-        llm_group = QGroupBox("LLM 连通性测试")
-        llm_layout = QVBoxLayout(llm_group)
-
-        brain = config.BRAIN or "local"
-        model = config.LLM_MODEL or "(未设置)"
-        url = (config.LLM_URL or "(未设置)") if brain != "ollama" else (config.OLLAMA_BASE_URL or "(未设置)")
-        key_status = "已设置" if config.LLM_KEY else "未设置"
-        self.label_llm_config = QLabel(
-            f"后端: {brain}\n"
-            f"模型: {model}\n"
-            f"地址: {url}\n"
-            f"API Key: {key_status}"
-        )
-        self.label_llm_config.setFont(QFont("Consolas", 9))
-        llm_layout.addWidget(self.label_llm_config)
-
-        # ── LLM 调用统计 ──
-        stats_row = QHBoxLayout()
-        self.label_llm_calls = QLabel("累计调用: —")
-        self.label_llm_calls.setFont(QFont("Consolas", 9))
-        self.label_llm_calls.setStyleSheet("color:#555;")
-        stats_row.addWidget(self.label_llm_calls)
-        stats_row.addStretch()
-        llm_layout.addLayout(stats_row)
-        self._refresh_llm_stats()
-
-        test_row = QHBoxLayout()
-        self.btn_llm_test = QPushButton("测试连接")
-        self.btn_llm_test.clicked.connect(self._test_llm_connectivity)
-        test_row.addWidget(self.btn_llm_test)
-        self.label_llm_status = QLabel("就绪")
-        test_row.addWidget(self.label_llm_status)
-        test_row.addStretch()
-        llm_layout.addLayout(test_row)
-
-        self.llm_test_output = QTextEdit()
-        self.llm_test_output.setReadOnly(True)
-        self.llm_test_output.setMaximumHeight(80)
-        self.llm_test_output.setFont(QFont("Consolas", 9))
-        llm_layout.addWidget(self.llm_test_output)
-
-        right.addWidget(llm_group)
-
         log_group = QGroupBox("日志")
         log_layout = QVBoxLayout(log_group)
         self.log_output = QTextEdit()
@@ -634,46 +564,6 @@ class DebugWindow(QWidget):
         self._log(f"particle: \"{effect}\"")
         self.pet.particles.spawn(effect)
 
-    def _test_llm_connectivity(self):
-        """测试 LLM API 连通性（子线程执行）。"""
-        self._log("LLM 连通性测试...")
-        self.llm_test_output.clear()
-        self.llm_test_output.append("测试中...")
-        self.btn_llm_test.setEnabled(False)
-        self.label_llm_status.setText("测试中...")
-
-        brain = config.BRAIN or "local"
-        if brain == "local" or not self.brain._client:
-            self.llm_test_output.clear()
-            self.llm_test_output.append("⚠ 当前为 local 模式，未配置 LLM 客户端。")
-            self.llm_test_output.append("如需测试请设置 BRAIN=llm 或 ollama 并提供对应配置。")
-            self.label_llm_status.setText("未配置")
-            self.btn_llm_test.setEnabled(True)
-            return
-
-        self._llm_thread = QThread()
-        self._llm_worker = _LLMTestWorker(self.brain)
-        self._llm_worker.moveToThread(self._llm_thread)
-        self._llm_thread.started.connect(self._llm_worker.run)
-        self._llm_worker.finished.connect(self._on_llm_test_result)
-        self._llm_worker.finished.connect(self._llm_thread.quit)
-        self._llm_thread.start()
-
-    def _on_llm_test_result(self, success: bool, content: str, elapsed: float):
-        """LLM 连通性测试结果回调（主线程）。"""
-        self.llm_test_output.clear()
-        if success:
-            self.llm_test_output.append(f"✅ 连接成功 ({elapsed:.1f}s)")
-            self.llm_test_output.append(f"响应: {content[:200]}")
-            self.label_llm_status.setText("✅ 正常")
-            self._log(f"LLM 连通性测试通过 ({elapsed:.1f}s): {content[:60]}")
-        else:
-            self.llm_test_output.append(f"❌ 连接失败 ({elapsed:.1f}s)")
-            self.llm_test_output.append(f"错误: {content}")
-            self.label_llm_status.setText("❌ 失败")
-            self._log(f"LLM 连通性测试失败 ({elapsed:.1f}s): {content}")
-        self.btn_llm_test.setEnabled(True)
-
     def _refresh_context(self):
         self.ctx_output.clear()
         if not self.agent or not hasattr(self.agent.behavior, '_context'):
@@ -724,10 +614,6 @@ class DebugWindow(QWidget):
             delta = event.globalPosition().toPoint() - self._drag_pos
             self.move(self.pos() + delta)
             self._drag_pos = event.globalPosition().toPoint()
-
-    def _refresh_llm_stats(self):
-        if hasattr(self.brain, 'llm_stats') and self.brain.llm_stats:
-            self.label_llm_calls.setText(f"累计调用: {self.brain.llm_stats.total} 次")
 
     def closeEvent(self, event):
         self._pos_timer.stop()

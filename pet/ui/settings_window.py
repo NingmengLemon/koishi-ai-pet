@@ -16,6 +16,8 @@ from pet.ui.styles import (
     ICON_PATH, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
     INPUT_QSS, COMBOBOX_QSS, TEXTEDIT_QSS, CHECKBOX_QSS,
     TAB_BAR_QSS,
+    _COLOR_BG, _COLOR_BORDER, _COLOR_BORDER_DARK, _COLOR_TEXT_TITLE,
+    _COLOR_TEXT_MUTED, _COLOR_DANGER, _COLOR_WARNING, _COLOR_HOVER_BG,
 )
 
 logger = logging.getLogger(__name__)
@@ -103,12 +105,12 @@ class SettingsWindow(QWidget):
         # 背景
         bg = QWidget()
         bg.setObjectName("settingsBg")
-        bg.setStyleSheet("""
-            QWidget#settingsBg {
-                background: #f0f0f0;
+        bg.setStyleSheet(f"""
+            QWidget#settingsBg {{
+                background: {_COLOR_BG};
                 border-radius: 8px;
                 font-size: 12px;
-            }
+            }}
         """)
         layout = QVBoxLayout(bg)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -122,15 +124,15 @@ class SettingsWindow(QWidget):
         title_row.setContentsMargins(10, 0, 4, 0)
         title_row.setSpacing(6)
         title = QLabel("⚙ 设置")
-        title.setStyleSheet("font-size:13px; color:#444; font-weight:bold; background:transparent;")
+        title.setStyleSheet(f"font-size:13px; color:{_COLOR_TEXT_TITLE}; font-weight:bold; background:transparent;")
         title_row.addWidget(title)
         title_row.addStretch()
         btn_close = QPushButton("✕")
         btn_close.setFixedSize(28, 28)
-        btn_close.setStyleSheet("""
-            QPushButton { background: transparent; border: none; border-radius: 14px;
-                         font-size: 14px; color: #999; }
-            QPushButton:hover { background: #e81123; color: #fff; }
+        btn_close.setStyleSheet(f"""
+            QPushButton {{ background: transparent; border: none; border-radius: 14px;
+                         font-size: 14px; color: {_COLOR_TEXT_MUTED}; }}
+            QPushButton:hover {{ background: {_COLOR_DANGER}; color: #fff; }}
         """)
         btn_close.clicked.connect(self.close)
         title_row.addWidget(btn_close)
@@ -217,9 +219,9 @@ class SettingsWindow(QWidget):
         self._key_toggle = QPushButton("👁")
         self._key_toggle.setFixedWidth(28)
         self._key_toggle.setCheckable(True)
-        self._key_toggle.setStyleSheet("""
-            QPushButton { background: transparent; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
-            QPushButton:checked { background: #e0e0e0; }
+        self._key_toggle.setStyleSheet(f"""
+            QPushButton {{ background: transparent; border: 1px solid {_COLOR_BORDER}; border-radius: 4px; font-size: 14px; }}
+            QPushButton:checked {{ background: {_COLOR_HOVER_BG}; }}
         """)
         self._key_toggle.toggled.connect(
             lambda checked: self._llm_key_edit.setEchoMode(
@@ -245,7 +247,7 @@ class SettingsWindow(QWidget):
         self._btn_test.clicked.connect(self._test_llm)
         test_row.addWidget(self._btn_test)
         self._label_test = QLabel("就绪")
-        self._label_test.setStyleSheet("color:#666; font-size:11px;")
+        self._label_test.setStyleSheet(f"color:{_COLOR_TEXT_SEC}; font-size:11px;")
         test_row.addWidget(self._label_test)
         test_row.addStretch()
         layout.addLayout(test_row)
@@ -316,7 +318,7 @@ class SettingsWindow(QWidget):
 
         # 需重启提示
         restart_label = QLabel("以下设置需要重启后生效：")
-        restart_label.setStyleSheet("color:#e67e22; font-size:11px; font-weight:bold;")
+        restart_label.setStyleSheet(f"color:{_COLOR_WARNING}; font-size:11px; font-weight:bold;")
         form.addRow(restart_label)
 
         form.addRow("宠物宽度:", self._line("PET_WIDTH", "125"))
@@ -560,6 +562,6 @@ class SettingsWindow(QWidget):
         rect = self.rect().adjusted(0, 0, -1, -1)
         path = QPainterPath()
         path.addRoundedRect(rect, 10, 10)
-        painter.fillPath(path, QColor("#f0f0f0"))
-        painter.setPen(QPen(QColor("#cccccc"), 1))
+        painter.fillPath(path, QColor(_COLOR_BG))
+        painter.setPen(QPen(QColor(_COLOR_BORDER_DARK), 1))
         painter.drawPath(path)

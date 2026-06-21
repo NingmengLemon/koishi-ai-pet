@@ -14,10 +14,16 @@ ICON_PATH = os.path.join(_PROJECT_ROOT, "assets", "icon", "sys_tray.png")
 _COLOR_BG         = "#f0f0f0"
 _COLOR_SURFACE     = "#ffffff"
 _COLOR_BORDER      = "#ddd"
+_COLOR_BORDER_DARK = "#ccc"
 _COLOR_BORDER_FOCUS = "#aaa"
 _COLOR_TEXT        = "#333"
+_COLOR_TEXT_TITLE  = "#444"
 _COLOR_TEXT_SEC    = "#666"
+_COLOR_TEXT_MUTED  = "#999"
 _COLOR_ACCENT      = "#4a90d9"
+_COLOR_DANGER      = "#e81123"
+_COLOR_WARNING     = "#e67e22"
+_COLOR_HOVER_BG   = "#e0e0e0"
 
 # ── 窗口 / 根 ──
 
