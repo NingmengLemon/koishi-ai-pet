@@ -153,6 +153,7 @@ class SettingsWindow(QWidget):
 
         # Tab Widget
         self._tabs = QTabWidget()
+        self._tabs.tabBar().setExpanding(True)
         self._tabs.addTab(self._build_connection_tab(), "连接")
         self._tabs.addTab(self._build_behavior_tab(), "行为")
         self._tabs.addTab(self._build_appearance_tab(), "外观")
