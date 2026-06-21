@@ -339,7 +339,7 @@ class SettingsWindow(QWidget):
         # Vision
         vision_row = QFormLayout()
         vision_row.addRow("", self._check("VISION_ENABLED", "开启视觉理解（须模型支持多模态）"))
-        vision_row.addRow("截图缩放比例:", self._line("VISION_SCALE", "1"))
+        vision_row.addRow("截图缩放比例(0.1~1.0):", self._line("VISION_SCALE", "1"))
         layout.addLayout(vision_row)
 
         # 理智
@@ -359,8 +359,6 @@ class SettingsWindow(QWidget):
 
         form = QFormLayout()
         form.setSpacing(6)
-
-        form.addRow("技能插件(逗号分隔,*=全部):", self._line("SKILLS_ENABLED", "*"))
 
         # 需重启提示
         restart_label = QLabel("以下设置需要重启后生效：")
