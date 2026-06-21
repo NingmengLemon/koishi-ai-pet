@@ -164,9 +164,9 @@ class ContextBuilder:
             elif key == "affection":
                 if value >= 80:    return "特别亲近主人，"
                 elif value >= 60:  return None
-                elif value >= 40:  return "对主人感觉一般，想和主人多聊聊天。"
-                elif value >= 20:  return "不太想搭理人，想和主人多互动找回亲近感。"
-                else:              return "看谁都不顺眼，需要主人主动关心和陪伴。"
+                elif value >= 40:  return "对主人感觉一般，"
+                elif value >= 20:  return "不太想搭理人，"
+                else:              return "看谁都不顺眼，"
             elif key == "joy":
                 if value >= 80:    return "开心得想转圈，"
                 elif value >= 60:  return None
