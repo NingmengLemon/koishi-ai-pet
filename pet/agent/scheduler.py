@@ -54,6 +54,7 @@ class Scheduler(QObject):
         self._idle_check.timeout.connect(self._check_idle)
         self._idle_timeout_ms = config.SCHEDULER_IDLE_TIMEOUT_MS
         self._initialized = False
+        self._alarm_timers: dict[str, QTimer] = {}
         logger.debug("[Scheduler] Created")
 
     # 注册 / 注销 
@@ -131,6 +132,10 @@ class Scheduler(QObject):
         for t in self._timers.values():
             t.stop()
             t.deleteLater()
+        for t in self._alarm_timers.values():
+            t.stop()
+            t.deleteLater()
+        self._alarm_timers.clear()
         self._timers.clear()
         self._manually_paused.clear()
         self._idle_paused = False
@@ -198,3 +203,33 @@ class Scheduler(QObject):
 
     def is_mid_paused(self) -> bool:
         return self.is_paused("mid")
+
+    def schedule_at(self, timestamp_ms: int, callback: Callable[[], None]):
+        """在指定绝对时间戳（ms）精准触发一次性回调。
+        已过期则立即触发，同 ID 重复注册会覆盖旧的。"""
+        import time
+        now_ms = int(time.time() * 1000)
+        delay_ms = max(0, timestamp_ms - now_ms)
+
+        # 用 callback 的函数名作为 key，同 callback 覆盖旧 alarm
+        key = getattr(callback, "__name__", str(id(callback)))
+
+        # 覆盖旧 timer
+        old = self._alarm_timers.pop(key, None)
+        if old is not None:
+            old.stop()
+            old.deleteLater()
+
+        def _fire():
+            self._alarm_timers.pop(key, None)
+            try:
+                callback()
+            except Exception:
+                logger.exception(f"[Scheduler] alarm callback {key} error")
+
+        t = QTimer(self)
+        t.setSingleShot(True)
+        t.timeout.connect(_fire)
+        t.start(delay_ms)
+        self._alarm_timers[key] = t
+        logger.info(f"[Scheduler] alarm '{key}' scheduled in {delay_ms}ms")
