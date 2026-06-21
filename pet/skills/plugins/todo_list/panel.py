@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-import pet.skills.plugins.todo_list.core as todo_core
+from pet.skills.plugins.todo_list import _instance as _todo_instance
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +17,7 @@ logger = logging.getLogger(__name__)
 class TodoPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._core = todo_core._instance
-        self._storage = self._core._storage
+        self._storage = _todo_instance._storage
         self.setWindowTitle("待办事项")
         self.resize(420, 520)
         self.setWindowFlags(
