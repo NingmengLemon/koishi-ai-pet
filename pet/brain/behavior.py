@@ -72,7 +72,7 @@ class Behavior(BrainMixin):
                 timeout=config.LLM_TIMEOUT,
             )
             self._model = model or "llama3.2"
-        elif brain == "llm" and key:
+        elif brain == "api" and key:
             self._client = OpenAI(
                 api_key=key,
                 base_url=url or "",

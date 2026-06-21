@@ -42,7 +42,7 @@ pip install -r requirements.txt
 复制 `.env.example` 为 `.env`，按需修改：
 
 ```env
-BRAIN=llm                # local / llm / ollama
+BRAIN=api                # local / api / ollama
 LLM_MODEL=gpt-4o-mini    # 模型名
 LLM_KEY=sk-xxx           # API Key
 LLM_URL=https://api.openai.com/v1
@@ -63,7 +63,7 @@ python main.py
 
 | 配置项 | 说明 | 默认 |
 |--------|------|------|
-| `BRAIN` | LLM 后端：`local`/`llm`/`ollama` | `local` |
+| `BRAIN` | LLM 后端：`local`/`api`/`ollama` | `local` |
 | `VISION_ENABLED` | 是否启用视觉截图分析 | `false` |
 | `VISION_SCALE` | 截图缩放比例（下限锁 1536px） | `1` |
 | `SCHEDULER_AUTO_START_FAST` | 是否自动启动 fast_tick（精力回复） | `true` |
