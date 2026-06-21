@@ -6,7 +6,7 @@ import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QLineEdit, QCheckBox, QComboBox, QTextEdit, QTabWidget,
-    QFormLayout, QGroupBox, QMessageBox,
+    QFormLayout, QGroupBox, QMessageBox, QScrollArea,
 )
 from PySide6.QtCore import Qt, QThread, Signal, QObject
 from PySide6.QtGui import QIcon, QFont, QPainter, QPainterPath, QPen, QColor
@@ -157,7 +157,7 @@ class SettingsWindow(QWidget):
         self._tabs.addTab(self._build_connection_tab(), "连接")
         self._tabs.addTab(self._build_behavior_tab(), "行为")
         self._tabs.addTab(self._build_appearance_tab(), "外观")
-        self._tabs.addTab(self._build_personality_tab(), "人格")
+        self._tabs.addTab(self._build_personality_tab(), "提示词")
         layout.addWidget(self._tabs, stretch=1)
 
         # 底部操作栏
@@ -297,17 +297,6 @@ class SettingsWindow(QWidget):
         sanity_row.addRow("理智临界值:", self._line("SANITY_CRITICAL_THRESHOLD", "20"))
         layout.addLayout(sanity_row)
 
-        # 交互 prompt
-        prompt_group = QGroupBox("交互 Prompt")
-        prompt_layout = QVBoxLayout(prompt_group)
-        for label, key in [("抓取", "INTERACT_GRABBED_PROMPT"),
-                           ("放下", "INTERACT_RELEASED_PROMPT"),
-                           ("窗口消失", "INTERACT_WINDOW_DISAPPEARED_PROMPT"),
-                           ("喂食", "INTERACT_FED_PROMPT")]:
-            prompt_layout.addWidget(QLabel(label))
-            prompt_layout.addWidget(self._text_area(key))
-        layout.addWidget(prompt_group)
-
         layout.addStretch()
         return w
 
@@ -343,15 +332,41 @@ class SettingsWindow(QWidget):
         layout.addStretch()
         return w
 
-    # ── Tab 4: 人格 ──
+    # ── Tab 4: 提示词 ──
 
     def _build_personality_tab(self) -> QWidget:
         w = QWidget()
         layout = QVBoxLayout(w)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        layout.addWidget(QLabel("宠物人格 Prompt"))
-        layout.addWidget(self._text_area("PET_PERSONALITY"), stretch=1)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        content = QWidget()
+        form = QVBoxLayout(content)
+        form.setContentsMargins(8, 8, 8, 8)
+
+        form.addWidget(QLabel("宠物人格 Prompt"))
+        form.addWidget(self._text_area("PET_PERSONALITY"), stretch=2)
+
+        sep = QLabel()
+        sep.setFixedHeight(8)
+        form.addWidget(sep)
+
+        form.addWidget(QLabel("交互 Prompt"))
+        for label, key in [("抓取", "INTERACT_GRABBED_PROMPT"),
+                           ("放下", "INTERACT_RELEASED_PROMPT"),
+                           ("窗口消失", "INTERACT_WINDOW_DISAPPEARED_PROMPT"),
+                           ("喂食", "INTERACT_FED_PROMPT")]:
+            form.addWidget(QLabel(label))
+            form.addWidget(self._text_area(key), stretch=1)
+
+        form.addStretch()
+
+        scroll.setWidget(content)
+        layout.addWidget(scroll)
 
         return w
 
