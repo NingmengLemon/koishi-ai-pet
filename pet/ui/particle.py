@@ -147,7 +147,7 @@ def _spawn_hearts(cx: float, cy: float) -> list[Particle]:
 def _spawn_dark_hearts(cx: float, cy: float) -> list[Particle]:
     """黑色心型粒子：随机漂浮上升，理智低落时散发。"""
     particles = []
-    for _ in range(3):
+    for _ in range(random.randint(3, 5)):
         particles.append(Particle(
             x=cx + random.uniform(-14, 14),
             y=cy + random.uniform(-8, 8),

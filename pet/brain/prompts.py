@@ -190,7 +190,7 @@ def _autonomous_task() -> list[str]:
         f"1. Summary 行必须在最前面，≤50字",
         f"2. 最少 {min_actions} 个 Action，总时长约 {target_s}s，用 sit/thinking/sleep 穿插移动动作撞满时长",
         "3. 必须说话，Speech ≤20字，不能是 none",
-        "4. Emotion 行可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored",
+        "4. Emotion 行可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored, crazy",
         "【动作】",
         "5. 动作名只能是动作表列出的，严格格式: Action: 动作名 [参数...]",
         "5a. 动作名和参数必须紧跟在 Action: 之后，禁止 Action: 单独一行",
@@ -251,7 +251,7 @@ def _chat_task() -> list[str]:
         "6. 必须用 Speech 回应用户，≤30字，性格语气\n"
         "7. 参考「近期对话/行为记录」保持连贯，不重复说过的话\n"
         "8. 用户要求使用技能时，在可用技能中搜索，找到必须调用，找不到按人格回复\n"
-        "9. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored\n"
+        "9. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored, crazy\n"
         "10. 必须查看[记忆存储指导]判断是否输出Memory行，如果值得，必须输出\n"
         "11. 你的言行必须反映「你现在的状态」中的感受",
         _MOOD_GUIDE,
@@ -278,7 +278,7 @@ def _interact_task() -> list[str]:
         "5. Speech 是本能反应而非分析，≤20字，由个性决定语气\n"
         "6. 禁止输出 Skill 行、Memory 行\n"
         "7. 你的反应必须反映「你现在的状态」中的感受\n"
-        "8. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored",
+        "8. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored, crazy",
     ]
 
 

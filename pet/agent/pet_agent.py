@@ -68,6 +68,7 @@ class PetAgent(QObject):
         self.scheduler.register("mid", self._autonomous)
         self.scheduler.register("fast", self._recover)
         self.scheduler.register("fast", self._update_idle_anim)
+        self.scheduler.register("fast", self._spawn_dark_hearts)
         self.scheduler.register("slow", self._wakeup)
         self.scheduler.register("slow", self.vitals.reduce)
         self.scheduler.register("slow", self.vitals.save)
@@ -201,11 +202,18 @@ class PetAgent(QObject):
             win.pet_anim.play("grim")
         elif sanity >= 20 and cur == "grim":
             win.pet_anim.play("idle")
-        # grim 待机时定期散发黑色心型粒子
-        if cur == "grim":
-            self._dark_heart_tick = getattr(self, '_dark_heart_tick', 0) + 1
-            if self._dark_heart_tick % 2 == 0:
-                win.particles.spawn("dark_hearts")
+
+    def _spawn_dark_hearts(self):
+        """低理智时定期散发黑色心型粒子。独立于动画切换，任何状态下都生效。"""
+        if not self._pet_window:
+            return
+        ms = self.mood.numeric_summary()
+        if ms.get("sanity", 100) >= 20:
+            self._dark_heart_tick = 0
+            return
+        self._dark_heart_tick = getattr(self, '_dark_heart_tick', 0) + 1
+        if self._dark_heart_tick % 2 == 0:
+            self._pet_window.particles.spawn("dark_hearts")
 
     def _wakeup(self):
         from pet.agent.state import PetState

@@ -21,6 +21,7 @@ EMOTION_MAP = {
     "curious":    "\U0001f9d0",   # 🧐
     "proud":      "\U0001f607",   # 😇
     "bored":      "\U0001f634",   # 😴
+    "crazy":      "\U0001f92a",   # 🤪
 }
 
 VALID_EMOTIONS = set(EMOTION_MAP.keys())

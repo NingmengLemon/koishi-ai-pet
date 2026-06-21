@@ -72,6 +72,19 @@ class DebugWindow(QWidget):
         self._pos_timer.timeout.connect(self._refresh_llm_stats)
         self._pos_timer.start(1000)
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self.agent:
+            try:
+                ns = self.agent.vitals.numeric_summary()
+                for key in ("satiety", "energy"):
+                    self._param_inputs[key].setText(str(int(ns[key])))
+                ms = self.agent.mood.numeric_summary()
+                for key in ("affection", "joy", "sanity"):
+                    self._param_inputs[key].setText(str(int(ms[key])))
+            except Exception:
+                pass
+
     def _refresh_pos(self):
         pos = self.pet.pos()
         self.label_pet_pos.setText(f"({pos.x()}, {pos.y()})")
