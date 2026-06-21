@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 
 from pet.agent.state import PetState
+from config import config
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +75,9 @@ class ScheduledTasks:
         ms = self._agent.mood.numeric_summary()
         sanity = ms.get("sanity", 100)
         cur = win.pet_anim.current_action
-        if sanity < 20 and cur == "idle":
+        if sanity < config.SANITY_CRITICAL_THRESHOLD and cur == "idle":
             win.pet_anim.play("grim")
-        elif sanity >= 20 and cur == "grim":
+        elif sanity >= config.SANITY_CRITICAL_THRESHOLD and cur == "grim":
             win.pet_anim.play("idle")
 
     def _spawn_dark_hearts(self):
@@ -85,7 +86,7 @@ class ScheduledTasks:
         if not win:
             return
         ms = self._agent.mood.numeric_summary()
-        if ms.get("sanity", 100) >= 20:
+        if ms.get("sanity", 100) >= config.SANITY_CRITICAL_THRESHOLD:
             self._dark_heart_tick = 0
             return
         self._dark_heart_tick += 1
@@ -102,4 +103,4 @@ class ScheduledTasks:
         if sm.state == PetState.SLEEPING:
             sm.transition(PetState.IDLE)
             logger.info(f"[{ts}] [PetAgent] slow_tick: woke up, emitting stretch")
-        self._agent._emit_action("stretch", (), {})
+            self._agent._emit_action("stretch", (), {})

@@ -186,7 +186,7 @@ class PetWindow(TransparentWindow):
         self._press_pos = None
         self.particles.spawn("hearts")
         if self._agent is not None:
-            self._agent.mood.modify_sanity(0.1)
+            self._agent.mood.modify_sanity(2.0)
 
     def mouseMoveEvent(self, event: QMouseEvent):
         # 若单击定时器还在跑，检查是否已移动足够距离以判定为拖拽

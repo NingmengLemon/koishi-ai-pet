@@ -91,8 +91,7 @@ class ContextBuilder:
 
     def build_skill_round_system(self) -> str:
         """技能多轮调用的精简 system prompt（不注入感受，专注执行结果）。"""
-        content = prompts.build_system_prompt("skill", "skill_round")
-        content = content.replace(prompts.FEELING_MARKER + "\n\n", "")
+        content = prompts.build_system_prompt("skill", "skill_round", include_feeling_marker=False)
         if self._memory_store:
             memory_text = self._memory_store.retrieve_context("")
             if memory_text:

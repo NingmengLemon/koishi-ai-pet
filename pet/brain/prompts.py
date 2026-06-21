@@ -302,12 +302,13 @@ _TASK_SECTIONS = {
     "skill_round": _skill_round_task,
 }
 
-def build_system_prompt(mode: str, task: str) -> str:
+def build_system_prompt(mode: str, task: str, include_feeling_marker: bool = True) -> str:
     """分层组装 system prompt。
 
     Args:
         mode: "autonomous_vision" | "autonomous_non_vision" | "chat_vision" | "chat_non_vision" | "interact" | "skill"
         task: "autonomous" | "chat" | "interact" | "skill_round"
+        include_feeling_marker: 是否注入 <<FEELING>> 锚点（skill_round 等精简 prompt 不需要）
     """
     if mode not in _PERCEPTION_SECTIONS:
         raise ValueError(f"Unknown mode: {mode!r}, expected one of {list(_PERCEPTION_SECTIONS)}")
@@ -328,7 +329,8 @@ def build_system_prompt(mode: str, task: str) -> str:
     sections: list[str] = []
 
     # personality 统一在顶层注入
-    sections.append(FEELING_MARKER)
+    if include_feeling_marker:
+        sections.append(FEELING_MARKER)
     if config.PET_PERSONALITY:
         sections.append(f"=== 你的性格 ===\n{config.PET_PERSONALITY}")
 

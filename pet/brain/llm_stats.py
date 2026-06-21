@@ -2,6 +2,7 @@
 
 import sqlite3
 import logging
+import threading
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ class LlmStats:
     def __init__(self, db_path: str | None = None):
         if db_path is None:
             db_path = str(Path(__file__).resolve().parent.parent.parent / "pet.db")
+        self._lock = threading.Lock()
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.execute(self._TABLE_SQL)
         self._conn.commit()
@@ -33,11 +35,12 @@ class LlmStats:
     # ── 持久化 ──
 
     def save(self):
-        self._conn.execute(
-            "INSERT OR REPLACE INTO llm_stats (key, value) VALUES ('total_calls', ?)",
-            (self._total,),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO llm_stats (key, value) VALUES ('total_calls', ?)",
+                (self._total,),
+            )
+            self._conn.commit()
 
     def close(self):
         self.save()

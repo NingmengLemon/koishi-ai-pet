@@ -50,6 +50,7 @@ class Config:
 
     SKILLS_ENABLED = os.getenv("SKILLS_ENABLED", "").split(",") if os.getenv("SKILLS_ENABLED") else []
 
+    SANITY_CRITICAL_THRESHOLD = int(os.getenv("SANITY_CRITICAL_THRESHOLD", "20"))  # 理智临界值：低于此值触发 grim/dark_hearts
     SHOW_TRAY = os.getenv("SHOW_TRAY", "true").lower() == "true"  # 是否显示系统托盘
     HIDE_CONSOLE = os.getenv("HIDE_CONSOLE", "true").lower() == "true"  # 启动后隐藏控制台窗口
 

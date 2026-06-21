@@ -476,10 +476,7 @@ class PetAgent(QObject):
         if hasattr(result, 'vitals_deltas') and result.vitals_deltas:
             try:
                 for key, delta in result.vitals_deltas.items():
-                    if key in ("satiety", "energy"):
-                        method = getattr(self.vitals, f"modify_{key}", None)
-                    else:
-                        method = getattr(self.mood, f"modify_{key}", None)
+                    method = getattr(self.vitals, f"modify_{key}", None)
                     if method:
                         method(delta)
             except Exception as e:

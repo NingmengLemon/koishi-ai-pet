@@ -597,10 +597,14 @@ class DebugWindow(QWidget):
         mood = self.agent.mood if self.agent else None
         if not vitals or not mood:
             return
-        for key in ("satiety", "energy"):
-            getattr(vitals, f"set_{key}")(int(self._param_inputs[key].text()))
-        for key in ("affection", "joy", "sanity"):
-            getattr(mood, f"set_{key}")(int(self._param_inputs[key].text()))
+        try:
+            for key in ("satiety", "energy"):
+                getattr(vitals, f"set_{key}")(int(self._param_inputs[key].text()))
+            for key in ("affection", "joy", "sanity"):
+                getattr(mood, f"set_{key}")(int(self._param_inputs[key].text()))
+            self._log("参数设置成功")
+        except ValueError:
+            self._log("⚠ 参数设置失败：请输入有效整数")
 
     def _test_particle(self, effect: str):
         self._log(f"particle: \"{effect}\"")
