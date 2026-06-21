@@ -40,6 +40,8 @@ class ActionQueue(QObject):
         self._cursor = 0
         self._disconnect_active()
         self._actions._stop_drive(switch_idle=False)
+        # 停止正在播放的动画，防止 clear 后无人监听 animation_finished 导致卡帧
+        self._actions._anim.stop()
         self._running = False
         self.changed.emit()
 
@@ -54,6 +56,8 @@ class ActionQueue(QObject):
 
     def stop(self):
         self._disconnect_active()
+        self._actions._stop_drive(switch_idle=False)
+        self._actions._anim.stop()
         self._running = False
         self._stopped = True
         self.changed.emit()
