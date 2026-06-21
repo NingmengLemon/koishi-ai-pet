@@ -1,4 +1,4 @@
-"""ScheduledTasks — 定时任务注册与回调，从 PetAgent 剥离以保持其逻辑纯粹。"""
+"""定时任务注册与回调"""
 
 import logging
 from datetime import datetime

@@ -1,4 +1,4 @@
-"""Pet 状态枚举 + 轻量状态机（自带 Qt 信号通知）。"""
+"""轻量状态机"""
 
 from datetime import datetime
 from enum import Enum

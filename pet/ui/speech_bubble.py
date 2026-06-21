@@ -1,4 +1,4 @@
-"""桌宠对话气泡 —— 打字机效果、流式追加、队列缓冲、跟随桌宠移动。"""
+"""桌宠对话气泡"""
 
 from PySide6.QtWidgets import QLabel, QWidget
 from PySide6.QtCore import Qt, QTimer, QPoint, QPropertyAnimation, QParallelAnimationGroup, QEasingCurve

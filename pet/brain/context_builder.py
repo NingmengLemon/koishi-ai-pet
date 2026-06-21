@@ -1,4 +1,4 @@
-"""ContextBuilder — 集中管理 LLM 请求上下文的构建"""
+"""LLM 请求上下文的构建"""
 
 from typing import Optional
 

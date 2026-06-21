@@ -1,4 +1,4 @@
-"""LLM 调用计数器 —— SQLite 持久化。"""
+"""LLM 调用计数器"""
 
 import sqlite3
 import logging

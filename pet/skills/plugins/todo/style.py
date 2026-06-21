@@ -1,4 +1,3 @@
-"""todo 技能专属样式 — 独立副本，不依赖主应用样式模块。"""
 
 _COLOR_BG = "#f0f0f0"
 _COLOR_SURFACE = "#ffffff"

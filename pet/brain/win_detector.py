@@ -1,4 +1,4 @@
-"""Win32 窗口枚举 —— 桌宠固有能力，用于检测可站立的窗口。"""
+"""Win32 窗口枚举"""
 
 import ctypes
 from ctypes import wintypes

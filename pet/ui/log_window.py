@@ -1,4 +1,4 @@
-"""INFO 级日志查看器 —— 托盘右键打开，扁平化圆角风格。"""
+"""日志窗口"""
 
 import logging
 from collections import deque
@@ -22,7 +22,7 @@ _RADIUS = 10  # 窗口圆角半径
 # ── 跨线程日志桥接 ──
 
 class _LogRelay(QObject):
-    """跨线程日志桥接器 — 接收 LogWindowHandler 的 Signal 并交付给 LogWindow。"""
+    """跨线程日志桥接器"""
 
     log_received = Signal(str)
 
@@ -108,7 +108,7 @@ _MAX_BLOCK_COUNT = 5000
 # ── LogWindow ──
 
 class LogWindow(QWidget):
-    """INFO 日志查看窗口 — 无边框扁平化 + Win11 圆角。"""
+    """INFO 日志查看窗口"""
 
     def __init__(self, relay: _LogRelay, parent=None):
         super().__init__(parent)
@@ -261,7 +261,6 @@ class LogWindow(QWidget):
         cursor.deleteChar()  # 删除残留换行
 
     def closeEvent(self, event):
-        """X 按钮 → 隐藏保留历史；程序退出 → 正常关闭。"""
         if event.spontaneous():
             self.hide()
             event.ignore()

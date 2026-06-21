@@ -1,4 +1,4 @@
-"""桌宠情绪气泡 —— 显示 emoji 表情，定位在宠物侧面避免与 speech 气泡重叠。"""
+"""桌宠情绪气泡显示 emoji 表情"""
 
 from PySide6.QtWidgets import QLabel, QWidget
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve

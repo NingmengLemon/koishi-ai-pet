@@ -1,4 +1,4 @@
-"""多频率 Tick 调度器 — fast、mid、slow，基于注册机制 + 空闲暂停。"""
+"""多频率 Tick 调度器"""
 
 import logging
 import sys

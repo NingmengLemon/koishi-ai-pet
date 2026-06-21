@@ -6,7 +6,7 @@ import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QLineEdit, QCheckBox, QComboBox, QTextEdit, QTabWidget,
-    QFormLayout, QGroupBox, QMessageBox, QScrollArea, QMenu,
+    QFormLayout, QGroupBox, QMessageBox, QScrollArea, QMenu, QApplication,
 )
 from PySide6.QtCore import Qt, QThread, Signal, QObject
 from PySide6.QtGui import QIcon, QFont, QPainter, QPainterPath, QPen, QColor
@@ -99,6 +99,7 @@ class SettingsWindow(QWidget):
         self.setWindowTitle("设置")
         self.resize(_W, _H)
         self.setFixedSize(_W, _H)
+        self.move(QApplication.primaryScreen().geometry().center() - self.rect().center())
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.Window
@@ -638,7 +639,6 @@ class SettingsWindow(QWidget):
     # ── 获取模型列表 ──
 
     def _fetch_models(self):
-        """根据当前表单值临时创建 client 获取模型列表，不依赖已保存的 client。"""
         if self._models_thread and self._models_thread.isRunning():
             return
 

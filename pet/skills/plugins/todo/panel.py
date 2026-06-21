@@ -1,4 +1,4 @@
-"""Todo 管理面板 — 无边框圆角窗口。"""
+"""Todo 管理面板"""
 
 from __future__ import annotations
 

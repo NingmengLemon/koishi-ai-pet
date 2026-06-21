@@ -1,4 +1,4 @@
-"""桌宠粒子特效系统 —— 落地灰尘、开心星星、睡觉 Zzz 等。"""
+"""桌宠粒子特效"""
 
 import math
 import random
