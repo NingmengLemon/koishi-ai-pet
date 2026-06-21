@@ -158,21 +158,21 @@ class ContextBuilder:
             elif key == "energy":
                 if value >= 80:    return "浑身充满力气，"
                 elif value >= 60:  return None
-                elif value >= 40:  return "眼皮开始打架了，"
-                elif value >= 20:  return "累得抬不起手，"
-                else:              return "连站都站不稳了，只想瘫着不动，"
+                elif value >= 40:  return "眼皮开始打架了，想找地方休息。"
+                elif value >= 20:  return "累得抬不起手，想让主人放下它好好歇歇。"
+                else:              return "连站都站不稳了，只想瘫着不动，想让主人放下它休息。"
             elif key == "affection":
                 if value >= 80:    return "特别亲近主人，"
                 elif value >= 60:  return None
-                elif value >= 40:  return "对主人感觉一般，"
-                elif value >= 20:  return "不太想搭理人，"
-                else:              return "看谁都不顺眼，"
+                elif value >= 40:  return "对主人感觉一般，想和主人多聊聊天。"
+                elif value >= 20:  return "不太想搭理人，想和主人多互动找回亲近感。"
+                else:              return "看谁都不顺眼，需要主人主动关心和陪伴。"
             elif key == "joy":
                 if value >= 80:    return "开心得想转圈，"
                 elif value >= 60:  return None
-                elif value >= 40:  return "心情有点闷，"
-                elif value >= 20:  return "心里沉甸甸的，笑不出来，"
-                else:              return "绝望到想消失，"
+                elif value >= 40:  return "心情有点闷，想让主人陪它玩一玩。"
+                elif value >= 20:  return "心里沉甸甸的，笑不出来，想让主人摸摸头（点击宠物）安慰它。"
+                else:              return "绝望到想消失，想让主人摸摸头（点击宠物）好好安慰它。"
             elif key == "sanity":
                 # 注意：仅在 sanity < 60 时调用（正常值在上层处理）
                 if value >= 40:    return "有点神神叨叨的，想让主人摸摸头（点击宠物）来清醒一点。想用技能做点不寻常的事。"

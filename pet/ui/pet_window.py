@@ -183,11 +183,13 @@ class PetWindow(TransparentWindow):
             self._agent.trigger("interact", hint=self._PROMPT_GRABBED)
 
     def _on_click_confirmed(self):
-        """200ms 内无移动，判定为单击，播放爱心粒子，并提升理智值。"""
+        """200ms 内无移动，判定为单击，播放爱心粒子，并提升心理状态。"""
         self._press_pos = None
         self.particles.spawn("hearts")
         if self._agent is not None:
             self._agent.mood.modify_sanity(2.0)
+            self._agent.mood.modify_affection(1.0)
+            self._agent.mood.modify_joy(1.0)
 
     def mouseMoveEvent(self, event: QMouseEvent):
         # 若单击定时器还在跑，检查是否已移动足够距离以判定为拖拽
