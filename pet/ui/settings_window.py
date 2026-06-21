@@ -414,10 +414,8 @@ class SettingsWindow(QWidget):
 
         form.addRow("宠物宽度:", self._line("PET_WIDTH", "125"))
         form.addRow("宠物高度:", self._line("PET_HEIGHT", "125"))
-        form.addRow("FPS:", self._line("PET_FPS", "15"))
         form.addRow("气泡最大宽度:", self._line("BUBBLE_MAX_WIDTH", "300"))
         form.addRow("气泡字号:", self._line("BUBBLE_FONT_SIZE", "14"))
-        form.addRow("", self._check("HIDE_CONSOLE", "隐藏控制台"))
         form.addRow("", self._check("SHOW_TRAY", "显示托盘图标"))
 
         layout.addLayout(form)
