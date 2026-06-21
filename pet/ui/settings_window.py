@@ -365,9 +365,14 @@ class SettingsWindow(QWidget):
             elif isinstance(widget, QTextEdit):
                 widget.setPlainText(str(value))
 
-    def _collect_values(self) -> dict:
-        """从控件收集当前值，返回 {key: value}。"""
+    def _collect_values(self) -> tuple[dict, list[str]]:
+        """从控件收集当前值，返回 (values, invalid_keys)。
+
+        invalid_keys 包含无法转换为目标类型的字段 key，
+        调用方应向用户提示这些字段未保存。
+        """
         result = {}
+        invalid_keys = []
         for key, widget in self._fields.items():
             type_name = _KEY_META[key][0]
             if isinstance(widget, QLineEdit):
@@ -376,14 +381,21 @@ class SettingsWindow(QWidget):
                     try:
                         result[key] = int(raw)
                     except ValueError:
+                        invalid_keys.append(key)
                         continue
                 elif type_name == "float":
                     try:
                         result[key] = float(raw)
                     except ValueError:
+                        invalid_keys.append(key)
                         continue
                 elif type_name == "str_list":
-                    result[key] = [s.strip() for s in raw.split(",") if s.strip()] if raw and raw != "*" else ["*"] if raw == "*" else []
+                    if raw == "*":
+                        result[key] = ["*"]
+                    elif raw:
+                        result[key] = [s.strip() for s in raw.split(",") if s.strip()]
+                    else:
+                        result[key] = []
                 else:
                     result[key] = raw
             elif isinstance(widget, QCheckBox):
@@ -396,7 +408,16 @@ class SettingsWindow(QWidget):
 
     def _on_save(self):
         """保存所有修改并即时生效。"""
-        values = self._collect_values()
+        values, invalid_keys = self._collect_values()
+        if invalid_keys:
+            # 构建字段友好名称映射
+            name_map = {k: v[0] for k, v in _KEY_META.items()}
+            bad_names = ", ".join(name_map.get(k, k) for k in invalid_keys)
+            QMessageBox.warning(
+                self, "输入有误",
+                f"以下字段包含无效数值，未能保存：\n{bad_names}\n\n请检查数值型字段."
+            )
+            return
         needs_restart_keys = []
         needs_rebuild_client = False
         needs_scheduler_update = False
@@ -447,12 +468,35 @@ class SettingsWindow(QWidget):
         keys = [k for k, v in _KEY_META.items() if v[2] == category]
         config.reset(keys)
         self._load_values()
+
+        # 重置后同样触发运行时钩子（类别可能属于连接或调度器）
+        connection_keys = {"BRAIN", "LLM_URL", "OLLAMA_BASE_URL", "LLM_KEY",
+                          "LLM_MODEL", "LLM_TIMEOUT", "LLM_MAX_RETRIES",
+                          "LLM_RETRY_DELAY", "LLM_RETRY_MAX_DELAY", "LLM_CACHE_PROMPT"}
+        scheduler_keys = {"SCHEDULER_FAST_MS", "SCHEDULER_MID_MS", "SCHEDULER_SLOW_MS",
+                         "SCHEDULER_IDLE_TIMEOUT_MS", "ACTION_TIMEOUT_MS",
+                         "SCHEDULER_AUTO_START_FAST", "SCHEDULER_AUTO_START_MID",
+                         "SCHEDULER_AUTO_START_SLOW"}
+        reset_set = set(keys)
+        if reset_set & connection_keys and self.agent and hasattr(self.agent, 'behavior'):
+            try:
+                self.agent.behavior.rebuild_client()
+            except Exception as e:
+                logger.exception(f"[Settings] rebuild_client after reset: {e}")
+        if reset_set & scheduler_keys and self.agent and hasattr(self.agent, 'scheduler'):
+            try:
+                self.agent.scheduler.update_config()
+            except Exception as e:
+                logger.exception(f"[Settings] scheduler.update_config after reset: {e}")
+
         QMessageBox.information(self, "已重置", f"{category} 设置已重置为默认值。")
 
     # ── LLM 连通性测试 ──
 
     def _test_llm(self):
         """在子线程测试 LLM 连通性。"""
+        if self._llm_thread is not None and self._llm_thread.isRunning():
+            return  # 上一次测试还在运行
         if not self.agent or not hasattr(self.agent, 'behavior'):
             return
         brain_cfg = self._brain_combo.currentText()
