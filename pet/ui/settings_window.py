@@ -13,7 +13,7 @@ from PySide6.QtGui import QIcon, QFont, QPainter, QPainterPath, QPen, QColor
 
 from config import config, _KEY_META
 from pet.ui.styles import (
-    ICON_PATH, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
+    ICON_PATH, SETTING_ICON_PATH, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
     INPUT_QSS, COMBOBOX_QSS, TEXTEDIT_QSS, CHECKBOX_QSS,
     TAB_BAR_QSS,
     _COLOR_BG, _COLOR_BORDER, _COLOR_BORDER_DARK, _COLOR_TEXT_TITLE,
@@ -84,7 +84,7 @@ class SettingsWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         try:
-            self.setWindowIcon(QIcon(ICON_PATH))
+            self.setWindowIcon(QIcon(SETTING_ICON_PATH))
         except Exception:
             pass
 
@@ -119,19 +119,27 @@ class SettingsWindow(QWidget):
 
         # 标题栏
         title_bar = QWidget()
-        title_bar.setFixedHeight(30)
+        title_bar.setFixedHeight(38)
         title_row = QHBoxLayout(title_bar)
-        title_row.setContentsMargins(10, 0, 4, 0)
+        title_row.setContentsMargins(12, 0, 6, 0)
         title_row.setSpacing(6)
+
+        try:
+            icon_lbl = QLabel()
+            icon_lbl.setPixmap(QIcon(SETTING_ICON_PATH).pixmap(18, 18))
+            title_row.addWidget(icon_lbl)
+        except Exception:
+            pass
+
         title = QLabel("⚙ 设置")
         title.setStyleSheet(f"font-size:13px; color:{_COLOR_TEXT_TITLE}; font-weight:bold; background:transparent;")
         title_row.addWidget(title)
         title_row.addStretch()
         btn_close = QPushButton("✕")
-        btn_close.setFixedSize(28, 28)
+        btn_close.setFixedSize(42, 42)
         btn_close.setStyleSheet(f"""
-            QPushButton {{ background: transparent; border: none; border-radius: 14px;
-                         font-size: 14px; color: {_COLOR_TEXT_MUTED}; }}
+            QPushButton {{ background: transparent; border: none; border-radius: 21px;
+                         font-size: 20px; color: {_COLOR_TEXT_MUTED}; }}
             QPushButton:hover {{ background: {_COLOR_DANGER}; color: #fff; }}
         """)
         btn_close.clicked.connect(self.close)

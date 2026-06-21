@@ -8,7 +8,7 @@ import psutil
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu
 from PySide6.QtGui import QIcon, QAction, QCursor, QPainter, QPainterPath, QColor, QPen
 from PySide6.QtCore import QObject, QTimer, Qt
-from pet.ui.styles import ICON_PATH, MENU_QSS
+from pet.ui.styles import ICON_PATH, SHOW_ICON_PATH, HIDE_ICON_PATH, SETTING_ICON_PATH, MENU_QSS
 from pet.ui.settings_window import SettingsWindow
 
 from config import config
@@ -119,16 +119,16 @@ class SystemTrayManager(QObject):
             _wrap_menu_paint(menu)
 
         if self.pet.isVisible():
-            hide_action = QAction("隐藏", menu)
+            hide_action = QAction(QIcon(HIDE_ICON_PATH), "隐藏", menu)
             hide_action.triggered.connect(self.pet.hide)
             menu.addAction(hide_action)
         else:
-            show_action = QAction("显示", menu)
+            show_action = QAction(QIcon(SHOW_ICON_PATH), "显示", menu)
             show_action.triggered.connect(self.pet.show)
             menu.addAction(show_action)
 
         # 设置入口
-        settings_action = QAction("⚙ 设置", menu)
+        settings_action = QAction(QIcon(SETTING_ICON_PATH), "⚙ 设置", menu)
         settings_action.triggered.connect(lambda: SettingsWindow.show_instance(self._agent, self.pet))
         menu.addAction(settings_action)
         menu.addSeparator()
