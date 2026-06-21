@@ -82,6 +82,13 @@ REGISTRY: dict[str, ActionDef] = {
         params=[],
         usage_example="Action: stretch",
     ),
+    "fishing": ActionDef(
+        name="fishing",
+        category="驻留",
+        description="钓鱼。拿出钓竿左右摇晃，并不能真的钓到鱼",
+        params=[],
+        usage_example="Action: fishing",
+    ),
     "thinking": ActionDef(
         name="thinking",
         category="驻留",

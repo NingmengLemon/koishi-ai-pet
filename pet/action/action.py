@@ -420,6 +420,9 @@ class PetActions(QObject):
     def grabbed(self):
         self._cleanup_stopped_anims()
         self._anim.play("grabbed")
+
+    def fishing(self, **_kw):
+        self._anim.play("fishing")
         
         
     def _fade_in_safety_check(self):

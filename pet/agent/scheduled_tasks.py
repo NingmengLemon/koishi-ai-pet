@@ -1,0 +1,105 @@
+"""ScheduledTasks — 定时任务注册与回调，从 PetAgent 剥离以保持其逻辑纯粹。"""
+
+import logging
+from datetime import datetime
+
+from pet.agent.state import PetState
+
+logger = logging.getLogger(__name__)
+
+
+class ScheduledTasks:
+    """管理 Scheduler 上的定时任务注册与回调实现。"""
+
+    def __init__(self, agent):
+        self._agent = agent
+        self._sleep_tick: int = 0
+        self._dark_heart_tick: int = 0
+
+    # ── 注册 ──
+
+    def register_all(self, scheduler):
+        scheduler.register("mid", self._autonomous)
+        scheduler.register("fast", self._recover)
+        scheduler.register("fast", self._update_idle_anim)
+        scheduler.register("fast", self._spawn_dark_hearts)
+        scheduler.register("slow", self._wakeup)
+        scheduler.register("slow", self._agent.vitals.reduce)
+        scheduler.register("slow", self._agent.vitals.save)
+        scheduler.register("slow", self._agent.vitals.check_thresholds)
+        scheduler.register("slow", self._agent.mood.save)
+        scheduler.register("slow", self._agent.mood.check_thresholds)
+
+    # ── mid ──
+
+    def _autonomous(self):
+        ts = datetime.now().strftime("%H:%M:%S")
+        if not self._agent.state_machine.try_transition(PetState.AUTONOMOUS):
+            logger.info(f"[{ts}] [PetAgent] [mid_tick] skipped (state={self._agent.state_machine.state.value})")
+            return
+
+        pet_x, pet_y = 0, 0
+        win = self._agent._pet_window
+        if win:
+            pet_x = win.x()
+            pet_y = win.y()
+        self._agent._async_brain(self._agent._autonomous_pipeline, pet_x, pet_y)
+
+    # ── fast ──
+
+    def _recover(self):
+        """sit/sleep 期间每秒 +0.1 精力，sleep 每 3s 触发 zzz 粒子。"""
+        win = self._agent._pet_window
+        if not win:
+            return
+        cur = win.action_queue.current_action_name()
+        if cur == "sleep":
+            self._agent.vitals.modify_energy(0.1)
+            self._sleep_tick += 1
+            if self._sleep_tick % 3 == 0:
+                win.particles.spawn("zzz")
+        elif cur == "sit":
+            self._agent.vitals.modify_energy(0.1)
+            self._sleep_tick = 0
+
+    def _update_idle_anim(self):
+        """理智 < 20 → grim，否则 → idle，仅在无队列动作且不处于下落时切换。"""
+        win = self._agent._pet_window
+        if not win:
+            return
+        if win.action_queue.current_action_name() is not None:
+            return
+        if win.pet_actions.gravity.falling:
+            return
+        ms = self._agent.mood.numeric_summary()
+        sanity = ms.get("sanity", 100)
+        cur = win.pet_anim.current_action
+        if sanity < 20 and cur == "idle":
+            win.pet_anim.play("grim")
+        elif sanity >= 20 and cur == "grim":
+            win.pet_anim.play("idle")
+
+    def _spawn_dark_hearts(self):
+        """低理智时定期散发黑色心型粒子（每 2 tick 一次）。"""
+        win = self._agent._pet_window
+        if not win:
+            return
+        ms = self._agent.mood.numeric_summary()
+        if ms.get("sanity", 100) >= 20:
+            self._dark_heart_tick = 0
+            return
+        self._dark_heart_tick += 1
+        if self._dark_heart_tick % 2 == 0:
+            win.particles.spawn("dark_hearts")
+
+    # ── slow ──
+
+    def _wakeup(self):
+        """定期唤醒：sleeping → idle，并 stretch。"""
+        ts = datetime.now().strftime("%H:%M:%S")
+        logger.info(f"[{ts}] [PetAgent] [slow_tick]")
+        sm = self._agent.state_machine
+        if sm.state == PetState.SLEEPING:
+            sm.transition(PetState.IDLE)
+            logger.info(f"[{ts}] [PetAgent] slow_tick: woke up, emitting stretch")
+        self._agent._emit_action("stretch", (), {})

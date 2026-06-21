@@ -18,7 +18,6 @@ from pet.ui.speech_bubble import SpeechBubble
 from pet.ui.emotion import EmotionBubble, EMOTION_MAP
 from pet.ui.particle import ParticleWidget
 from pet.brain.behavior import Behavior
-from pet.agent.screen_reader import ScreenReader
 from config import config
 
 
@@ -34,8 +33,6 @@ class DebugWindow(QWidget):
             self.brain = agent.behavior
         else:
             self.brain = Behavior()
-        self.screen_reader = ScreenReader()
-        self.screen_reader.enable()
 
         if self.agent:
             self.agent.action_requested.connect(self._on_agent_action)
@@ -707,5 +704,4 @@ class DebugWindow(QWidget):
 
     def closeEvent(self, event):
         self._pos_timer.stop()
-        self.screen_reader.disable()
         super().closeEvent(event)

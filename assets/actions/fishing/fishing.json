@@ -1,0 +1,7 @@
+{
+  "desc": "钓鱼",
+  "tick_counts": 60,
+  "frame_ratios": [0.25, 0.25, 0.25, 0.25],
+  "loop": false,
+  "note": ""
+}

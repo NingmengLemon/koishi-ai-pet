@@ -203,6 +203,7 @@ def _autonomous_task() -> list[str]:
         "11. 台词、动作、互动方式全部由你的人格描述决定",
         "12. 必须查看[记忆存储指导]判断是否输出Memory行，如果值得，必须输出",
         "13. 你的言行必须反映「你现在的状态」中的感受——饿的时候没力气，疯的时候说不着边际的话",
+        "14. 理智低时通过 Speech 引导主人点击（抚摸）你，点击能恢复理智。正常理智时不必刻意引导",
     ]
 
     format_guide = (
@@ -254,6 +255,7 @@ def _chat_task() -> list[str]:
         "9. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored, crazy\n"
         "10. 必须查看[记忆存储指导]判断是否输出Memory行，如果值得，必须输出\n"
         "11. 你的言行必须反映「你现在的状态」中的感受",
+        "12. 理智低时通过 Speech 引导主人点击（抚摸）你，点击能恢复理智。正常理智时不必刻意引导",
         _MOOD_GUIDE,
     ]
     return parts
@@ -366,7 +368,7 @@ def _base_autonomous(context: str, mode: str) -> str:
             f"   • 无窗口 → 巡视桌面或找地方坐下\n"
             f"5. 检查截图和对话中是否发现值得记住的信息——用户身份、偏好、重要事件等\n"
             f"   有则输出 Memory: [类别] 记忆内容 | keywords:关键词 | importance:1-5\n"
-            f"6. 检查你的感受——如果理智不正常，翻看可用技能找点疯狂的事做；正常时如有需要也可使用技能\n"
+            f"6. 检查你的感受——如果理智不正常，翻看可用技能找点疯狂的事做，同时在 Speech 中暗示主人点击（抚摸）你来恢复理智；正常时如有需要也可使用技能\n"
             f"7. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）\n"
             f"8. Summary 必须基于截图和探测数据描述实际看到的内容"
         )
@@ -381,7 +383,7 @@ def _base_autonomous(context: str, mode: str) -> str:
         f"   • drive 方向可随机\n"
         f"4. 检查窗口内容和对话中是否发现值得记住的信息——用户身份、偏好、重要事件等\n"
         f"   有则输出 Memory: [类别] 记忆内容 | keywords:关键词 | importance:1-5\n"
-        f"5. 检查你的感受——如果理智不正常，翻看可用技能找点疯狂的事做；正常时如有需要也可使用技能\n"
+        f"5. 检查你的感受——如果理智不正常，翻看可用技能找点疯狂的事做，同时在 Speech 中暗示主人点击（抚摸）你来恢复理智；正常时如有需要也可使用技能\n"
         f"6. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）\n"
         f"7. 禁止重复 Recent 中的行为和台词"
     )

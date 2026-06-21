@@ -6,6 +6,7 @@ from PySide6.QtCore import QObject, QThread, QThreadPool, QTimer, Signal
 
 from pet.brain.behavior import Behavior, BehaviorOutput
 from pet.agent.scheduler import Scheduler
+from pet.agent.scheduled_tasks import ScheduledTasks
 from pet.agent.state import StateMachine
 from pet.agent.screen_reader import ScreenReader
 from pet.brain.memory import MemoryStore
@@ -65,16 +66,8 @@ class PetAgent(QObject):
         self.state_machine.state_changed.connect(self.state_changed)
         self._pet_window = None
 
-        self.scheduler.register("mid", self._autonomous)
-        self.scheduler.register("fast", self._recover)
-        self.scheduler.register("fast", self._update_idle_anim)
-        self.scheduler.register("fast", self._spawn_dark_hearts)
-        self.scheduler.register("slow", self._wakeup)
-        self.scheduler.register("slow", self.vitals.reduce)
-        self.scheduler.register("slow", self.vitals.save)
-        self.scheduler.register("slow", self.vitals.check_thresholds)
-        self.scheduler.register("slow", self.mood.save)
-        self.scheduler.register("slow", self.mood.check_thresholds)
+        self._tasks = ScheduledTasks(self)
+        self._tasks.register_all(self.scheduler)
 
         self._thread: QThread | None = None
         self._worker: BrainWorker | None = None
@@ -156,74 +149,6 @@ class PetAgent(QObject):
             kw["duration"] = DEFAULT_ACTION_DURATIONS[name]
             logger.debug(f"[PetAgent] backfill default duration for '{name}': {kw['duration']}s")
         self.action_requested.emit(name, args or (), kw)
-
-    def _autonomous(self):
-        ts = datetime.now().strftime("%H:%M:%S")
-        from pet.agent.state import PetState
-        if not self.state_machine.try_transition(PetState.AUTONOMOUS):
-            logger.info(f"[{ts}] [PetAgent] [mid_tick] skipped (state={self.state_machine.state.value})")
-            return
-
-        pet_x, pet_y = 0, 0
-        if self._pet_window:
-            pet_x = self._pet_window.x()
-            pet_y = self._pet_window.y()
-        self._async_brain(self._autonomous_pipeline, pet_x, pet_y)
-
-    def _recover(self):
-        # sit/sleep 动作期间每秒回复 0.1 精力，sleep 每 3 秒触发 zzz 粒子
-        if self._pet_window:
-            cur = self._pet_window.action_queue.current_action_name()
-            if cur == "sleep":
-                self.vitals.modify_energy(0.1)
-                if not hasattr(self, '_sleep_tick'):
-                    self._sleep_tick = 0
-                self._sleep_tick += 1
-                if self._sleep_tick % 3 == 0:
-                    self._pet_window.particles.spawn("zzz")
-            elif cur == "sit":
-                self.vitals.modify_energy(0.1)
-                self._sleep_tick = 0
-
-    def _update_idle_anim(self):
-        """根据理智值切换待机动画：sanity < 20 → grim，否则 → idle。"""
-        if not self._pet_window:
-            return
-        win = self._pet_window
-        # 仅在无队列动作且不处于下落状态时切换
-        if win.action_queue.current_action_name() is not None:
-            return
-        if win.pet_actions.gravity.falling:
-            return
-        ms = self.mood.numeric_summary()
-        sanity = ms.get("sanity", 100)
-        cur = win.pet_anim.current_action
-        if sanity < 20 and cur == "idle":
-            win.pet_anim.play("grim")
-        elif sanity >= 20 and cur == "grim":
-            win.pet_anim.play("idle")
-
-    def _spawn_dark_hearts(self):
-        """低理智时定期散发黑色心型粒子。独立于动画切换，任何状态下都生效。"""
-        if not self._pet_window:
-            return
-        ms = self.mood.numeric_summary()
-        if ms.get("sanity", 100) >= 20:
-            self._dark_heart_tick = 0
-            return
-        self._dark_heart_tick = getattr(self, '_dark_heart_tick', 0) + 1
-        if self._dark_heart_tick % 2 == 0:
-            self._pet_window.particles.spawn("dark_hearts")
-
-    def _wakeup(self):
-        from pet.agent.state import PetState
-        ts = datetime.now().strftime("%H:%M:%S")
-        logger.info(f"[{ts}] [PetAgent] [slow_tick]")
-        if self.state_machine.state == PetState.SLEEPING:
-            self.state_machine.transition(PetState.IDLE)
-            logger.info(f"[{ts}] [PetAgent] slow_tick: woke up, emitting stretch")
-        self._emit_action("stretch", (), {})
-
     def _autonomous_pipeline(self, pet_x=0, pet_y=0):
 
         window_context = self._build_window_context(pet_x, pet_y)
