@@ -66,6 +66,7 @@ class DebugWindow(QWidget):
 
         self._pos_timer = QTimer(self)
         self._pos_timer.timeout.connect(self._refresh_pos)
+        self._pos_timer.timeout.connect(self._refresh_llm_stats)
         self._pos_timer.start(1000)
 
     def showEvent(self, event):
@@ -404,6 +405,15 @@ class DebugWindow(QWidget):
 
         right.addWidget(ctx_group)
 
+        # ── LLM 调用统计 ──
+        stats_layout = QHBoxLayout()
+        self.label_llm_calls = QLabel("累计调用: —")
+        self.label_llm_calls.setFont(QFont("Consolas", 9))
+        self.label_llm_calls.setStyleSheet("color:#555;")
+        stats_layout.addWidget(self.label_llm_calls)
+        stats_layout.addStretch()
+        right.addLayout(stats_layout)
+
         log_group = QGroupBox("日志")
         log_layout = QVBoxLayout(log_group)
         self.log_output = QTextEdit()
@@ -618,3 +628,7 @@ class DebugWindow(QWidget):
     def closeEvent(self, event):
         self._pos_timer.stop()
         super().closeEvent(event)
+
+    def _refresh_llm_stats(self):
+        if hasattr(self.brain, 'llm_stats') and self.brain.llm_stats:
+            self.label_llm_calls.setText(f"累计调用: {self.brain.llm_stats.total} 次")
