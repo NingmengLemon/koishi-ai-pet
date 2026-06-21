@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 )
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QPoint, QTimer, QSize
+from PySide6.QtCore import Qt, QPoint, QTimer, QSize, QThread, Signal, QObject
 from PySide6.QtGui import QFont, QIcon, QPainter, QPainterPath, QColor, QPen
 from pet.ui.styles import (
     ICON_PATH, WINDOW_QSS, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
@@ -19,6 +19,30 @@ from pet.ui.emotion import EmotionBubble, EMOTION_MAP
 from pet.ui.particle import ParticleWidget
 from pet.brain.behavior import Behavior
 from config import config
+
+
+class _LLMTestWorker(QObject):
+    """在子线程中执行 LLM 连通性测试。"""
+    finished = Signal(bool, str, float)  # success, content_or_error, elapsed
+
+    def __init__(self, brain):
+        super().__init__()
+        self._brain = brain
+
+    def run(self):
+        import time
+        start = time.time()
+        try:
+            reply = self._brain._llm_call([
+                {"role": "system", "content": "你是调试助手。"},
+                {"role": "user", "content": "请回复 'OK' 表示联通正常。"},
+            ], max_tokens=50)
+            elapsed = time.time() - start
+            content = reply.choices[0].message.content or "(空响应)"
+            self.finished.emit(True, content, elapsed)
+        except Exception as e:
+            elapsed = time.time() - start
+            self.finished.emit(False, str(e), elapsed)
 
 
 class DebugWindow(QWidget):
@@ -611,8 +635,7 @@ class DebugWindow(QWidget):
         self.pet.particles.spawn(effect)
 
     def _test_llm_connectivity(self):
-        """测试 LLM API 连通性。"""
-        import time
+        """测试 LLM API 连通性（子线程执行）。"""
         self._log("LLM 连通性测试...")
         self.llm_test_output.clear()
         self.llm_test_output.append("测试中...")
@@ -628,28 +651,28 @@ class DebugWindow(QWidget):
             self.btn_llm_test.setEnabled(True)
             return
 
-        start = time.time()
-        try:
-            reply = self.brain._llm_call([
-                {"role": "system", "content": "你是调试助手。"},
-                {"role": "user", "content": "请回复 'OK' 表示联通正常。"},
-            ], max_tokens=50)
-            elapsed = time.time() - start
-            content = reply.choices[0].message.content or "(空响应)"
-            self.llm_test_output.clear()
+        self._llm_thread = QThread()
+        self._llm_worker = _LLMTestWorker(self.brain)
+        self._llm_worker.moveToThread(self._llm_thread)
+        self._llm_thread.started.connect(self._llm_worker.run)
+        self._llm_worker.finished.connect(self._on_llm_test_result)
+        self._llm_worker.finished.connect(self._llm_thread.quit)
+        self._llm_thread.start()
+
+    def _on_llm_test_result(self, success: bool, content: str, elapsed: float):
+        """LLM 连通性测试结果回调（主线程）。"""
+        self.llm_test_output.clear()
+        if success:
             self.llm_test_output.append(f"✅ 连接成功 ({elapsed:.1f}s)")
             self.llm_test_output.append(f"响应: {content[:200]}")
             self.label_llm_status.setText("✅ 正常")
             self._log(f"LLM 连通性测试通过 ({elapsed:.1f}s): {content[:60]}")
-        except Exception as e:
-            elapsed = time.time() - start
-            self.llm_test_output.clear()
+        else:
             self.llm_test_output.append(f"❌ 连接失败 ({elapsed:.1f}s)")
-            self.llm_test_output.append(f"错误: {e}")
+            self.llm_test_output.append(f"错误: {content}")
             self.label_llm_status.setText("❌ 失败")
-            self._log(f"LLM 连通性测试失败 ({elapsed:.1f}s): {e}")
-        finally:
-            self.btn_llm_test.setEnabled(True)
+            self._log(f"LLM 连通性测试失败 ({elapsed:.1f}s): {content}")
+        self.btn_llm_test.setEnabled(True)
 
     def _refresh_context(self):
         self.ctx_output.clear()
