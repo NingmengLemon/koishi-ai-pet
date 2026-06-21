@@ -452,8 +452,7 @@ class SettingsWindow(QWidget):
         form.addWidget(QLabel("交互 Prompt"))
         for label, key in [("抓取", "INTERACT_GRABBED_PROMPT"),
                            ("放下", "INTERACT_RELEASED_PROMPT"),
-                           ("窗口消失", "INTERACT_WINDOW_DISAPPEARED_PROMPT"),
-                           ("喂食", "INTERACT_FED_PROMPT")]:
+                           ("窗口消失", "INTERACT_WINDOW_DISAPPEARED_PROMPT")]:
             form.addWidget(QLabel(label))
             form.addWidget(self._text_area(key))
 

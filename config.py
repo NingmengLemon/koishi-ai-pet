@@ -33,7 +33,6 @@ _KEY_META = {
     "INTERACT_GRABBED_PROMPT":      ("str",  "",  "behavior", False),
     "INTERACT_RELEASED_PROMPT":     ("str",  "",  "behavior", False),
     "INTERACT_WINDOW_DISAPPEARED_PROMPT": ("str", "", "behavior", False),
-    "INTERACT_FED_PROMPT":          ("str",  "",  "behavior", False),
     # Appearance
     "VISION_ENABLED":     ("bool",  False,    "appearance",  False),
     "VISION_SCALE":       ("float", "1",      "appearance",  False),
