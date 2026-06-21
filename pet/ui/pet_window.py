@@ -8,6 +8,7 @@ from pet.ui.base_window import TransparentWindow
 from pet.ui.pet_animations import PetAnimator
 from pet.ui.particle import ParticleWidget
 from pet.ui.styles import MENU_QSS
+from pet.ui.settings_window import SettingsWindow
 from pet.action import PetActions, ActionQueue
 from pet.brain.prompts import INTERACT_GRABBED, INTERACT_RELEASED, INTERACT_WINDOW_DISAPPEARED
 from pet.skills.registry import SKILL_REGISTRY
@@ -256,6 +257,11 @@ class PetWindow(TransparentWindow):
             log_action.triggered.connect(self._show_log_window)
             menu.addAction(log_action)
 
+            # 设置窗口
+            settings_action = QAction("设置")
+            settings_action.triggered.connect(lambda: self._open_settings())
+            menu.addAction(settings_action)
+
             # 技能子菜单（每技能支持独立子菜单）
             skill_menu = StickyMenu("技能", menu)
             for name in SKILL_REGISTRY.skill_names:
@@ -307,6 +313,9 @@ class PetWindow(TransparentWindow):
             self._agent.trigger_once(2000)
         else:
             scheduler.pause_mid()
+
+    def _open_settings(self):
+        SettingsWindow.show_instance(self._agent, self)
 
     def _toggle_event_reaction(self):
         self._event_reaction = not self._event_reaction
