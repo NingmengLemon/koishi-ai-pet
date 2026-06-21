@@ -45,6 +45,24 @@ def _show_panel():
     _panel.raise_()
 
 
+def _add_with_notify(title: str) -> dict:
+    """添加待办 + Windows 通知。"""
+    result = _instance.add(title=title)
+    if "error" not in result:
+        SKILL_CTX.notify("待办已添加", title.strip())
+    return result
+
+
+def _complete_with_notify(todo_id: int) -> dict:
+    """切换完成状态 + Windows 通知。"""
+    result = _instance.toggle(todo_id)
+    if "error" not in result:
+        item = result.get("item", {})
+        label = "已完成" if item.get("status") == "done" else "已恢复"
+        SKILL_CTX.notify(f"待办{label}", item.get("title", ""))
+    return result
+
+
 def register(registry):
     if _instance is None:
         logger.error("[todo] Skipping registration — TodoListTool init failed")
@@ -57,8 +75,8 @@ def register(registry):
     registry.add_method(
         SKILL_NAME, "add",
         "添加新待办事项",
-        handler=_instance.add,
-        when="用户说「帮我记一个待办」「添加任务」时",
+        handler=_add_with_notify,
+        when="用户说「帮我记一下xxx」「添加任务xxx」时",
         args={
             "title": {"type": "str", "required": True, "desc": "任务标题"},
         },
@@ -78,7 +96,7 @@ def register(registry):
     registry.add_method(
         SKILL_NAME, "complete",
         "切换任务完成状态（已完成↔恢复待办）",
-        handler=_instance.toggle,
+        handler=_complete_with_notify,
         when="用户说「完成了」「做完了」「恢复这个任务」时",
         args={
             "id": {"type": "int", "required": True, "desc": "任务ID"},
