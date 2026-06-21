@@ -3,7 +3,8 @@
 import json
 import logging
 import os
-from PySide6.QtCore import QStandardPaths
+import sys
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +14,21 @@ def settings_path() -> str:
 
     Windows: %APPDATA%/DeskPet/settings.json
     macOS:   ~/Library/Application Support/DeskPet/settings.json
+    Linux:   ~/.config/DeskPet/settings.json
+
+    不依赖 QStandardPaths，避免 QApplication 未初始化时路径错误。
     """
-    base = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
-    os.makedirs(base, exist_ok=True)
-    return os.path.join(base, "settings.json")
+    if sys.platform == "win32":
+        base = os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))
+    elif sys.platform == "darwin":
+        base = str(Path.home() / "Library" / "Application Support")
+    else:
+        # XDG_CONFIG_HOME 或 ~/.config
+        base = os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+
+    app_dir = os.path.join(base, "DeskPet")
+    os.makedirs(app_dir, exist_ok=True)
+    return os.path.join(app_dir, "settings.json")
 
 
 def load_user_settings() -> dict:
