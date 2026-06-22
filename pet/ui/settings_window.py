@@ -91,6 +91,8 @@ class _VoiceTestWorker(QObject):
 class SettingsWindow(QWidget):
     _instance: SettingsWindow | None = None
 
+    _key_captured = Signal(str)   # 热键捕获完成（跨线程 → 主线程）
+
     @classmethod
     def show_instance(cls, agent, parent=None):
         """单例模式 — 获取或创建设置窗口并显示。"""
@@ -118,6 +120,7 @@ class SettingsWindow(QWidget):
         self._capture_listener = None
         self._fields = {}
         self._snapshot = {}
+        self._key_captured.connect(self._apply_captured_key)
 
         self.setObjectName("settingsWindow")
         self.setWindowTitle("设置")
@@ -754,19 +757,19 @@ class SettingsWindow(QWidget):
             logger.warning(f"[Settings] key name extraction failed: {e}")
             key_name = str(key).lower().replace("key.", "")
 
-        logger.info(f"[Settings] key_name={key_name!r}")
-        from PySide6.QtCore import QTimer
-        QTimer.singleShot(0, lambda: self._hotkey_display.setText(key_name))
-        QTimer.singleShot(0, self._on_capture_done)
+        logger.info(f"[Settings] key_name={key_name!r}, emitting _key_captured")
+        self._key_captured.emit(key_name)
         try:
             self._capture_listener.stop()
         except Exception as e:
             logger.warning(f"[Settings] listener stop failed: {e}")
         self._capture_listener = None
 
-    def _on_capture_done(self):
+    def _apply_captured_key(self, key_name: str):
+        """主线程：填入捕获的热键并恢复按钮。"""
+        logging.getLogger(__name__).info(f"[Settings] apply captured: {key_name!r}")
+        self._hotkey_display.setText(key_name)
         self._capture_btn.setText("录制")
-        logging.getLogger(__name__).info("[Settings] capture done")
 
     # ── 语音连接测试 ──
 
