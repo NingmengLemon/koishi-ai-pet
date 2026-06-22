@@ -1,4 +1,4 @@
-"""用户设置持久化 — JSON 文件读写（覆盖 .env 默认值）。"""
+"""用户设置持久化 — JSON 文件读写。"""
 
 import json
 import logging
