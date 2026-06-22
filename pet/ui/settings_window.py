@@ -441,12 +441,13 @@ class SettingsWindow(QWidget):
         # ── 语音输入 ──
         voice_group = QGroupBox("语音输入")
         voice_layout = QVBoxLayout(voice_group)
+        voice_layout.setSpacing(6)
 
         voice_enable = self._check("VOICE_INPUT_ENABLED", "启用语音输入")
         voice_layout.addWidget(voice_enable)
 
         voice_form = QFormLayout()
-        voice_form.setSpacing(6)
+        voice_form.setSpacing(8)
         voice_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
         # 热键：只读显示 + 录制按钮
