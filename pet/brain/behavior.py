@@ -500,10 +500,14 @@ class Behavior(BrainMixin):
             result_text, images = executor.format_results(results)
             logger.info(f"[Behavior] skill_round_{round_idx+1} executed {len(tool_calls)} tool(s), images={len(images)}")
 
-            # 保存 skill 请求和结果到上下文（供后续 LLM 调用参考）
-            self.add_context(role="assistant", content=f"[Skill] {current_content[:100]}")
-            self.add_context(role="system",
-                             content=f"[Skill结果] {result_text[:100]}")
+            # 保存 skill 请求和结果到上下文
+            self.add_context(role="assistant", content=f"[Skill] {current_content[:300]}")
+            for r in results:
+                if r.success:
+                    detail = f"[✓ {r.name}] {r.data}"[:200]
+                else:
+                    detail = f"[✗ {r.name}] 失败: {r.error}"[:200]
+                self.add_context(role="system", content=detail)
 
             history.append({"role": "assistant", "content": current_content})
             history.append(self.ctx.build_skill_result_message(result_text, images))

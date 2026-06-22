@@ -262,7 +262,7 @@ class PetAgent(QObject):
         return "\n".join(lines)
 
     def _trigger_interact(self, hint: str = "", delay_ms: int = 100,
-                          cooldown_ms: int = 15000):
+                          cooldown_ms: int = 15000, record_context: bool = False):
         if not hint:
             return
         from PySide6.QtCore import QDateTime
@@ -288,11 +288,13 @@ class PetAgent(QObject):
                 self._pet_window.action_queue.clear()
                 self._pet_window.pet_actions.thinking()
 
-            self._async_brain(self._interact_pipeline, hint)
+            self._async_brain(self._interact_pipeline, hint, record_context)
 
         QTimer.singleShot(delay_ms, _execute)
 
-    def _interact_pipeline(self, hint: str):
+    def _interact_pipeline(self, hint: str, record_context: bool = False):
+        if record_context:
+            self.behavior.add_context(role="user", content=hint)
         stream_started = False
         self._active_stream_id += 1
         my_stream_id = self._active_stream_id
