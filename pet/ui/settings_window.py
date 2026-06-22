@@ -448,7 +448,22 @@ class SettingsWindow(QWidget):
         voice_form = QFormLayout()
         voice_form.setSpacing(6)
         voice_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-        voice_form.addRow("热键:", self._line("VOICE_HOTKEY", "F8"))
+
+        # 热键：只读显示 + 录制按钮
+        hotkey_row = QHBoxLayout()
+        self._hotkey_display = QLineEdit()
+        self._hotkey_display.setReadOnly(True)
+        self._hotkey_display.setPlaceholderText("点击右侧按钮设置")
+        self._hotkey_display.setStyleSheet(INPUT_HIGHLIGHT_QSS)
+        self._hotkey_display.setFixedWidth(80)
+        self._fields["VOICE_HOTKEY"] = self._hotkey_display
+        hotkey_row.addWidget(self._hotkey_display)
+        capture_btn = QPushButton("录制")
+        capture_btn.setFixedSize(50, 28)
+        capture_btn.clicked.connect(self._on_capture_hotkey)
+        hotkey_row.addWidget(capture_btn)
+        voice_form.addRow("热键:", hotkey_row)
+
         voice_form.addRow("讯飞 APPID:", self._line("XF_APPID", ""))
         voice_form.addRow("讯飞 API Key:", self._line("XF_API_KEY", ""))
         voice_form.addRow("讯飞 API Secret:", self._line("XF_API_SECRET", ""))
@@ -687,6 +702,34 @@ class SettingsWindow(QWidget):
             self._test_output.append(f"错误: {content}")
             self._label_test.setText("❌ 失败")
         self._btn_test.setEnabled(True)
+
+    # ── 热键录制 ──
+
+    def _on_capture_hotkey(self):
+        """点击"录制"按钮后，捕捉用户按下的下一个按键。"""
+        from pynput import keyboard
+
+        self._msg("设置热键", "请在 5 秒内按下您要设置的按键...")
+
+        def on_press(key):
+            try:
+                key_name = key.char.lower() if hasattr(key, 'char') and key.char else key.name.lower()
+            except Exception:
+                key_name = str(key).lower().replace("key.", "")
+
+            # 在主线程更新 UI
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: self._hotkey_display.setText(key_name))
+
+            listener.stop()
+
+        listener = keyboard.Listener(on_press=on_press)
+        listener.daemon = True
+        listener.start()
+
+        # 5秒超时自动关闭
+        from PySide6.QtCore import QTimer as QTimer2
+        QTimer2.singleShot(5000, lambda: listener.stop() if listener.running else None)
 
     # ── 语音连接测试 ──
 
