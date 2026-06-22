@@ -219,6 +219,11 @@ class XunfeiSTT(QObject):
                 text = final if final else self._result_text
                 self.done.emit(text)
                 logger.info(f"[XunfeiSTT] result: {text}")
+                # 主动断开避免服务端空闲超时
+                try:
+                    ws.close()
+                except Exception:
+                    pass
 
         except Exception as e:
             logger.error(f"[XunfeiSTT] parse error: {e}")
