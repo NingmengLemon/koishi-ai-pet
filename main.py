@@ -45,7 +45,7 @@ def main():
         filename=os.path.join(_log_dir, "deskpet.log"),
         when="midnight",
         interval=1,
-        backupCount=7,
+        backupCount=3,
         encoding="utf-8",
     )
     _file_handler.setFormatter(logging.Formatter(
