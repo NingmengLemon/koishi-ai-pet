@@ -46,6 +46,7 @@ class XunfeiSTT(QObject):
         self._recording = False
         self._result_text = ""
         self._done_emitted = False
+        self._first_frame_sent = False
 
     # ── 连接管理 ──
 
@@ -96,6 +97,30 @@ class XunfeiSTT(QObject):
         self.connected.emit()
         logger.info("[XunfeiSTT] connected")
 
+        # 若识别已在等待连接，连接成功后补发第一帧（含 business 配置）
+        if self._recording and not self._first_frame_sent:
+            self._send_first_frame()
+
+    def _send_first_frame(self):
+        payload = {
+            "common": {"app_id": config.XF_APPID},
+            "business": {
+                "domain": "iat",
+                "language": "zh_cn",
+                "accent": "mandarin",
+                "vinfo": 1,
+                "vad_eos": 10000,
+            },
+            "data": {
+                "status": STATUS_FIRST_FRAME,
+                "format": "audio/L16;rate=16000",
+                "audio": "",
+                "encoding": "raw",
+            },
+        }
+        self._first_frame_sent = True
+        self._send(json.dumps(payload))
+
     def _on_close(self, ws, close_status_code, close_msg):
         self._connected = False
         was_recording = self._recording
@@ -119,28 +144,13 @@ class XunfeiSTT(QObject):
         self._recording = True
         self._result_text = ""
         self._done_emitted = False
+        self._first_frame_sent = False
 
-        # 按需建立连接
+        # 按需建立连接；第一帧在 _on_open 里发，避免握手未完成就 send
         if not self._connected:
             self.connect()
-
-        payload = {
-            "common": {"app_id": config.XF_APPID},
-            "business": {
-                "domain": "iat",
-                "language": "zh_cn",
-                "accent": "mandarin",
-                "vinfo": 1,
-                "vad_eos": 10000,
-            },
-            "data": {
-                "status": STATUS_FIRST_FRAME,
-                "format": "audio/L16;rate=16000",
-                "audio": "",
-                "encoding": "raw",
-            },
-        }
-        self._send(json.dumps(payload))
+        else:
+            self._send_first_frame()
 
     def send_audio(self, data: bytes):
         """推送一帧 PCM 音频数据。"""
