@@ -59,6 +59,21 @@ class BrainMixin:
             return ""
         return " | ".join(self._format_entries(selected))
 
+    def get_recent_user_messages(self, max_entries: int = 3,
+                                 skip_last: int = 0) -> str:
+        """获取最近的用户消息（供 autonomous 模式了解历史对话，非当前输入）。"""
+        with self._ctx_lock:
+            if not self._context:
+                return ""
+            end = -skip_last if skip_last > 0 else len(self._context)
+            available = self._context[:end]
+            user_msgs = [e for e in available if e.role == "user"]
+            if not user_msgs:
+                return ""
+            user_msgs.sort(key=self._score_entry, reverse=True)
+            parts = [e.content for e in user_msgs[:max_entries]]
+        return " | ".join(parts)
+
     def _select_entries(self, max_entries: int, skip_last: int) -> list[ContextEntry]:
         """加权选择：summary 硬优先 + 普通条目按分排序后截断。"""
         with self._ctx_lock:
