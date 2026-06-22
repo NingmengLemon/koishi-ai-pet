@@ -469,14 +469,24 @@ class SettingsWindow(QWidget):
         voice_form.addRow("讯飞 API Secret:", self._line("XF_API_SECRET", ""))
         voice_layout.addLayout(voice_form)
 
-        # 连接测试按钮（靠右放置）
+        # 连接测试（与 LLM 测试同风格）
         test_row = QHBoxLayout()
         test_row.addStretch()
-        test_btn = QPushButton("测试连接")
-        test_btn.setFixedSize(100, 28)
-        test_btn.clicked.connect(self._on_test_voice_connection)
-        test_row.addWidget(test_btn)
+        self._voice_btn_test = QPushButton("测试连接")
+        self._voice_btn_test.setFixedSize(100, 28)
+        self._voice_btn_test.clicked.connect(self._on_test_voice_connection)
+        test_row.addWidget(self._voice_btn_test)
+        self._voice_label_test = QLabel("就绪")
+        self._voice_label_test.setStyleSheet(f"color:{_COLOR_TEXT_SEC}; font-size:11px;")
+        test_row.addWidget(self._voice_label_test)
         voice_layout.addLayout(test_row)
+
+        self._voice_test_output = QTextEdit()
+        self._voice_test_output.setReadOnly(True)
+        self._voice_test_output.setMaximumHeight(60)
+        self._voice_test_output.setFont(QFont("Consolas", 9))
+        self._voice_test_output.setStyleSheet(TEXTEDIT_QSS)
+        voice_layout.addWidget(self._voice_test_output)
 
         layout.addWidget(voice_group)
 
@@ -744,8 +754,18 @@ class SettingsWindow(QWidget):
         api_secret = self._fields["XF_API_SECRET"].text().strip() if "XF_API_SECRET" in self._fields else ""
 
         if not app_id or not api_key or not api_secret:
-            self._msg("提示", "请先填写讯飞 APPID、API Key 和 API Secret。")
+            self._voice_test_output.clear()
+            self._voice_test_output.append("⚠ 请先填写讯飞 APPID、API Key 和 API Secret。")
+            self._voice_label_test.setText("未配置")
             return
+
+        if self._voice_thread and self._voice_thread.isRunning():
+            return
+
+        self._voice_test_output.clear()
+        self._voice_test_output.append("测试中...")
+        self._voice_btn_test.setEnabled(False)
+        self._voice_label_test.setText("测试中...")
 
         self._voice_thread = QThread()
         self._voice_worker = _VoiceTestWorker(app_id, api_key, api_secret)
@@ -756,10 +776,14 @@ class SettingsWindow(QWidget):
         self._voice_thread.start()
 
     def _on_voice_test_result(self, success: bool):
+        self._voice_test_output.clear()
         if success:
-            self._msg("连接测试", "✅ 讯飞语音连接成功！")
+            self._voice_test_output.append("✅ 讯飞语音连接成功！")
+            self._voice_label_test.setText("✅ 正常")
         else:
-            self._msg("连接测试", "❌ 连接失败，请检查凭证是否正确。", warning=True)
+            self._voice_test_output.append("❌ 连接失败，请检查凭证是否正确。")
+            self._voice_label_test.setText("❌ 失败")
+        self._voice_btn_test.setEnabled(True)
 
     # ── 获取模型列表 ──
 
