@@ -14,6 +14,7 @@ from pet.ui.styles import (
     ICON_PATH, WINDOW_QSS, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
     BUTTON_DANGER_QSS, INPUT_HIGHLIGHT_QSS, COMBOBOX_QSS, TEXTEDIT_QSS,
     LIST_QSS, CHECKBOX_QSS, LABEL_SECONDARY_QSS, LABEL_MONO_QSS,
+    SCROLLBAR_QSS,
     _COLOR_BG, _COLOR_BORDER_DARK, _COLOR_TEXT_TITLE, _COLOR_TEXT_MUTED, _COLOR_DANGER,
     make_minimize_button, make_close_button, ensure_taskbar_icon,
 )
@@ -395,7 +396,7 @@ class DebugWindow(QWidget):
         self.ctx_output.setReadOnly(True)
         self.ctx_output.setMaximumHeight(180)
         self.ctx_output.setFont(QFont("Consolas", 9))
-        self.ctx_output.setStyleSheet(f"QTextEdit {{ background: {_COLOR_BG}; }}")
+        self.ctx_output.setStyleSheet(f"QTextEdit {{ background: {_COLOR_BG}; }}" + SCROLLBAR_QSS)
         ctx_layout.addWidget(self.ctx_output)
 
         right.addWidget(ctx_group)
@@ -415,7 +416,7 @@ class DebugWindow(QWidget):
         self.log_output.setReadOnly(True)
         self.log_output.setMaximumHeight(150)
         self.log_output.setFont(QFont("Consolas", 9))
-        self.log_output.setStyleSheet(f"QTextEdit {{ background: {_COLOR_BG}; }}")
+        self.log_output.setStyleSheet(f"QTextEdit {{ background: {_COLOR_BG}; }}" + SCROLLBAR_QSS)
         log_layout.addWidget(self.log_output)
         left.addWidget(log_group)
 

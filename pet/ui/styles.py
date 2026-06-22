@@ -248,7 +248,8 @@ SCROLLBAR_QSS = """
 QScrollBar:vertical {
     background: """ + _COLOR_BG + """;
     width: 8px;
-    border-radius: 4px;
+    border: none;
+    margin: 0px;
 }
 QScrollBar::handle:vertical {
     background: """ + _COLOR_BORDER_DARK + """;
@@ -269,7 +270,8 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
 QScrollBar:horizontal {
     background: """ + _COLOR_BG + """;
     height: 8px;
-    border-radius: 4px;
+    border: none;
+    margin: 0px;
 }
 QScrollBar::handle:horizontal {
     background: """ + _COLOR_BORDER_DARK + """;
