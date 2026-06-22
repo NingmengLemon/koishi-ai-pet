@@ -260,6 +260,8 @@ QScrollBar::handle:vertical:hover {
 }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
+    border: none;
+    background: """ + _COLOR_BG + """;
 }
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
     background: none;
@@ -279,6 +281,8 @@ QScrollBar::handle:horizontal:hover {
 }
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
     width: 0px;
+    border: none;
+    background: """ + _COLOR_BG + """;
 }
 QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
     background: none;
