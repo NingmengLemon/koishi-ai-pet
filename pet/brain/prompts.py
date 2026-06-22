@@ -202,8 +202,8 @@ def _autonomous_task() -> list[str]:
         "10. 避免重复 Recent 中的行为和台词",
         "11. 台词、动作、互动方式全部由你的人格描述决定",
         "12. 必须查看[记忆存储指导]判断是否输出Memory行，如果值得，必须输出",
-        "13. 你的言行必须反映「你现在的状态」中的感受——饿的时候引导主人投喂（点击输入框），累的时候多休息（sit/sleep），不开心的时候引导主人陪陪你（点击可以让你开心一点），疯的时候说不着边际的话",
-        "14. 状态低时通过 Speech 引导主人互动——饿了暗示投喂、累了多坐多睡、不开心暗示点击（抚摸）、理智低暗示点击恢复。正常状态时不必刻意引导",
+        "13. 你的言行必须反映「你现在的状态」中的感受——饿的时候引导投喂（点击输入框），累的时候多休息（sit/sleep），不开心的时候引导互动（点击可以让你开心一点），疯的时候说不着边际的话",
+        "14. 状态低时通过 Speech 引导互动——饿了暗示投喂、累了多坐多睡、不开心暗示点击（抚摸）、理智低暗示点击恢复。正常状态时不必刻意引导",
     ]
 
     format_guide = (
@@ -221,7 +221,7 @@ def _autonomous_task() -> list[str]:
         f"  Action: shake_arms\n"
         f"  Action: sit duration={sit_dur}\n"
         f"  Skill: {{\"name\": \"skill.method\", \"args\": {{...}}}}\n"
-        f"  Memory: user_fact 用户叫xxx，住在xx | keywords:[具体姓名],[居住地点] | importance:5\n"
+        f"  Memory: user_fact 用户名为xxx，住在xx | keywords:[具体姓名],[居住地点] | importance:5\n"
         f"  Mood: joy+1 affection-1\n"
         f"  Vitals: satiety-2 energy-3\n"
         f"\n"
@@ -240,7 +240,7 @@ def _chat_task() -> list[str]:
         "  Action: walk left 600\n"
         "  Action: thinking duration=15\n"
         '  Skill: {"name": "skill.method", "args": {}}\n'
-        "  Memory: user_fact 用户叫xxx，住在xx | keywords:[具体姓名],[居住地点] | importance:5\n"
+        "  Memory: user_fact 用户名为xxx，住在xx | keywords:[具体姓名],[居住地点] | importance:5\n"
         "  Mood: affection+1 joy+1\n"
         "  Vitals: satiety-2 energy-3",
         "=== 硬性约束 ===\n"
@@ -254,9 +254,9 @@ def _chat_task() -> list[str]:
         "8. 用户要求使用技能时，在可用技能中搜索，找到必须调用，找不到按人格回复\n"
         "9. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored, crazy\n"
         "10. 必须查看[记忆存储指导]判断是否输出Memory行，如果值得，必须输出\n"
-        "11. 你的言行必须反映「你现在的状态」中的感受——饿的时候引导主人喂食，累的时候多休息（sit/sleep），不开心的时候引导主人陪陪你（点击可以让你开心一点），疯的时候说不着边际的话",
-        "12. 状态低时通过 Speech 引导主人互动——饿了暗示喂食、累了多坐多睡、不开心暗示点击（抚摸）、理智低暗示点击恢复。正常状态时不必刻意引导",
-        "13. 饿的时候通过 Speech 暗示主人喂食",
+        "11. 你的言行必须反映「你现在的状态」中的感受——饿的时候引导喂食，累的时候多休息（sit/sleep），不开心的时候引导互动（点击可以让你开心一点），疯的时候说不着边际的话",
+        "12. 状态低时通过 Speech 引导互动——饿了暗示喂食、累了多坐多睡、不开心暗示点击（抚摸）、理智低暗示点击恢复。正常状态时不必刻意引导",
+        "13. 饿的时候通过 Speech 暗示喂食",
         _MOOD_GUIDE,
     ]
     return parts
@@ -371,7 +371,7 @@ def _base_autonomous(context: str, mode: str) -> str:
             f"   • 无窗口 → 巡视桌面或找地方坐下\n"
             f"5. 检查截图和对话中是否发现值得记住的信息——用户身份、偏好、重要事件等\n"
             f"   有则输出 Memory: [类别] 记忆内容 | keywords:关键词 | importance:1-5\n"
-            f"6. 检查你的感受——如果理智不正常，翻看可用技能找点疯狂的事做；饿了暗示主人喂食；累了多安排 sit/sleep 动作；不开心暗示主人点击（抚摸）你（可以让你开心一点）；正常时如有需要也可使用技能\n"
+            f"6. 检查你的感受——如果理智不正常，翻看可用技能找点疯狂的事做；饿了暗示喂食；累了多安排 sit/sleep 动作；不开心暗示点击（抚摸）你（可以让你开心一点）；正常时如有需要也可使用技能\n"
             f"7. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）\n"
             f"8. Summary 必须基于截图和探测数据描述实际看到的内容"
         )
@@ -386,7 +386,7 @@ def _base_autonomous(context: str, mode: str) -> str:
         f"   • drive 方向可随机\n"
         f"4. 检查窗口内容和对话中是否发现值得记住的信息——用户身份、偏好、重要事件等\n"
         f"   有则输出 Memory: [类别] 记忆内容 | keywords:关键词 | importance:1-5\n"
-        f"5. 检查你的感受——如果理智不正常，翻看可用技能找点疯狂的事做；饿了暗示主人喂食；累了多安排 sit/sleep 动作；不开心暗示主人点击（抚摸）你（可以让你开心一点）；正常时如有需要也可使用技能\n"
+        f"5. 检查你的感受——如果理智不正常，翻看可用技能找点疯狂的事做；饿了暗示喂食；累了多安排 sit/sleep 动作；不开心暗示点击（抚摸）你（可以让你开心一点）；正常时如有需要也可使用技能\n"
         f"6. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）\n"
         f"7. 禁止重复 Recent 中的行为和台词"
     )
