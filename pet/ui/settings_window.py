@@ -458,10 +458,10 @@ class SettingsWindow(QWidget):
         self._hotkey_display.setFixedWidth(80)
         self._fields["VOICE_HOTKEY"] = self._hotkey_display
         hotkey_row.addWidget(self._hotkey_display)
-        capture_btn = QPushButton("录制")
-        capture_btn.setFixedSize(50, 28)
-        capture_btn.clicked.connect(self._on_capture_hotkey)
-        hotkey_row.addWidget(capture_btn)
+        self._capture_btn = QPushButton("录制")
+        self._capture_btn.setFixedSize(60, 28)
+        self._capture_btn.clicked.connect(self._on_capture_hotkey)
+        hotkey_row.addWidget(self._capture_btn)
         voice_form.addRow("热键:", hotkey_row)
 
         voice_form.addRow("讯飞 APPID:", self._line("XF_APPID", ""))
@@ -469,11 +469,14 @@ class SettingsWindow(QWidget):
         voice_form.addRow("讯飞 API Secret:", self._line("XF_API_SECRET", ""))
         voice_layout.addLayout(voice_form)
 
-        # 连接测试按钮
+        # 连接测试按钮（靠右放置）
+        test_row = QHBoxLayout()
+        test_row.addStretch()
         test_btn = QPushButton("测试连接")
-        test_btn.setFixedHeight(28)
+        test_btn.setFixedSize(100, 28)
         test_btn.clicked.connect(self._on_test_voice_connection)
-        voice_layout.addWidget(test_btn)
+        test_row.addWidget(test_btn)
+        voice_layout.addLayout(test_row)
 
         layout.addWidget(voice_group)
 
@@ -709,7 +712,8 @@ class SettingsWindow(QWidget):
         """点击"录制"按钮后，捕捉用户按下的下一个按键。"""
         from pynput import keyboard
 
-        self._msg("设置热键", "请在 5 秒内按下您要设置的按键...")
+        self._capture_btn.setText("录制中...")
+        self._capture_btn.setEnabled(False)
 
         def on_press(key):
             try:
@@ -717,19 +721,19 @@ class SettingsWindow(QWidget):
             except Exception:
                 key_name = str(key).lower().replace("key.", "")
 
-            # 在主线程更新 UI
             from PySide6.QtCore import QTimer
             QTimer.singleShot(0, lambda: self._hotkey_display.setText(key_name))
-
+            QTimer.singleShot(0, self._on_capture_done)
             listener.stop()
 
         listener = keyboard.Listener(on_press=on_press)
         listener.daemon = True
         listener.start()
 
-        # 5秒超时自动关闭
-        from PySide6.QtCore import QTimer as QTimer2
-        QTimer2.singleShot(5000, lambda: listener.stop() if listener.running else None)
+    def _on_capture_done(self):
+        """录制完成后恢复按钮状态。"""
+        self._capture_btn.setText("录制")
+        self._capture_btn.setEnabled(True)
 
     # ── 语音连接测试 ──
 
