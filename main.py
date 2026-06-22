@@ -154,7 +154,7 @@ def main():
         chat_bubble.voice_stopped.connect(_voice_session.stop)
 
         # 录音开始 → 自动展开输入框
-        _voice_session.recording_started.connect(chat_bubble.show_voice_input)
+        _voice_session.recording_started.connect(lambda: chat_bubble.show_voice_btn(True))
 
         _hotkey_mgr.start()
         logger.info("[Main] voice input initialized")

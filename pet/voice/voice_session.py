@@ -5,7 +5,7 @@ import logging
 from PySide6.QtCore import QObject, Signal
 
 from pet.voice.mic_capture import MicCapture
-from pet.voice.xunfei_stt import XunfeiSTT
+from pet.voice.xunfei_stt import STATUS_CONTINUE_FRAME, STATUS_FIRST_FRAME, XunfeiSTT
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,7 @@ class VoiceSession(QObject):
         if self._recording:
             return
         self._recording = True
+        self._first_chunk = True
         self._mic_started = False
         self._mic.start()
         self._stt.start()
@@ -56,7 +57,9 @@ class VoiceSession(QObject):
         """Mic 每帧 PCM 数据 → 推给讯飞。"""
         if not self._recording:
             return
-        self._stt.send_audio(data)
+        status = STATUS_FIRST_FRAME if self._first_chunk else STATUS_CONTINUE_FRAME
+        self._first_chunk = False
+        self._stt.send_audio(data, status)
 
     def _on_stt_done(self, text: str):
         """讯飞识别完成。"""

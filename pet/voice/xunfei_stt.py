@@ -188,7 +188,7 @@ class XunfeiSTT(QObject):
 
             if text:
                 self._result_text = self._result_text + text
-                self.partial_result.emit(text)
+                self.partial_result.emit(self._result_text)
 
             # 最后一帧，发出最终结果
             if status == 2:
