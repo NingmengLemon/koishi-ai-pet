@@ -286,6 +286,7 @@ class PetAgent(QObject):
 
             if self._pet_window:
                 self._pet_window.action_queue.clear()
+                self._pet_window.pet_actions.thinking()
 
             self._async_brain(self._interact_pipeline, hint)
 
