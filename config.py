@@ -50,6 +50,12 @@ _KEY_META = {
     "LOG_LEVEL":                 {"type": "str",      "default": "DEBUG",       "category": "appearance", "needs_restart": False, "hidden": True,  "description": "日志级别(DEBUG/INFO/WARNING/ERROR)"},
     # ── Personality ──
     "PET_PERSONALITY":           {"type": "str",      "default": "",            "category": "personality", "needs_restart": False, "hidden": False, "description": "宠物人格描述(注入 system prompt)"},
+    # ── Voice Input ──
+    "XF_APPID":                  {"type": "str",      "default": "",            "category": "connection", "needs_restart": False, "hidden": False, "description": "讯飞语音听写 APPID"},
+    "XF_API_KEY":                {"type": "str",      "default": "",            "category": "connection", "needs_restart": False, "hidden": False, "description": "讯飞语音听写 API Key"},
+    "XF_API_SECRET":             {"type": "str",      "default": "",            "category": "connection", "needs_restart": False, "hidden": False, "description": "讯飞语音听写 API Secret"},
+    "VOICE_INPUT_ENABLED":       {"type": "bool",     "default": False,         "category": "behavior",   "needs_restart": False, "hidden": False, "description": "启用语音输入"},
+    "VOICE_HOTKEY":              {"type": "str",      "default": "F8",          "category": "behavior",   "needs_restart": False, "hidden": False, "description": "语音输入全局热键"},
 }
 
 
