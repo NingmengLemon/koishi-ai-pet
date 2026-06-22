@@ -18,7 +18,6 @@
 DeskPet/
 ├── main.py                    # 入口
 ├── config.py                  # 全局配置
-├── .env.example               # 环境变量模板
 ├── requirements.txt
 ├── assets/actions/            # 帧动画素材（idle、walk、sit、sleep…）
 └── pet/
@@ -37,20 +36,25 @@ DeskPet/
 pip install -r requirements.txt
 ```
 
-### 2. 配置环境
+### 2. 配置
 
-复制 `.env.example` 为 `.env`，按需修改：
+所有配置通过 `settings.json` 管理，存储在 `%APPDATA%/DeskPet/settings.json`。
+首次启动会自动生成默认配置。也可通过托盘图标右键菜单 →「设置」进行图形化配置。
 
-```env
-BRAIN=api                # local / api / ollama
-LLM_MODEL=gpt-4o-mini    # 模型名
-LLM_KEY=sk-xxx           # API Key
-LLM_URL=https://api.openai.com/v1
+高级用户可直接编辑 `settings.json`，配置项的完整说明见同目录下的 `settings-schema.json`。
 
-VISION_ENABLED=true      # 启用视觉模式（需多模态模型）
-SKILLS_ENABLED=*         # * = 启用所有插件
+主要配置项示例：
 
-PET_PERSONALITY=你是一只活泼好动的Q版小猫，充满好奇心，喜欢在窗口之间跳来跳去。
+```json
+{
+  "BRAIN": "api",
+  "LLM_MODEL": "gpt-4o-mini",
+  "LLM_KEY": "sk-xxx",
+  "LLM_URL": "https://api.openai.com/v1",
+  "VISION_ENABLED": true,
+  "SKILLS_ENABLED": ["*"],
+  "PET_PERSONALITY": "你是一只活泼好动的Q版小猫，充满好奇心，喜欢在窗口之间跳来跳去。"
+}
 ```
 
 ### 3. 启动
@@ -163,13 +167,13 @@ def _take_screenshot() -> dict:
 
 ### 启用插件
 
-在 `.env` 中配置：
+在「设置 → 通用」中配置 `SKILLS_ENABLED` 字段，或在 `settings.json` 中直接编辑：
 
-```env
-SKILLS_ENABLED=my_skill,system_monitor   # 逗号分隔多个
-SKILLS_ENABLED=*                         # 启用全部
-SKILLS_ENABLED=                          # 留空 = 全部禁用
+```json
+"SKILLS_ENABLED": ["my_skill", "system_monitor"]
 ```
+
+`SKILLS_ENABLED = ["*"]` 启用全部。留空 `[]` = 全部禁用。
 
 未启用的插件文件会被加载器扫描到但不注册，不会出现在 LLM 可见的技能列表中。
 
@@ -253,7 +257,7 @@ ChatBubble.chat_submitted("…")
 
 ## 📝 日志
 
-应用日志按天切分，保留 7 天，输出至 `logs/deskpet.log`。日志级别由 `.env` 中 `LOG_LEVEL` 控制。
+应用日志按天切分，保留 7 天，输出至 `logs/deskpet.log`。日志级别由设置中的 `LOG_LEVEL` 控制。
 
 ## 📜 许可
 
