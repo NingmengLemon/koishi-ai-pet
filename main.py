@@ -138,6 +138,7 @@ def main():
 
         _voice_session = VoiceSession()
         _voice_session.connect()  # 启动时建立 WS 长连接
+        agent._voice_session = _voice_session  # 供设置窗口热重载
         _hotkey_mgr = HotkeyManager()
 
         # 热键 → 语音
