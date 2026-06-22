@@ -1,4 +1,4 @@
-"""设置界面 — 替代 .env 的图形化配置。"""
+"""设置界面 — 用户配置的图形界面。"""
 
 from __future__ import annotations
 
@@ -524,7 +524,7 @@ class SettingsWindow(QWidget):
         result = {}
         invalid_keys = []
         for key, widget in self._fields.items():
-            type_name = _KEY_META[key][0]
+            type_name = _KEY_META[key]["type"]
             if isinstance(widget, QLineEdit):
                 raw = widget.text().strip()
                 if type_name == "int":
@@ -561,8 +561,7 @@ class SettingsWindow(QWidget):
         values, invalid_keys = self._collect_values()
         if invalid_keys:
             # 构建字段友好名称映射
-            name_map = {k: v[0] for k, v in _KEY_META.items()}
-            bad_names = ", ".join(name_map.get(k, k) for k in invalid_keys)
+            bad_names = ", ".join(invalid_keys)
             self._msg("输入有误",
                       f"以下字段包含无效数值，未能保存：\n{bad_names}\n\n请检查数值型字段.")
             return
@@ -570,21 +569,17 @@ class SettingsWindow(QWidget):
         needs_rebuild_client = False
         needs_scheduler_update = False
 
-        connection_keys = {"BRAIN", "LLM_URL", "OLLAMA_BASE_URL", "LLM_KEY",
-                          "LLM_MODEL", "LLM_TIMEOUT", "LLM_MAX_RETRIES",
-                          "LLM_RETRY_DELAY", "LLM_RETRY_MAX_DELAY", "LLM_CACHE_PROMPT"}
-        scheduler_keys = {"SCHEDULER_FAST_MS", "SCHEDULER_MID_MS", "SCHEDULER_SLOW_MS",
-                         "SCHEDULER_IDLE_TIMEOUT_MS", "ACTION_TIMEOUT_MS",
-                         "SCHEDULER_AUTO_START_FAST", "SCHEDULER_AUTO_START_MID",
-                         "SCHEDULER_AUTO_START_SLOW"}
-
         for key, value in values.items():
             _, needs_restart = config.save(key, value)
             if needs_restart:
                 needs_restart_keys.append(key)
-            if key in connection_keys:
+
+            meta = _KEY_META.get(key)
+            if meta is None:
+                continue
+            if meta["category"] == "connection":
                 needs_rebuild_client = True
-            if key in scheduler_keys:
+            if meta["category"] == "behavior":
                 needs_scheduler_update = True
 
         # 运行时钩子
