@@ -121,12 +121,9 @@ class ContextBuilder:
         return content
 
     def _build_user_context(self, window_context: str) -> str:
-        """窗口探测文本 + 用户消息 + 近期行为历史（给 decide 模式用）。"""
+        """窗口探测文本 + 近期行为历史（给 decide 模式用）。"""
         ctx = window_context or "no context"
         if self._brain:
-            user_msgs = self._brain.get_recent_user_messages(3, skip_last=1)
-            if user_msgs:
-                ctx += f"\n用户最近说: {user_msgs}"
             recent = self._brain.get_context_inline(6, skip_last=1)
             if recent:
                 ctx += f"\nRecent: {recent}"
