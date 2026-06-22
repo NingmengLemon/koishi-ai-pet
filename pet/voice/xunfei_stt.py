@@ -7,7 +7,6 @@ import json
 import logging
 import ssl
 import threading
-import time
 from datetime import datetime
 from urllib.parse import urlencode
 from wsgiref.handlers import format_date_time
@@ -34,7 +33,7 @@ class XunfeiSTT(QObject):
 
     partial_result = Signal(str)  # 中间识别结果
     done = Signal(str)            # 最终完整结果
-    error_occurred = Signal(str)  # 错误信息
+    error = Signal(str)  # 错误信息
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -43,6 +42,7 @@ class XunfeiSTT(QObject):
         self._running = False
         self._result_text = ""
         self._final_text = ""
+        self._done_emitted = False
 
     def start(self):
         """建立 WebSocket 连接，发送第一帧音频。"""
@@ -50,10 +50,11 @@ class XunfeiSTT(QObject):
             return
         self._result_text = ""
         self._final_text = ""
+        self._done_emitted = False
 
         if not config.XF_APPID or not config.XF_API_KEY or not config.XF_API_SECRET:
             logger.error("[XunfeiSTT] missing API credentials")
-            self.error_occurred.emit("讯飞 API 凭证未配置")
+            self.error.emit("讯飞 API 凭证未配置")
             return
 
         url = self._build_url()
@@ -105,6 +106,7 @@ class XunfeiSTT(QObject):
             status: 0=第一帧, 1=中间帧, 2=最后一帧
         """
         if not self._ws or not self._ws.sock:
+            logger.warning("[XunfeiSTT] send_audio: socket not ready, dropping frame")
             return
         b64 = base64.b64encode(data).decode("utf-8")
 
@@ -157,8 +159,8 @@ class XunfeiSTT(QObject):
             }
             try:
                 self._ws.send(json.dumps(payload))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[XunfeiSTT] stop: failed to send last frame: {e}")
         logger.info("[XunfeiSTT] waiting for final result...")
 
     def _on_message(self, ws, message):
@@ -169,7 +171,7 @@ class XunfeiSTT(QObject):
             if code != 0:
                 err = msg.get("message", "unknown")
                 logger.error(f"[XunfeiSTT] server error: {code} {err}")
-                self.error_occurred.emit(f"讯飞错误: {err}")
+                self.error.emit(f"讯飞错误: {err}")
                 ws.close()
                 return
 
@@ -185,11 +187,12 @@ class XunfeiSTT(QObject):
                     text += cw.get("w", "")
 
             if text:
-                self._result_text = text
+                self._result_text = self._result_text + text
                 self.partial_result.emit(text)
 
             # 最后一帧，发出最终结果
             if status == 2:
+                self._done_emitted = True
                 final = data.get("result", {}).get("text", "")
                 if not final and self._result_text:
                     final = self._result_text
@@ -202,13 +205,13 @@ class XunfeiSTT(QObject):
 
     def _on_error(self, ws, error):
         logger.error(f"[XunfeiSTT] websocket error: {error}")
-        self.error_occurred.emit(str(error))
+        self.error.emit(str(error))
 
     def _on_close(self, ws, close_status_code, close_msg):
         logger.info(f"[XunfeiSTT] closed ({close_status_code})")
         self._running = False
         # 如果还没有发出 final，有 partial 就用 partial
-        if self._result_text and not self._final_text:
+        if not self._done_emitted and self._result_text and not self._final_text:
             self.done.emit(self._result_text)
 
     def force_stop(self):
