@@ -127,6 +127,38 @@ def main():
     agent.state_changed.connect(
         lambda s: feed_bubble.set_busy(s in ("autonomous", "interacting"))
     )
+
+    # ── 语音输入 ──
+    _voice_session = None
+    _hotkey_mgr = None
+
+    if config.VOICE_INPUT_ENABLED and config.XF_APPID:
+        from pet.voice.voice_session import VoiceSession
+        from pet.voice.hotkey_manager import HotkeyManager
+
+        _voice_session = VoiceSession()
+        _hotkey_mgr = HotkeyManager()
+
+        # 热键 → 语音
+        _hotkey_mgr.voice_start.connect(_voice_session.start)
+        _hotkey_mgr.voice_stop.connect(_voice_session.stop)
+
+        # 语音 → 气泡 UI
+        _voice_session.partial_text.connect(chat_bubble.set_voice_text)
+        _voice_session.transcription_done.connect(chat_bubble.set_voice_text)
+        _voice_session.recording_started.connect(lambda: chat_bubble.set_recording(True))
+        _voice_session.recording_stopped.connect(lambda: chat_bubble.set_recording(False))
+
+        # 按钮 → 语音
+        chat_bubble.voice_started.connect(_voice_session.start)
+        chat_bubble.voice_stopped.connect(_voice_session.stop)
+
+        # 录音开始 → 自动展开输入框
+        _voice_session.recording_started.connect(chat_bubble.show_voice_input)
+
+        _hotkey_mgr.start()
+        logger.info("[Main] voice input initialized")
+
     window.show()
     agent.start()
 
@@ -142,6 +174,11 @@ def main():
 
     def _shutdown():
         logger.info("shutting down...")
+        # 语音模块清理
+        if _hotkey_mgr:
+            _hotkey_mgr.stop()
+        if _voice_session:
+            _voice_session.force_stop()
         logging.getLogger().removeHandler(_log_handler)
         try:
             agent.behavior.llm_stats.save()
