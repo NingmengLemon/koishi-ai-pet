@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 from pet.ui.styles import (
     ICON_PATH, TEXTEDIT_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS, BUTTON_DANGER_QSS, COMBOBOX_QSS,
     _COLOR_BG, _COLOR_BORDER_DARK, _COLOR_TEXT_TITLE, _COLOR_TEXT_MUTED, _COLOR_DANGER,
+    make_minimize_button, make_close_button, ensure_taskbar_icon,
 )
 
 
@@ -158,27 +159,10 @@ class LogWindow(QWidget):
         header_layout.addStretch()
 
         # 最小化按钮
-        min_btn = QPushButton("—")
-        min_btn.setFixedSize(36, 36)
-        min_btn.setStyleSheet(f"""
-            QPushButton {{ background: transparent; border: none; border-radius: 18px;
-                         font-size: 18px; color: {_COLOR_TEXT_MUTED}; }}
-            QPushButton:hover {{ background: #87CEFA; color: #fff; }}
-        """)
-        min_btn.clicked.connect(self.showMinimized)
-        header_layout.addWidget(min_btn)
+        header_layout.addWidget(make_minimize_button(self))
 
-        # 关闭按钮
-        close_btn = QPushButton("✕")
-        close_btn.setObjectName("LogCloseBtn")
-        close_btn.setFixedSize(36, 36)
-        close_btn.setStyleSheet(f"""
-            QPushButton {{ background: transparent; border: none; border-radius: 18px;
-                         font-size: 18px; color: {_COLOR_TEXT_MUTED}; }}
-            QPushButton:hover {{ background: {_COLOR_DANGER}; color: #fff; }}
-        """)
-        close_btn.clicked.connect(self.hide)
-        header_layout.addWidget(close_btn)
+        # 关闭按钮（日志窗口关闭即隐藏）
+        header_layout.addWidget(make_close_button(self, on_close=self.hide))
 
         # ── 工具栏 ──
         toolbar = QHBoxLayout()
@@ -225,6 +209,10 @@ class LogWindow(QWidget):
 
         # 绑定 relay
         relay.set_widget(self)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        ensure_taskbar_icon(self)
 
     # ── 窗口圆角绘制 ──
 

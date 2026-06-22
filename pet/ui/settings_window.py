@@ -17,7 +17,8 @@ from pet.ui.styles import (
     INPUT_QSS, INPUT_HIGHLIGHT_QSS, COMBOBOX_QSS, TEXTEDIT_QSS, CHECKBOX_QSS,
     TAB_BAR_QSS,
     _COLOR_BG, _COLOR_BORDER_DARK, _COLOR_TEXT_TITLE,
-    _COLOR_TEXT_SEC, _COLOR_TEXT_MUTED, _COLOR_DANGER, _COLOR_WARNING,
+    _COLOR_TEXT_SEC, _COLOR_TEXT_MUTED, _COLOR_WARNING,
+    make_minimize_button, make_close_button, ensure_taskbar_icon,
 )
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,8 @@ class SettingsWindow(QWidget):
             except RuntimeError:
                 cls._instance = None
         if cls._instance is None:
-            cls._instance = cls(agent, parent=parent)
+            # 强制顶层窗口，确保在 Windows 任务栏有独立图标
+            cls._instance = cls(agent, parent=None)
         cls._instance._load_values()
         cls._instance.show()
         cls._instance.raise_()
@@ -117,6 +119,10 @@ class SettingsWindow(QWidget):
             TAB_BAR_QSS
         )
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        ensure_taskbar_icon(self)
+
     # ── UI 构建 ──
 
     def _setup_ui(self):
@@ -142,24 +148,8 @@ class SettingsWindow(QWidget):
         title.setStyleSheet(f"font-size:13px; color:{_COLOR_TEXT_TITLE}; font-weight:bold; background:transparent;")
         title_row.addWidget(title)
         title_row.addStretch()
-        btn_minimize = QPushButton("—")
-        btn_minimize.setFixedSize(36, 36)
-        btn_minimize.setStyleSheet(f"""
-            QPushButton {{ background: transparent; border: none; border-radius: 18px;
-                         font-size: 18px; color: {_COLOR_TEXT_MUTED}; }}
-            QPushButton:hover {{ background: #87CEFA; color: #fff; }}
-        """)
-        btn_minimize.clicked.connect(self.showMinimized)
-        title_row.addWidget(btn_minimize)
-        btn_close = QPushButton("✕")
-        btn_close.setFixedSize(36, 36)
-        btn_close.setStyleSheet(f"""
-            QPushButton {{ background: transparent; border: none; border-radius: 18px;
-                         font-size: 18px; color: {_COLOR_TEXT_MUTED}; }}
-            QPushButton:hover {{ background: {_COLOR_DANGER}; color: #fff; }}
-        """)
-        btn_close.clicked.connect(self.close)
-        title_row.addWidget(btn_close)
+        title_row.addWidget(make_minimize_button(self))
+        title_row.addWidget(make_close_button(self))
         root.addWidget(title_bar)
 
         # 标题栏拖拽

@@ -15,6 +15,7 @@ from pet.ui.styles import (
     BUTTON_DANGER_QSS, INPUT_HIGHLIGHT_QSS, COMBOBOX_QSS, TEXTEDIT_QSS,
     LIST_QSS, CHECKBOX_QSS, LABEL_SECONDARY_QSS, LABEL_MONO_QSS,
     _COLOR_BG, _COLOR_BORDER_DARK, _COLOR_TEXT_TITLE, _COLOR_TEXT_MUTED, _COLOR_DANGER,
+    make_minimize_button, make_close_button, ensure_taskbar_icon,
 )
 
 from pet.ui.speech_bubble import SpeechBubble
@@ -74,6 +75,7 @@ class DebugWindow(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
+        ensure_taskbar_icon(self)
         if self.agent:
             try:
                 ns = self.agent.vitals.numeric_summary()
@@ -114,25 +116,8 @@ class DebugWindow(QWidget):
         header_layout.addWidget(title_lbl)
         header_layout.addStretch()
 
-        min_btn = QPushButton("—")
-        min_btn.setFixedSize(36, 36)
-        min_btn.setStyleSheet(f"""
-            QPushButton {{ background: transparent; border: none; border-radius: 18px;
-                         font-size: 18px; color: {_COLOR_TEXT_MUTED}; }}
-            QPushButton:hover {{ background: #87CEFA; color: #fff; }}
-        """)
-        min_btn.clicked.connect(self.showMinimized)
-        header_layout.addWidget(min_btn)
-
-        close_btn = QPushButton("✕")
-        close_btn.setFixedSize(36, 36)
-        close_btn.setStyleSheet(f"""
-            QPushButton {{ background: transparent; border: none; border-radius: 18px;
-                         font-size: 18px; color: {_COLOR_TEXT_MUTED}; }}
-            QPushButton:hover {{ background: {_COLOR_DANGER}; color: #fff; }}
-        """)
-        close_btn.clicked.connect(self.close)
-        header_layout.addWidget(close_btn)
+        header_layout.addWidget(make_minimize_button(self))
+        header_layout.addWidget(make_close_button(self))
 
         root.addWidget(header)
 

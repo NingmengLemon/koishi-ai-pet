@@ -1,6 +1,10 @@
 """QSS 样式库 —— 扁平化圆角风格。"""
 
+import ctypes
 import os
+import sys
+
+from PySide6.QtWidgets import QPushButton
 
 # ── 资源路径 ──
 
@@ -371,3 +375,60 @@ QTabBar::tab:hover:!selected {
     background: #e8e8e8;
 }
 """
+
+# ── 标题栏按钮 ──
+
+def make_title_button(text: str, hover_color: str,
+                      base_color: str = _COLOR_TEXT_MUTED,
+                      text_color: str = "#fff") -> QPushButton:
+    """创建无边框面板窗口标题栏上的标准按钮（关闭 / 最小化）。"""
+    btn = QPushButton(text)
+    btn.setFixedSize(36, 36)
+    btn.setStyleSheet(f"""
+        QPushButton {{ background: transparent; border: none; border-radius: 18px;
+                     font-size: 18px; color: {base_color}; }}
+        QPushButton:hover {{ background: {hover_color}; color: {text_color}; }}
+    """)
+    return btn
+
+
+_LIGHT_BLUE_HOVER = "#87CEFA"
+
+
+def make_minimize_button(window) -> QPushButton:
+    """创建淡蓝色 hover 的最小化按钮，点击后最小化指定窗口。"""
+    btn = make_title_button("—", _LIGHT_BLUE_HOVER)
+    btn.clicked.connect(window.showMinimized)
+    return btn
+
+
+def make_close_button(window, on_close=None) -> QPushButton:
+    """创建红色 hover 的关闭按钮，点击后关闭窗口或调用自定义回调。"""
+    btn = make_title_button("✕", _COLOR_DANGER)
+    if on_close is None:
+        btn.clicked.connect(window.close)
+    else:
+        btn.clicked.connect(on_close)
+    return btn
+
+
+def ensure_taskbar_icon(window):
+    """强制无边框顶层窗口在 Windows 任务栏显示图标。
+
+    需要在窗口 show() 之后调用（通常在 showEvent 中）。
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        hwnd = int(window.winId())
+    except Exception:
+        return
+    if not hwnd:
+        return
+    GWL_EXSTYLE = -20
+    WS_EX_APPWINDOW = 0x00040000
+    try:
+        exstyle = ctypes.windll.user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+        ctypes.windll.user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, exstyle | WS_EX_APPWINDOW)
+    except Exception:
+        pass
