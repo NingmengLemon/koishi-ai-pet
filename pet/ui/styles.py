@@ -380,13 +380,14 @@ QTabBar::tab:hover:!selected {
 
 def make_title_button(text: str, hover_color: str,
                       base_color: str = _COLOR_TEXT_MUTED,
-                      text_color: str = "#fff") -> QPushButton:
+                      text_color: str = "#fff",
+                      font_size: str = "18px") -> QPushButton:
     """创建无边框面板窗口标题栏上的标准按钮（关闭 / 最小化）。"""
     btn = QPushButton(text)
     btn.setFixedSize(36, 36)
     btn.setStyleSheet(f"""
         QPushButton {{ background: transparent; border: none; border-radius: 18px;
-                     font-size: 18px; color: {base_color}; }}
+                     font-size: {font_size}; color: {base_color}; }}
         QPushButton:hover {{ background: {hover_color}; color: {text_color}; }}
     """)
     return btn
@@ -397,7 +398,7 @@ _LIGHT_BLUE_HOVER = "#87CEFA"
 
 def make_minimize_button(window) -> QPushButton:
     """创建淡蓝色 hover 的最小化按钮，点击后最小化指定窗口。"""
-    btn = make_title_button("—", _LIGHT_BLUE_HOVER)
+    btn = make_title_button("−", _LIGHT_BLUE_HOVER, font_size="16px")
     btn.clicked.connect(window.showMinimized)
     return btn
 
