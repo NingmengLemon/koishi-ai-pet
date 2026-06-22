@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QPushButton, QLabel, QComboBox,
 )
 from pet.ui.styles import (
-    ICON_PATH, TEXTEDIT_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS, BUTTON_DANGER_QSS, COMBOBOX_QSS,
+    ICON_PATH, TEXTEDIT_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS, BUTTON_DANGER_QSS, COMBOBOX_QSS, SCROLLBAR_QSS,
     _COLOR_BG, _COLOR_BORDER_DARK, _COLOR_TEXT_TITLE, _COLOR_TEXT_MUTED, _COLOR_DANGER,
     make_minimize_button, make_close_button, ensure_taskbar_icon,
 )
@@ -188,7 +188,7 @@ class LogWindow(QWidget):
         self._log_view.setReadOnly(True)
         self._log_view.setUndoRedoEnabled(False)  # 防止 undo stack 随 trim 无限增长
         self._log_view.setFont(QFont("Consolas", 10))
-        self._log_view.setStyleSheet(TEXTEDIT_QSS + f"""
+        self._log_view.setStyleSheet(TEXTEDIT_QSS + SCROLLBAR_QSS + f"""
             QTextEdit {{
                 background: {_COLOR_BG};
             }}

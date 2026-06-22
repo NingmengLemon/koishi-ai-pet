@@ -242,6 +242,49 @@ QTextEdit:disabled, QPlainTextEdit:disabled {
 }
 """
 
+# ── 滚动条 ──
+
+SCROLLBAR_QSS = """
+QScrollBar:vertical {
+    background: """ + _COLOR_BG + """;
+    width: 8px;
+    border-radius: 4px;
+}
+QScrollBar::handle:vertical {
+    background: """ + _COLOR_BORDER_DARK + """;
+    border-radius: 4px;
+    min-height: 24px;
+}
+QScrollBar::handle:vertical:hover {
+    background: """ + _COLOR_BORDER_FOCUS + """;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+QScrollBar:horizontal {
+    background: """ + _COLOR_BG + """;
+    height: 8px;
+    border-radius: 4px;
+}
+QScrollBar::handle:horizontal {
+    background: """ + _COLOR_BORDER_DARK + """;
+    border-radius: 4px;
+    min-width: 24px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: """ + _COLOR_BORDER_FOCUS + """;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}
+"""
+
 # ── 列表 ──
 
 LIST_QSS = """
