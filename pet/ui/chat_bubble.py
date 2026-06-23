@@ -169,11 +169,6 @@ class ChatBubble(QWidget):
             self._collapse()
             self.hide_bubble()
 
-    def submit_voice_text(self):
-        """把当前输入框的文字当消息提交并收起（按下停止键时调用）。"""
-        if self._input.text().strip():
-            self._on_submit()
-
     def set_recording_icon(self, recording: bool):
         """切换按钮图标：录音中显示 audio_recording 图标。"""
         if recording:
