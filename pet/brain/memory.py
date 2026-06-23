@@ -583,27 +583,31 @@ class MemoryStore:
 
     def _build_retriever(self, dedup_threshold: float) -> _MemoryRetriever:
         from config import config
-        if (config.EMBEDDING_ENABLED
-                and config.EMBEDDING_URL
-                and config.EMBEDDING_KEY
-                and config.EMBEDDING_MODEL
-                and self._try_load_vec_extension()):
+        reasons = []
+        vec_ok = False
+
+        if not config.EMBEDDING_ENABLED:
+            reasons.append("EMBEDDING_ENABLED=False")
+        if not config.EMBEDDING_URL:
+            reasons.append("EMBEDDING_URL not set")
+        if not config.EMBEDDING_KEY:
+            reasons.append("EMBEDDING_KEY not set")
+        if not config.EMBEDDING_MODEL:
+            reasons.append("EMBEDDING_MODEL not set")
+
+        if not reasons:
+            vec_ok = self._try_load_vec_extension()
+            if not vec_ok:
+                reasons.append("sqlite-vec not available")
+
+        if vec_ok:
             try:
                 logger.info("[MemoryStore] embedding config OK, initializing VectorRetriever")
                 return VectorRetriever(self._conn, dedup_threshold=dedup_threshold)
             except Exception as e:
                 logger.warning(f"[MemoryStore] VectorRetriever init failed: {e}, falling back to KeywordRetriever")
-        else:
-            reasons = []
-            if not config.EMBEDDING_ENABLED:
-                reasons.append("EMBEDDING_ENABLED=False")
-            if not config.EMBEDDING_URL:
-                reasons.append("EMBEDDING_URL not set")
-            if not config.EMBEDDING_KEY:
-                reasons.append("EMBEDDING_KEY not set")
-            if not config.EMBEDDING_MODEL:
-                reasons.append("EMBEDDING_MODEL not set")
-            logger.info(f"[MemoryStore] vector mode disabled ({', '.join(reasons)}), using KeywordRetriever")
+
+        logger.info(f"[MemoryStore] vector mode disabled ({', '.join(reasons)}), using KeywordRetriever")
         return KeywordRetriever(self._conn, dedup_threshold=dedup_threshold)
 
     def save(self, category, content, keywords, importance=3):
