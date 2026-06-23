@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from difflib import SequenceMatcher
 from typing import Optional, List, Tuple
+from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,42 @@ STOP_WORDS = {
     "呢", "什么", "那", "可以", "这个", "那个", "还", "能", "对", "让",
     "但", "而", "或", "如果", "因为", "所以", "把", "被", "从", "比",
 }
+
+
+# ── Abstract interface ──
+
+class _MemoryRetriever(ABC):
+    """Abstract interface for memory retrieval strategies."""
+
+    @abstractmethod
+    def save(self, category: str, content: str, keywords: list[str], importance: int): ...
+
+    @abstractmethod
+    def save_from_line(self, line: str): ...
+
+    @abstractmethod
+    def retrieve_context(self, user_message: str) -> str: ...
+
+    @abstractmethod
+    def query_core(self, limit: int = 5) -> list[dict]: ...
+
+    @abstractmethod
+    def query_recent(self, hours: int = 24, limit: int = 3) -> list[dict]: ...
+
+    @abstractmethod
+    def query_by_text(self, text: str, limit: int = 3) -> list[dict]: ...
+
+    @abstractmethod
+    def find_similar(self, content: str, keywords: list[str]) -> Tuple[Optional[dict], float]: ...
+
+    @abstractmethod
+    def touch(self, ids_or_rows): ...
+
+    @abstractmethod
+    def enforce_capacity(self): ...
+
+    @abstractmethod
+    def close(self): ...
 
 
 class LightweightDeduplicator:
@@ -70,45 +107,24 @@ class LightweightDeduplicator:
         return results
 
 
-class MemoryStore:
+# ── Keyword retriever (original logic) ──
+
+class KeywordRetriever(_MemoryRetriever):
 
     MAX_MEMORIES = 200
     # 记忆被召回后多长时间内禁止被 LLM 再次保存（冷却期，秒）
     RECALL_COOLDOWN_SECONDS = 300  # 5 分钟
 
-    def __init__(self, db_path: str | None = None, dedup_threshold: float = 0.6):
-        if db_path is None:
-            db_path = str(Path(__file__).resolve().parent.parent.parent / "pet.db")
-
-        self._db_path = db_path
-        self._conn = sqlite3.connect(db_path, check_same_thread=False)
+    def __init__(self, conn: sqlite3.Connection, dedup_threshold: float = 0.6):
+        self._conn = conn
         self._conn.row_factory = sqlite3.Row
         self._lock = threading.Lock()
 
         # 召回冷却：记录每条记忆最近一次被召回的时间戳
         self._recall_times: dict[int, datetime] = {}
 
-        self._create_table()
-
         self._deduplicator = LightweightDeduplicator(sim_threshold=dedup_threshold)
-        logger.info(f"[MemoryStore] 初始化完成，轻量去重阈值: {dedup_threshold}")
-
-    def _create_table(self):
-        with self._lock:
-            self._conn.execute("""
-                CREATE TABLE IF NOT EXISTS memories (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    category TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    keywords TEXT NOT NULL,
-                    importance INTEGER DEFAULT 3,
-                    created_at TEXT NOT NULL,
-                    access_count INTEGER DEFAULT 0
-                )
-            """)
-            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_importance ON memories(importance DESC)")
-            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_created ON memories(created_at DESC)")
-            self._conn.commit()
+        logger.info(f"[KeywordRetriever] 初始化完成，轻量去重阈值: {dedup_threshold}")
 
     def save(self, category: str, content: str, keywords: list[str], importance: int = 3):
         with self._lock:
@@ -122,7 +138,7 @@ class MemoryStore:
                     elapsed = (datetime.now() - last_recall).total_seconds()
                     if elapsed < self.RECALL_COOLDOWN_SECONDS:
                         logger.info(
-                            f"[MemoryStore] 记忆冷却中，跳过保存 (距召回 {elapsed:.0f}s): {content[:20]}..."
+                            f"[KeywordRetriever] 记忆冷却中，跳过保存 (距召回 {elapsed:.0f}s): {content[:20]}..."
                         )
                         return
 
@@ -140,7 +156,7 @@ class MemoryStore:
                     "UPDATE memories SET content=?, keywords=?, importance=? WHERE id=?",
                     (merged_content, ",".join(merged_keywords), merged_importance, existing["id"])
                 )
-                logger.info(f"[MemoryStore] 记忆合并 (相似度:{similarity:.2f}): {content[:20]}...")
+                logger.info(f"[KeywordRetriever] 记忆合并 (相似度:{similarity:.2f}): {content[:20]}...")
             else:
                 self._conn.execute(
                     "INSERT INTO memories (category, content, keywords, importance, created_at) VALUES (?,?,?,?,?)",
@@ -148,7 +164,7 @@ class MemoryStore:
                 )
 
             self._conn.commit()
-            self._enforce_capacity()
+            self.enforce_capacity()
 
     def save_from_line(self, line: str):
         line = line.strip()
@@ -156,7 +172,7 @@ class MemoryStore:
         if not cat_match:
             cat_match = re.match(r"(\w+)\s+(.+)", line)
         if not cat_match:
-            logger.warning(f"[MemoryStore] 无法解析 memory 行: {line}")
+            logger.warning(f"[KeywordRetriever] 无法解析 memory 行: {line}")
             return
 
         category = cat_match.group(1)
@@ -190,7 +206,7 @@ class MemoryStore:
                 "SELECT * FROM memories WHERE importance >= 4 ORDER BY importance DESC, created_at DESC LIMIT ?",
                 (limit,)
             ).fetchall()
-        self._touch(rows)
+        self.touch(rows)
         return [dict(r) for r in rows]
 
     def query_recent(self, hours: int = 24, limit: int = 3) -> list[dict]:
@@ -200,15 +216,16 @@ class MemoryStore:
                 "SELECT * FROM memories WHERE created_at >= ? ORDER BY created_at DESC LIMIT ?",
                 (since, limit)
             ).fetchall()
-        self._touch(rows)
+        self.touch(rows)
         return [dict(r) for r in rows]
 
-    def query_by_keywords(self, keywords: list[str], limit: int = 3) -> list[dict]:
+    def query_by_text(self, text: str, limit: int = 3) -> list[dict]:
+        keywords = self._extract_keywords(text)
         if not keywords:
             return []
         conditions = " OR ".join(["keywords LIKE ?" for _ in keywords])
         params = [f"%{kw}%" for kw in keywords]
-        
+
         with self._lock:
             rows = self._conn.execute(
                 f"SELECT * FROM memories WHERE {conditions} ORDER BY importance DESC, created_at DESC LIMIT ?",
@@ -220,7 +237,7 @@ class MemoryStore:
             return len(row_kws & set(keywords))
 
         rows = sorted(rows, key=match_score, reverse=True)[:limit]
-        self._touch(rows)
+        self.touch(rows)
         return [dict(r) for r in rows]
 
     def retrieve_context(self, user_message: str) -> str:
@@ -239,7 +256,7 @@ class MemoryStore:
 
         keywords = self._extract_keywords(user_message)
         if keywords:
-            for m in self.query_by_keywords(keywords, 3):
+            for m in self.query_by_text(user_message, 3):
                 if m["id"] not in seen_ids:
                     seen_ids.add(m["id"])
                     results.append(m)
@@ -263,19 +280,18 @@ class MemoryStore:
             keywords = jieba.analyse.extract_tags(text, topK=5)
             if keywords:
                 return keywords
-        
+
         # 降级方案：正则提取
         tokens = re.split(r"[\s,，。！？、；：\n]+", text)
         keywords = [
             t for t in tokens
             if len(t) >= 2 and t not in STOP_WORDS and not t.isdigit()
-       ][:5]
+        ][:5]
         return keywords
 
     def _find_similar(self, content: str, keywords: list[str]) -> Tuple[Optional[dict], float]:
-        """两步走漏斗：先用关键词捞取候选集（快），再用文本相似度精准打分（准）"""
         candidate_rows = []
-        
+
         # 1. 关键词捞取候选集
         if keywords:
             conditions = " OR ".join(["keywords LIKE ?" for _ in keywords])
@@ -283,7 +299,7 @@ class MemoryStore:
             candidate_rows = self._conn.execute(
                 f"SELECT * FROM memories WHERE {conditions} LIMIT 20", params
             ).fetchall()
-        
+
         # 2. 如果关键词匹配不到任何候选，补充最近的重要记忆作为候选集
         if len(candidate_rows) < 3:
             recent_rows = self._conn.execute(
@@ -293,24 +309,30 @@ class MemoryStore:
             for row in recent_rows:
                 if row["id"] not in existing_ids:
                     candidate_rows.append(row)
-        
+
         if not candidate_rows:
             return None, 0.0
 
         # 3. 轻量级文本相似度计算
         existing_texts = [row["content"] for row in candidate_rows]
         duplicates = self._deduplicator.find_duplicates(content, existing_texts)
-        
+
         if duplicates:
             best_idx, best_score = duplicates[0]
             return dict(candidate_rows[best_idx]), best_score
-            
+
         return None, 0.0
 
-    def _touch(self, rows):
-        if not rows:
+    def find_similar(self, content: str, keywords: list[str]) -> Tuple[Optional[dict], float]:
+        return self._find_similar(content, keywords)
+
+    def touch(self, ids_or_rows):
+        if not ids_or_rows:
             return
-        ids = [r["id"] for r in rows]
+        if isinstance(ids_or_rows[0], int):
+            ids = ids_or_rows
+        else:
+            ids = [r["id"] for r in ids_or_rows]
         with self._lock:
             placeholders = ",".join(["?"] * len(ids))
             self._conn.execute(
@@ -319,19 +341,19 @@ class MemoryStore:
             )
             self._conn.commit()
 
-    def _enforce_capacity(self):
+    def enforce_capacity(self):
         """容量控制（需在已有 lock 内调用）"""
         count = self._conn.execute("SELECT COUNT(*) FROM memories").fetchall()[0][0]
         if count <= self.MAX_MEMORIES:
             return
-            
+
         cutoff = (datetime.now() - timedelta(days=30)).isoformat()
         self._conn.execute(
             "DELETE FROM memories WHERE importance <= 2 AND created_at < ? AND access_count <= 1",
             (cutoff,)
         )
         self._conn.commit()
-        
+
         count = self._conn.execute("SELECT COUNT(*) FROM memories").fetchall()[0][0]
         if count > self.MAX_MEMORIES:
             excess = count - self.MAX_MEMORIES
@@ -344,3 +366,78 @@ class MemoryStore:
     def close(self):
         with self._lock:
             self._conn.close()
+
+
+# ── MemoryStore wrapper ──
+
+class MemoryStore:
+
+    def __init__(self, db_path: str | None = None, dedup_threshold: float = 0.6):
+        if db_path is None:
+            db_path = str(Path(__file__).resolve().parent.parent.parent / "pet.db")
+
+        self._db_path = db_path
+        self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        self._conn.row_factory = sqlite3.Row
+        self._lock = threading.Lock()
+
+        self._create_table()
+        self._retriever = self._build_retriever(dedup_threshold)
+
+    def _create_table(self):
+        with self._lock:
+            self._conn.execute("""
+                CREATE TABLE IF NOT EXISTS memories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    keywords TEXT NOT NULL,
+                    importance INTEGER DEFAULT 3,
+                    created_at TEXT NOT NULL,
+                    access_count INTEGER DEFAULT 0
+                )
+            """)
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_importance ON memories(importance DESC)")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_created ON memories(created_at DESC)")
+            # Add has_embedding column idempotently
+            cursor = self._conn.execute("PRAGMA table_info(memories)")
+            cols = [row[1] for row in cursor.fetchall()]
+            if "has_embedding" not in cols:
+                self._conn.execute("ALTER TABLE memories ADD COLUMN has_embedding INTEGER DEFAULT 0")
+            self._conn.commit()
+
+    def _try_load_vec_extension(self) -> bool:
+        """Try to load sqlite-vec extension. Return True if available."""
+        try:
+            import sqlite_vec
+            sqlite_vec.load(self._conn)
+            return True
+        except Exception as e:
+            logger.warning(f"[MemoryStore] sqlite-vec not available: {e}")
+            return False
+
+    def _build_retriever(self, dedup_threshold: float) -> _MemoryRetriever:
+        from config import config
+        if (config.EMBEDDING_ENABLED
+                and config.EMBEDDING_URL
+                and config.EMBEDDING_KEY
+                and config.EMBEDDING_MODEL
+                and self._try_load_vec_extension()):
+            try:
+                from pet.brain.embedding_client import EmbeddingClient
+                return VectorRetriever(self._conn, dedup_threshold=dedup_threshold)
+            except Exception as e:
+                logger.warning(f"[MemoryStore] VectorRetriever init failed: {e}, falling back to KeywordRetriever")
+        return KeywordRetriever(self._conn, dedup_threshold=dedup_threshold)
+
+    def save(self, category, content, keywords, importance=3):
+        return self._retriever.save(category, content, keywords, importance)
+
+    def save_from_line(self, line: str):
+        return self._retriever.save_from_line(line)
+
+    def retrieve_context(self, user_message: str) -> str:
+        return self._retriever.retrieve_context(user_message)
+
+    def close(self):
+        self._retriever.close()
