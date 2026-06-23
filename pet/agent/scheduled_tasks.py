@@ -16,6 +16,7 @@ class ScheduledTasks:
         self._agent = agent
         self._sleep_tick: int = 0
         self._dark_heart_tick: int = 0
+        self._star_tick: int = 0
 
     # ── 注册 ──
 
@@ -23,7 +24,7 @@ class ScheduledTasks:
         scheduler.register("mid", self._autonomous)
         scheduler.register("fast", self._recover)
         scheduler.register("fast", self._update_idle_anim)
-        scheduler.register("fast", self._spawn_dark_hearts)
+        scheduler.register("fast", self._spawn_particles)
         scheduler.register("slow", self._wakeup)
         scheduler.register("slow", self._agent.vitals.reduce)
         scheduler.register("slow", self._agent.vitals.save)
@@ -80,18 +81,33 @@ class ScheduledTasks:
         elif sanity >= config.SANITY_CRITICAL_THRESHOLD and cur == "grim":
             win.pet_anim.play("idle")
 
-    def _spawn_dark_hearts(self):
-        """低理智时定期散发黑色心型粒子（每 2 tick 一次）。"""
+    def _spawn_particles(self):
+        """fast_tick 定期粒子特效：
+        - 低理智 → dark_hearts（每 2 tick）
+        - shake_arms 播放中 → stars（每 2 tick）
+        """
         win = self._agent._pet_window
         if not win:
             return
         ms = self._agent.mood.numeric_summary()
-        if ms.get("sanity", 100) >= config.SANITY_CRITICAL_THRESHOLD:
+        sanity = ms.get("sanity", 100)
+
+        # dark_hearts: 低理智时散发
+        if sanity < config.SANITY_CRITICAL_THRESHOLD:
+            self._dark_heart_tick += 1
+            if self._dark_heart_tick % 2 == 0:
+                win.particles.spawn("dark_hearts")
+        else:
             self._dark_heart_tick = 0
-            return
-        self._dark_heart_tick += 1
-        if self._dark_heart_tick % 2 == 0:
-            win.particles.spawn("dark_hearts")
+
+        # stars: shake_arms 播放中散发
+        cur = win.action_queue.current_action_name()
+        if cur == "shake_arms":
+            self._star_tick += 1
+            if self._star_tick % 2 == 0:
+                win.particles.spawn("stars")
+        else:
+            self._star_tick = 0
 
     # ── slow ──
 

@@ -410,7 +410,6 @@ class PetActions(QObject):
 
     def shake_arms(self, **_kw):
         self._anim.play("shake_arms")
-        self._window.particles.spawn("stars")
 
     def look_around(self, **_kw):
         self._anim.play("look_around")
