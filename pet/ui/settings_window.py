@@ -418,6 +418,32 @@ class SettingsWindow(QWidget):
         sanity_form.addRow("", hint)
         layout.addWidget(sanity_group)
 
+        # ── 记忆设置 ──
+        memory_group = QGroupBox("记忆设置")
+        memory_layout = QVBoxLayout(memory_group)
+        memory_layout.setSpacing(8)
+
+        memory_enable = self._check("EMBEDDING_ENABLED", "启用向量记忆")
+        memory_layout.addWidget(memory_enable)
+
+        memory_form = QFormLayout()
+        memory_form.setSpacing(8)
+        memory_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        memory_form.addRow("API 地址:", self._line("EMBEDDING_URL", "https://open.bigmodel.cn/api/paas/v4"))
+        memory_form.addRow("API Key:", self._line("EMBEDDING_KEY", ""))
+        memory_form.addRow("模型名:", self._line("EMBEDDING_MODEL", "embedding-3"))
+        memory_form.addRow("向量维度:", self._line("EMBEDDING_DIM", "2048", QIntValidator(64, 8192)))
+        memory_layout.addLayout(memory_form)
+
+        # 重启提示
+        memory_hint = QLabel("修改记忆设置后需重启 DeskPet 生效。")
+        memory_hint.setStyleSheet(f"color:{_COLOR_WARNING}; font-size:11px; font-weight:bold;")
+        memory_hint.setWordWrap(True)
+        memory_layout.addWidget(memory_hint)
+
+        layout.addWidget(memory_group)
+
         layout.addStretch()
         return w
 
@@ -501,32 +527,6 @@ class SettingsWindow(QWidget):
         voice_layout.addWidget(self._voice_test_output)
 
         layout.addWidget(voice_group)
-
-        # ── 记忆设置 ──
-        memory_group = QGroupBox("记忆设置")
-        memory_layout = QVBoxLayout(memory_group)
-        memory_layout.setSpacing(8)
-
-        memory_enable = self._check("EMBEDDING_ENABLED", "启用向量记忆")
-        memory_layout.addWidget(memory_enable)
-
-        memory_form = QFormLayout()
-        memory_form.setSpacing(8)
-        memory_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-
-        memory_form.addRow("API 地址:", self._line("EMBEDDING_URL", "https://open.bigmodel.cn/api/paas/v4"))
-        memory_form.addRow("API Key:", self._line("EMBEDDING_KEY", ""))
-        memory_form.addRow("模型名:", self._line("EMBEDDING_MODEL", "embedding-3"))
-        memory_form.addRow("向量维度:", self._line("EMBEDDING_DIM", "2048", QIntValidator(64, 8192)))
-        memory_layout.addLayout(memory_form)
-
-        # 重启提示
-        memory_hint = QLabel("修改记忆设置后需重启 DeskPet 生效。")
-        memory_hint.setStyleSheet(f"color:{_COLOR_WARNING}; font-size:11px; font-weight:bold;")
-        memory_hint.setWordWrap(True)
-        memory_layout.addWidget(memory_hint)
-
-        layout.addWidget(memory_group)
 
         layout.addStretch()
         return w
