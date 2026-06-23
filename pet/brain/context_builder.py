@@ -174,10 +174,12 @@ class ContextBuilder:
                 elif value >= 20:  return "心里沉甸甸的，笑不出来，想被摸摸头（点击宠物）安慰一下。"
                 else:              return "绝望到想消失，想被摸摸头（点击宠物）好好安慰一下。"
             elif key == "sanity":
-                # 注意：仅在 sanity < 60 时调用（正常值在上层处理）
-                if value >= 40:    return "有点神神叨叨的，想被摸摸头（点击宠物）来清醒一点。想用技能做点不寻常的事。"
-                elif value >= 20:  return "脑子快炸了，想被摸摸头（点击宠物）来清醒一点。想对空气说话，对着屏幕傻笑，手痒想搞破坏——翻翻可用技能，搜些荒诞的关键词，或者创建个奇怪的文件。"
-                else:              return "理智彻底崩坏，控制不住自己，想被摸摸头（点击宠物）来清醒一点。疯狂翻可用技能：搜猎奇、恐怖主题相关的东西、创建包含病娇、恐怖内容的文件、打开乱七八糟的网页，什么都想试试。"
+                _t = config.SANITY_CRITICAL_THRESHOLD
+                mild = _t * 2 / 3
+                moderate = _t / 3
+                if value >= mild:        return "有点神神叨叨的，想被摸摸头（点击宠物）来清醒一点。想用技能做点不寻常的事。"
+                elif value >= moderate:  return "脑子快炸了，想被摸摸头（点击宠物）来清醒一点。想对空气说话，对着屏幕傻笑，手痒想搞破坏——翻翻可用技能，搜些荒诞的关键词，或者创建个奇怪的文件。"
+                else:                    return "理智彻底崩坏，控制不住自己，想被摸摸头（点击宠物）来清醒一点。疯狂翻可用技能：搜猎奇、恐怖主题相关的东西、创建包含病娇、恐怖内容的文件、打开乱七八糟的网页，什么都想试试。"
             return None
 
         parts: list[str] = []
@@ -186,9 +188,8 @@ class ContextBuilder:
             if snippet:
                 parts.append(snippet)
 
-        # sanity 始终收尾（正常时给出句号结尾的完整句）
         sanity_val = ms.get("sanity", 100)
-        if sanity_val >= 60:
+        if sanity_val >= config.SANITY_CRITICAL_THRESHOLD:
             # 正常理智：收尾句
             if parts:
                 parts.append("脑子倒还清醒。")
