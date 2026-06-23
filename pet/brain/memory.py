@@ -406,10 +406,12 @@ class VectorRetriever(_MemoryRetriever):
 
     def _upsert_vector(self, memory_id: int, vector):
         """将预计算的 vector 写入 memories_vec（纯 DB 操作，不含网络 I/O）。"""
+        import sqlite_vec
+        vec_bytes = sqlite_vec.serialize_float32([vector])
         self._conn.execute("DELETE FROM memories_vec WHERE memory_id=?", (memory_id,))
         self._conn.execute(
             "INSERT INTO memories_vec (memory_id, embedding) VALUES (?,?)",
-            (memory_id, vector)
+            (memory_id, vec_bytes)
         )
         self._conn.execute("UPDATE memories SET has_embedding=1 WHERE id=?", (memory_id,))
 
@@ -475,9 +477,11 @@ class VectorRetriever(_MemoryRetriever):
         """使用预计算的 vector 做相似度检索，失败时 fallback 到关键词匹配。"""
         if vector is not None:
             try:
+                import sqlite_vec
+                vec_bytes = sqlite_vec.serialize_float32([vector])
                 cursor = self._conn.execute(
                     "SELECT memory_id, distance FROM memories_vec WHERE embedding MATCH ? ORDER BY distance LIMIT 5",
-                    (vector,)
+                    (vec_bytes,)
                 )
                 vec_hits = cursor.fetchall()
                 if vec_hits and vec_hits[0][1] < 0.6:  # 语义去重阈值
@@ -501,10 +505,12 @@ class VectorRetriever(_MemoryRetriever):
         try:
             vectors = self._embedder.embed(text)
             query_vec = vectors[0]
+            import sqlite_vec
+            vec_bytes = sqlite_vec.serialize_float32([query_vec])
 
             cursor = self._conn.execute(
                 "SELECT memory_id, distance FROM memories_vec WHERE embedding MATCH ? ORDER BY distance LIMIT ?",
-                (query_vec, limit * 3)
+                (vec_bytes, limit * 3)
             )
             vec_rows = cursor.fetchall()
             if not vec_rows:
