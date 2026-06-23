@@ -443,7 +443,7 @@ class SettingsWindow(QWidget):
         inner.addWidget(sanity_group)
 
         # ── 记忆设置 ──
-        memory_group = QGroupBox("记忆设置")
+        memory_group = QGroupBox("记忆")
         memory_layout = QVBoxLayout(memory_group)
         memory_layout.setSpacing(8)
 
@@ -455,13 +455,35 @@ class SettingsWindow(QWidget):
         memory_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
         memory_form.addRow("API 地址:", self._line("EMBEDDING_URL", "https://open.bigmodel.cn/api/paas/v4"))
-        memory_form.addRow("API Key:", self._line("EMBEDDING_KEY", ""))
+
+        # API Key + toggle
+        mem_key_row = QHBoxLayout()
+        self._mem_key_edit = QLineEdit()
+        self._mem_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self._mem_key_edit.setPlaceholderText("")
+        self._mem_key_edit.setStyleSheet(INPUT_HIGHLIGHT_QSS)
+        self._fields["EMBEDDING_KEY"] = self._mem_key_edit
+        mem_key_row.addWidget(self._mem_key_edit)
+        self._mem_key_toggle = QPushButton()
+        self._mem_key_toggle.setIcon(QIcon(SHOW_ICON_PATH))
+        self._mem_key_toggle.setFixedWidth(28)
+        self._mem_key_toggle.setCheckable(True)
+        self._mem_key_toggle.toggled.connect(
+            lambda checked: (
+                self._mem_key_toggle.setIcon(QIcon(HIDE_ICON_PATH if checked else SHOW_ICON_PATH)),
+                self._mem_key_edit.setEchoMode(
+                    QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
+                )
+            )[:0]
+        )
+        mem_key_row.addWidget(self._mem_key_toggle)
+        memory_form.addRow("API Key:", mem_key_row)
         memory_form.addRow("模型名:", self._line("EMBEDDING_MODEL", "embedding-3"))
         memory_form.addRow("向量维度:", self._line("EMBEDDING_DIM", "2048", QIntValidator(64, 8192)))
         memory_layout.addLayout(memory_form)
 
         # 重启提示
-        memory_hint = QLabel("修改记忆设置后需重启 DeskPet 生效。")
+        memory_hint = QLabel("修改记忆设置后需重启生效。")
         memory_hint.setStyleSheet(f"color:{_COLOR_WARNING}; font-size:11px; font-weight:bold;")
         memory_hint.setWordWrap(True)
         memory_layout.addWidget(memory_hint)
