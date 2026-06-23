@@ -56,6 +56,12 @@ _KEY_META = {
     "XF_API_SECRET":             {"type": "str",      "default": "",            "category": "connection", "needs_restart": False, "hidden": False, "description": "讯飞语音听写 API Secret"},
     "VOICE_INPUT_ENABLED":       {"type": "bool",     "default": False,         "category": "behavior",   "needs_restart": False, "hidden": False, "description": "启用语音输入"},
     "VOICE_HOTKEY":              {"type": "str",      "default": "F8",          "category": "behavior",   "needs_restart": False, "hidden": False, "description": "语音输入全局热键"},
+    # ── Memory ──
+    "EMBEDDING_ENABLED":         {"type": "bool",     "default": False,          "category": "memory",   "needs_restart": True,  "hidden": False, "description": "启用向量记忆(需配置下方 API)"},
+    "EMBEDDING_URL":             {"type": "str",      "default": "",             "category": "memory",   "needs_restart": True,  "hidden": False, "description": "Embedding API 地址(需兼容 OpenAI 格式)", "placeholder": "https://open.bigmodel.cn/api/paas/v4"},
+    "EMBEDDING_KEY":             {"type": "str",      "default": "",             "category": "memory",   "needs_restart": True,  "hidden": False, "description": "Embedding API Key"},
+    "EMBEDDING_MODEL":           {"type": "str",      "default": "",             "category": "memory",   "needs_restart": True,  "hidden": False, "description": "Embedding 模型名", "placeholder": "embedding-3"},
+    "EMBEDDING_DIM":             {"type": "int",      "default": 2048,           "category": "memory",   "needs_restart": True,  "hidden": False, "description": "向量维度(需与模型匹配)", "minimum": 64, "maximum": 8192},
 }
 
 
