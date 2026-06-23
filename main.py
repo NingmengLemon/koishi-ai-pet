@@ -146,7 +146,6 @@ def main():
         # 语音 → 气泡 UI（实时文字展示）
         _voice_session.partial_text.connect(chat_bubble.set_voice_text)
         _voice_session.transcription_done.connect(chat_bubble.set_voice_text)
-        _voice_session.transcription_done.connect(lambda _: chat_bubble.submit_voice_text())
 
         # 录音开始 → 自动展开输入框 + 切换图标
         _voice_session.recording_started.connect(chat_bubble.show_voice_input)
