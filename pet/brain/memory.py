@@ -77,8 +77,8 @@ class _MemoryRetriever(ABC):
     """Abstract base for memory retrieval strategies with shared logic."""
 
     MAX_MEMORIES = 200
-    # 记忆被召回后多长时间内禁止被 LLM 再次保存（冷却期，秒）
-    RECALL_COOLDOWN_SECONDS = 300  # 5 分钟
+    # 记忆被召回后多长时间内禁止被 LLM 再次保存
+    RECALL_COOLDOWN_SECONDS = 300
 
     def __init__(self, conn: sqlite3.Connection, dedup_threshold: float = 0.6):
         self._conn = conn
@@ -414,17 +414,12 @@ class VectorRetriever(_MemoryRetriever):
         self._conn.execute("UPDATE memories SET has_embedding=1 WHERE id=?", (memory_id,))
 
     def save(self, category: str, content: str, keywords: list[str], importance: int = 3):
-        # 1. 在锁外预计算 embedding（避免持锁期间做网络 I/O 阻塞其他线程）
-        vector = self._generate_embedding(content)
-
+        # Phase 1: 关键词优先去重
         with self._lock:
-            # 2. 使用预计算的 vector 做相似度检索（不再重复调用 embed API）
-            existing, similarity = self._find_similar_with_vector(content, keywords, vector)
-
+            existing, similarity = self._keyword_find_similar(content, keywords)
             if existing:
                 if self._is_in_cooldown(existing["id"]):
                     return
-
                 merged_content, merged_keywords, merged_importance, content_changed = self._do_merge(
                     existing, content, keywords, importance
                 )
@@ -432,10 +427,37 @@ class VectorRetriever(_MemoryRetriever):
                     "UPDATE memories SET content=?, keywords=?, importance=? WHERE id=?",
                     (merged_content, ",".join(merged_keywords), merged_importance, existing["id"])
                 )
-                # 内容变化时更新向量
+                self._conn.commit()
+                self.enforce_capacity()
+                logger.info(f"[VectorRetriever] memory merged via keyword (sim:{similarity:.2f}): {content[:20]}...")
+                # 内容变更时补充更新向量（需 embedding，但不阻塞主流程）
+                if content_changed:
+                    vector = self._generate_embedding(content)
+                    if vector is not None:
+                        with self._lock:
+                            self._upsert_vector(existing["id"], vector)
+                            self._conn.commit()
+                return
+
+        # Phase 2: 关键词未命中 → 生成 embedding 做向量语义去重
+        vector = self._generate_embedding(content)
+
+        with self._lock:
+            existing, similarity = self._find_similar_with_vector(content, keywords, vector)
+
+            if existing:
+                if self._is_in_cooldown(existing["id"]):
+                    return
+                merged_content, merged_keywords, merged_importance, content_changed = self._do_merge(
+                    existing, content, keywords, importance
+                )
+                self._conn.execute(
+                    "UPDATE memories SET content=?, keywords=?, importance=? WHERE id=?",
+                    (merged_content, ",".join(merged_keywords), merged_importance, existing["id"])
+                )
                 if content_changed and vector is not None:
                     self._upsert_vector(existing["id"], vector)
-                logger.info(f"[VectorRetriever] memory merged (sim:{similarity:.2f}): {content[:20]}...")
+                logger.info(f"[VectorRetriever] memory merged via vector (sim:{similarity:.2f}): {content[:20]}...")
             else:
                 self._conn.execute(
                     "INSERT INTO memories (category, content, keywords, importance, created_at, has_embedding) VALUES (?,?,?,?,?,0)",
@@ -444,6 +466,7 @@ class VectorRetriever(_MemoryRetriever):
                 new_id = self._conn.execute("SELECT last_insert_rowid()").fetchall()[0][0]
                 if vector is not None:
                     self._upsert_vector(new_id, vector)
+                logger.info(f"[VectorRetriever] new memory saved: {content[:20]}...")
 
             self._conn.commit()
             self.enforce_capacity()
@@ -457,7 +480,7 @@ class VectorRetriever(_MemoryRetriever):
                     (vector,)
                 )
                 vec_hits = cursor.fetchall()
-                if vec_hits and vec_hits[0][1] < 0.4:  # Close enough
+                if vec_hits and vec_hits[0][1] < 0.6:  # 语义去重阈值
                     mid = vec_hits[0][0]
                     row = self._conn.execute("SELECT * FROM memories WHERE id=?", (mid,)).fetchall()
                     if row:
