@@ -250,7 +250,18 @@ class SettingsWindow(QWidget):
     def _build_connection_tab(self) -> QWidget:
         w = QWidget()
         layout = QVBoxLayout(w)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setStyleSheet(f"QScrollArea {{ border: none; background: {_COLOR_BG}; }}" + SCROLLBAR_QSS)
+        scroll.viewport().setStyleSheet(f"background: {_COLOR_BG};")
+
+        content = QWidget()
+        inner = QVBoxLayout(content)
+        inner.setContentsMargins(8, 8, 8, 8)
+        inner.setSpacing(0)
 
         form = QFormLayout()
         form.setSpacing(8)
@@ -313,11 +324,11 @@ class SettingsWindow(QWidget):
         self._retries_edit = self._line("LLM_MAX_RETRIES", "3", QIntValidator(0, 10))
         self._retries_edit.setMaxLength(2)
         form.addRow("最大重试次数:", self._retries_edit)
-        
+
         self._retry_delay_edit = self._line("LLM_RETRY_DELAY", "1", QDoubleValidator(0, 60, 1))
         self._retry_delay_edit.setMaxLength(4)
         form.addRow("重试延迟(秒):", self._retry_delay_edit)
-        
+
         self._retry_max_delay_edit = self._line("LLM_RETRY_MAX_DELAY", "8", QDoubleValidator(0, 300, 1))
         self._retry_max_delay_edit.setMaxLength(5)
         form.addRow("最大重试延迟(秒):", self._retry_max_delay_edit)
@@ -325,7 +336,7 @@ class SettingsWindow(QWidget):
         self._cache_check = self._check("LLM_CACHE_PROMPT", "Prompt 缓存")
         form.addRow("", self._cache_check)
 
-        layout.addLayout(form)
+        inner.addLayout(form)
 
         # 测试连接按钮
         test_row = QHBoxLayout()
@@ -337,7 +348,7 @@ class SettingsWindow(QWidget):
         self._label_test.setStyleSheet(f"color:{_COLOR_TEXT_SEC}; font-size:11px;")
         test_row.addWidget(self._label_test)
         test_row.addStretch()
-        layout.addLayout(test_row)
+        inner.addLayout(test_row)
 
         self._test_output = QTextEdit()
         self._test_output.setReadOnly(True)
@@ -348,12 +359,15 @@ class SettingsWindow(QWidget):
                 background: {_COLOR_BG};
             }}
         """)
-        layout.addWidget(self._test_output)
+        inner.addWidget(self._test_output)
 
         # 模式切换联动
         self._brain_combo.currentTextChanged.connect(self._on_mode_changed)
 
-        layout.addStretch()
+        inner.addStretch()
+
+        scroll.setWidget(content)
+        layout.addWidget(scroll)
         return w
 
     def _on_mode_changed(self, mode: str):
@@ -386,8 +400,18 @@ class SettingsWindow(QWidget):
     def _build_behavior_tab(self) -> QWidget:
         w = QWidget()
         layout = QVBoxLayout(w)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setStyleSheet(f"QScrollArea {{ border: none; background: {_COLOR_BG}; }}" + SCROLLBAR_QSS)
+        scroll.viewport().setStyleSheet(f"background: {_COLOR_BG};")
+
+        content = QWidget()
+        inner = QVBoxLayout(content)
+        inner.setContentsMargins(8, 8, 8, 8)
+        inner.setSpacing(10)
 
         # 调度器
         sched_group = QGroupBox("调度器")
@@ -396,7 +420,7 @@ class SettingsWindow(QWidget):
         sched_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         sched_form.addRow("自主行动间隔(ms):", self._line("SCHEDULER_MID_MS", "300000", QIntValidator(60000, 3600000)))
         sched_form.addRow("", self._check("SCHEDULER_AUTO_START_MID", "默认开启自动行动"))
-        layout.addWidget(sched_group)
+        inner.addWidget(sched_group)
 
         # 视觉
         vision_group = QGroupBox("视觉")
@@ -405,7 +429,7 @@ class SettingsWindow(QWidget):
         vision_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         vision_form.addRow("", self._check("VISION_ENABLED", "开启视觉理解（需要模型支持多模态）"))
         vision_form.addRow("截图缩放比例(0.1~1.0):", self._line("VISION_SCALE", "1", QDoubleValidator(0.1, 1.0, 1)))
-        layout.addWidget(vision_group)
+        inner.addWidget(vision_group)
 
         # 理智
         sanity_group = QGroupBox("理智")
@@ -416,7 +440,7 @@ class SettingsWindow(QWidget):
         hint = QLabel("低于该值会导致异常行为")
         hint.setStyleSheet(f"color:{_COLOR_TEXT_MUTED}; font-size:11px;")
         sanity_form.addRow("", hint)
-        layout.addWidget(sanity_group)
+        inner.addWidget(sanity_group)
 
         # ── 记忆设置 ──
         memory_group = QGroupBox("记忆设置")
@@ -442,9 +466,12 @@ class SettingsWindow(QWidget):
         memory_hint.setWordWrap(True)
         memory_layout.addWidget(memory_hint)
 
-        layout.addWidget(memory_group)
+        inner.addWidget(memory_group)
 
-        layout.addStretch()
+        inner.addStretch()
+
+        scroll.setWidget(content)
+        layout.addWidget(scroll)
         return w
 
     # ── Tab 3: 外观 ──
@@ -452,7 +479,17 @@ class SettingsWindow(QWidget):
     def _build_appearance_tab(self) -> QWidget:
         w = QWidget()
         layout = QVBoxLayout(w)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setStyleSheet(f"QScrollArea {{ border: none; background: {_COLOR_BG}; }}" + SCROLLBAR_QSS)
+        scroll.viewport().setStyleSheet(f"background: {_COLOR_BG};")
+
+        content = QWidget()
+        inner = QVBoxLayout(content)
+        inner.setContentsMargins(8, 8, 8, 8)
 
         form = QFormLayout()
         form.setSpacing(6)
@@ -468,7 +505,7 @@ class SettingsWindow(QWidget):
         form.addRow("气泡字号:", self._line("BUBBLE_FONT_SIZE", "14", QIntValidator(8, 48)))
         form.addRow("", self._check("SHOW_TRAY", "显示托盘图标"))
 
-        layout.addLayout(form)
+        inner.addLayout(form)
 
         # ── 语音输入 ──
         voice_group = QGroupBox("语音输入")
@@ -526,9 +563,12 @@ class SettingsWindow(QWidget):
         """)
         voice_layout.addWidget(self._voice_test_output)
 
-        layout.addWidget(voice_group)
+        inner.addWidget(voice_group)
 
-        layout.addStretch()
+        inner.addStretch()
+
+        scroll.setWidget(content)
+        layout.addWidget(scroll)
         return w
 
     # ── Tab 4: 提示词 ──
@@ -541,7 +581,7 @@ class SettingsWindow(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setStyleSheet(f"QScrollArea {{ border: none; background: {_COLOR_BG}; }}")
+        scroll.setStyleSheet(f"QScrollArea {{ border: none; background: {_COLOR_BG}; }}" + SCROLLBAR_QSS)
         scroll.viewport().setStyleSheet(f"background: {_COLOR_BG};")
 
         content = QWidget()
