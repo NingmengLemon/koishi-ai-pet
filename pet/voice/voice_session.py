@@ -1,6 +1,7 @@
 """语音会话编排：麦克风采集 → 讯飞识别"""
 
 import logging
+import threading
 
 from PySide6.QtCore import QObject, Signal
 
@@ -18,6 +19,7 @@ class VoiceSession(QObject):
     recording_started = Signal()
     recording_stopped = Signal()
     error = Signal(str)
+    connection_test_result = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -26,26 +28,32 @@ class VoiceSession(QObject):
         self._recording = False
 
         self._mic.audio_chunk.connect(self._on_audio_chunk)
-        self._mic.error_occurred.connect(self.error.emit)
+        self._mic.error_occurred.connect(self._on_mic_error)
         self._stt.partial_result.connect(self.partial_text.emit)
         self._stt.done.connect(self._on_stt_done)
         self._stt.error.connect(self.error.emit)
 
-    def disconnect(self):
+    def shutdown(self):
         """关闭连接，停止一切。"""
         self._mic.stop()
-        self._stt.disconnect()
+        self._stt.close()
 
     def start_recording(self):
         """开始录音+识别（按需建立 WS 连接）。"""
         if self._recording:
-            return
             return
         self._recording = True
         self._stt.start_recording()
         self._mic.start()
         self.recording_started.emit()
         logger.info("[VoiceSession] recording started")
+
+    def _on_mic_error(self, msg: str):
+        """麦克风出错时自动终止会话。"""
+        logger.warning(f"[VoiceSession] mic error, stopping: {msg}")
+        self.error.emit(msg)
+        if self._recording:
+            self._stop_internal()
 
     def _on_audio_chunk(self, data: bytes):
         if not self._recording:
@@ -56,6 +64,16 @@ class VoiceSession(QObject):
         """结束录音，等待识别结果。"""
         if not self._recording:
             return
+        self._stop_internal()
+
+    def toggle_recording(self):
+        """根据当前录音状态切换开/关。"""
+        if self._recording:
+            self.stop_recording()
+        else:
+            self.start_recording()
+
+    def _stop_internal(self):
         self._recording = False
         self._mic.stop()
         self._stt.stop_recording()
@@ -66,7 +84,22 @@ class VoiceSession(QObject):
         self.transcription_done.emit(text)
 
     def test_connection(self, app_id="", api_key="", api_secret="") -> bool:
+        """同步测试（已使用短超时 create_connection，但仍建议在后台线程调用）。"""
         return self._stt.test_connection(app_id, api_key, api_secret)
+
+    def test_connection_async(self, app_id="", api_key="", api_secret=""):
+        """后台线程异步测试，结果通过 connection_test_result 信号返回。"""
+
+        def _run():
+            try:
+                ok = self._stt.test_connection(app_id, api_key, api_secret)
+                self.connection_test_result.emit(ok)
+            except Exception as e:
+                logger.error(f"[VoiceSession] async test failed: {e}")
+                self.connection_test_result.emit(False)
+
+        t = threading.Thread(target=_run, daemon=True, name="voice-test")
+        t.start()
 
     @property
     def is_recording(self) -> bool:

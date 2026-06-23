@@ -1,16 +1,15 @@
 """讯飞语音听写 (iat) WebSocket API 封装"""
 
 import base64
+import calendar
 import hashlib
 import hmac
 import json
 import logging
-import ssl
 import threading
 from datetime import datetime
 from urllib.parse import urlencode
 from wsgiref.handlers import format_date_time
-from time import mktime
 
 import websocket
 from PySide6.QtCore import QObject, Signal
@@ -23,13 +22,16 @@ STATUS_FIRST_FRAME = 0
 STATUS_CONTINUE_FRAME = 1
 STATUS_LAST_FRAME = 2
 
+# WebSocket 连接超时（秒）
+_WS_CONNECT_TIMEOUT = 5
+
 
 class XunfeiSTT(QObject):
     """讯飞语音听写流式 WebSocket 客户端。
 
-    connect() → websocket 连接
+    connect_ws() → websocket 连接
     start_recording() / send_audio() / stop_recording() → 每轮识别
-    disconnect() → 关闭连接
+    close() → 关闭连接
     """
 
     partial_result = Signal(str)
@@ -47,10 +49,11 @@ class XunfeiSTT(QObject):
         self._result_text = ""
         self._done_emitted = False
         self._first_frame_sent = False
+        self._send_lock = threading.Lock()
 
     # ── 连接管理 ──
 
-    def connect(self):
+    def connect_ws(self):
         """建立 WebSocket 连接。"""
         if self._connected:
             return
@@ -72,7 +75,7 @@ class XunfeiSTT(QObject):
         logger.info("[XunfeiSTT] connecting...")
 
     def _run(self):
-        self._ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
+        self._ws.run_forever()
 
     def _check_credentials(self) -> bool:
         if not config.XF_APPID or not config.XF_API_KEY or not config.XF_API_SECRET:
@@ -80,7 +83,7 @@ class XunfeiSTT(QObject):
             return False
         return True
 
-    def disconnect(self):
+    def close(self):
         """关闭连接。"""
         self._connected = False
         self._recording = False
@@ -90,7 +93,7 @@ class XunfeiSTT(QObject):
             except Exception:
                 pass
             self._ws = None
-        logger.info("[XunfeiSTT] disconnected")
+        logger.info("[XunfeiSTT] closed")
 
     def _on_open(self, ws):
         self._connected = True
@@ -125,10 +128,15 @@ class XunfeiSTT(QObject):
         self._connected = False
         was_recording = self._recording
         self._recording = False
+        self._first_frame_sent = False
         logger.info(f"[XunfeiSTT] closed ({close_status_code})")
 
-        if was_recording and self._result_text and not self._done_emitted:
-            self.done.emit(self._result_text)
+        # 异常断开时不要发送残缺文本
+        if was_recording and not self._done_emitted:
+            if self._result_text:
+                self.error.emit(f"识别未完成: {self._result_text}")
+            else:
+                self.error.emit("连接异常断开")
 
         self.disconnected.emit()
 
@@ -148,7 +156,7 @@ class XunfeiSTT(QObject):
 
         # 按需建立连接；第一帧在 _on_open 里发，避免握手未完成就 send
         if not self._connected:
-            self.connect()
+            self.connect_ws()
         else:
             self._send_first_frame()
 
@@ -184,13 +192,14 @@ class XunfeiSTT(QObject):
         logger.info("[XunfeiSTT] waiting for final result...")
 
     def _send(self, text: str):
-        if self._ws and self._ws.sock:
-            try:
-                self._ws.send(text)
-            except Exception as e:
-                logger.warning(f"[XunfeiSTT] send failed: {e}")
-        else:
-            logger.warning("[XunfeiSTT] cannot send, socket not ready")
+        with self._send_lock:
+            if self._ws and self._ws.sock:
+                try:
+                    self._ws.send(text)
+                except Exception as e:
+                    logger.warning(f"[XunfeiSTT] send failed: {e}")
+            else:
+                logger.warning("[XunfeiSTT] cannot send, socket not ready")
 
     def _on_message(self, ws, message):
         try:
@@ -232,8 +241,8 @@ class XunfeiSTT(QObject):
 
     def _build_url(self) -> str:
         base = "wss://ws-api.xfyun.cn/v2/iat"
-        now = datetime.now()
-        date = format_date_time(mktime(now.timetuple()))
+        now = datetime.utcnow()
+        date = format_date_time(calendar.timegm(now.utctimetuple()))
 
         sig_str = f"host: ws-api.xfyun.cn\ndate: {date}\nGET /v2/iat HTTP/1.1"
         sig = hmac.new(
@@ -250,7 +259,7 @@ class XunfeiSTT(QObject):
         return base + "?" + urlencode(params)
 
     def test_connection(self, app_id: str = "", api_key: str = "", api_secret: str = "") -> bool:
-        """测试连接是否可用（建立 WS 即代表成功）。"""
+        """快速同步测试连接（使用短超时，不阻塞 UI 线程）。"""
         app_id = app_id or config.XF_APPID
         api_key = api_key or config.XF_API_KEY
         api_secret = api_secret or config.XF_API_SECRET
@@ -260,15 +269,9 @@ class XunfeiSTT(QObject):
 
         try:
             url = self._build_url_custom(app_id, api_key, api_secret)
-            ok = [False]
-
-            def on_open(ws):
-                ok[0] = True
-                ws.close()
-
-            ws = websocket.WebSocketApp(url, on_open=on_open)
-            ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
-            return ok[0]
+            ws = websocket.create_connection(url, timeout=_WS_CONNECT_TIMEOUT)
+            ws.close()
+            return True
         except Exception as e:
             logger.warning(f"[XunfeiSTT] test_connection failed: {e}")
             return False
@@ -277,8 +280,8 @@ class XunfeiSTT(QObject):
     def _build_url_custom(app_id: str, api_key: str, api_secret: str) -> str:
         """使用自定义凭证构建鉴权 URL（用于连接测试）。"""
         base = "wss://ws-api.xfyun.cn/v2/iat"
-        now = datetime.now()
-        date = format_date_time(mktime(now.timetuple()))
+        now = datetime.utcnow()
+        date = format_date_time(calendar.timegm(now.utctimetuple()))
         sig_str = f"host: ws-api.xfyun.cn\ndate: {date}\nGET /v2/iat HTTP/1.1"
         sig = hmac.new(
             api_secret.encode("utf-8"),

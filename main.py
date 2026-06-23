@@ -140,9 +140,8 @@ def main():
         agent._voice_session = _voice_session  # 供设置窗口热重载
         _hotkey_mgr = HotkeyManager()
 
-        # 热键 → 语音
-        _hotkey_mgr.voice_start.connect(_voice_session.start_recording)
-        _hotkey_mgr.voice_stop.connect(_voice_session.stop_recording)
+        # 热键 → 语音（toggle，由 VoiceSession 判断当前状态）
+        _hotkey_mgr.voice_toggle.connect(_voice_session.toggle_recording)
 
         # 语音 → 气泡 UI（实时文字展示）
         _voice_session.partial_text.connect(chat_bubble.set_voice_text)
@@ -159,11 +158,6 @@ def main():
 
         # 错误日志
         _voice_session.error.connect(lambda msg: logger.error(f"[Voice] {msg}"))
-
-        # 非正常结束时重置热键状态
-        _voice_session.error.connect(lambda _: _hotkey_mgr.reset())
-        _voice_session.recording_stopped.connect(_hotkey_mgr.reset)
-        _voice_session.transcription_done.connect(lambda _: _hotkey_mgr.reset())
 
         _hotkey_mgr.start()
         logger.info("[Main] voice input initialized")

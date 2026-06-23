@@ -11,51 +11,61 @@ logger = logging.getLogger(__name__)
 
 
 class HotkeyManager(QObject):
-    """全局热键监听。每次按键切换录音开/关。"""
+    """全局热键监听。每次按下/释放切换录音。"""
 
-    voice_start = Signal()
-    voice_stop = Signal()
+    voice_toggle = Signal()
     error_occurred = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._listener: keyboard.Listener | None = None
         self._hotkey = config.VOICE_HOTKEY.lower()
-        self._active = False  # True = 正在录音中
-
-    def reset(self):
-        """重置切换状态（当录音非正常结束时调用）。"""
-        self._active = False
+        self._key_down = False  # 防止按键连发导致高频翻转
 
     def start(self):
         """启动全局键盘监听线程。"""
         if self._listener and self._listener.running:
             return
-        self._listener = keyboard.Listener(on_press=self._on_press)
-        self._listener.daemon = True
-        self._listener.start()
-        logger.info(f"[HotkeyManager] listening for '{self._hotkey}'")
+        try:
+            self._listener = keyboard.Listener(
+                on_press=self._on_press,
+                on_release=self._on_release,
+            )
+            self._listener.daemon = True
+            self._listener.start()
+            logger.info(f"[HotkeyManager] listening for '{self._hotkey}'")
+        except Exception as e:
+            logger.error(f"[HotkeyManager] failed to start listener: {e}")
+            self.error_occurred.emit(str(e))
 
     def stop(self):
         """停止键盘监听。"""
         if self._listener and self._listener.running:
             self._listener.stop()
             self._listener = None
+        self._key_down = False
         logger.info("[HotkeyManager] stopped")
 
     def _on_press(self, key):
-        try:
-            key_name = key.char.lower() if hasattr(key, 'char') and key.char else key.name.lower()
-        except Exception:
-            return
-
+        """仅在按键从未按下→按下的瞬间触发切换。"""
+        if self._key_down:
+            return  # 防止 auto-repeat 连发
+        key_name = self._key_name(key)
         if key_name != self._hotkey:
             return
+        self._key_down = True
+        logger.info(f"[HotkeyManager] toggle: {self._hotkey}")
+        self.voice_toggle.emit()
 
-        self._active = not self._active
-        if self._active:
-            logger.info(f"[HotkeyManager] toggle ON: {self._hotkey}")
-            self.voice_start.emit()
-        else:
-            logger.info(f"[HotkeyManager] toggle OFF: {self._hotkey}")
-            self.voice_stop.emit()
+    def _on_release(self, key):
+        key_name = self._key_name(key)
+        if key_name != self._hotkey:
+            return
+        self._key_down = False
+
+    @staticmethod
+    def _key_name(key) -> str:
+        try:
+            return key.char.lower() if hasattr(key, 'char') and key.char else key.name.lower()
+        except Exception:
+            return ""
