@@ -1,4 +1,4 @@
-"""Todo 管理面板"""
+﻿"""Todo 管理面板"""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-from pet.skills.plugins.todo import _instance as _todo_instance
-from pet.skills.plugins.todo.style import LIST_QSS, BUTTON_QSS
+from pet.tools.todo import _instance as _todo_instance
+from pet.tools.todo.style import LIST_QSS, BUTTON_QSS
 
 logger = logging.getLogger(__name__)
 

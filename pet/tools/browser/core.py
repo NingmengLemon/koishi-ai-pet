@@ -42,7 +42,8 @@ class BrowserTool:
         except webbrowser.Error as e:
             logger.error(f"[BrowserTool] open_url failed: {e}")
             return {"error": f"无法打开浏览器: {e}", "url": url}
-        return {"status": "opened", "url": url}
+        return {"status": "opened", "url": url,
+                "__context__": f"打开网页 {url}"}
 
     def search(self, query: str) -> dict:
         """用默认浏览器搜索。"""
@@ -52,7 +53,8 @@ class BrowserTool:
         except webbrowser.Error as e:
             logger.error(f"[BrowserTool] search failed: {e}")
             return {"error": f"无法打开浏览器: {e}", "query": query}
-        return {"status": "searching", "query": query, "url": url}
+        return {"status": "searching", "query": query, "url": url,
+                "__context__": f"浏览器搜索「{query}」"}
 
     def screenshot_url(self, url: str, width: int = 1280, height: int = 800,
                        wait_seconds: float = 3.0) -> dict:
@@ -80,6 +82,7 @@ class BrowserTool:
                     "size": f"{width}x{height}",
                     "__image__": img_b64,
                     "__image_mime__": "image/jpeg",
+                    "__context__": f"截图网页 {url}",
                 }
         except Exception as e:
             logger.error(f"[BrowserTool] screenshot_url failed: {e}")
@@ -136,6 +139,7 @@ class BrowserTool:
                     "title": title,
                     "text": text,
                     "truncated": truncated,
+                    "__context__": f"读取网页 {url}「{title}」（{len(text)}字符）",
                 }
         except Exception as e:
             logger.error(f"[BrowserTool] read_url failed: {e}")

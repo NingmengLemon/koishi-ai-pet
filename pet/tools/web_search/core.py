@@ -238,12 +238,15 @@ def search(query: str, count: int = 5, language: str = "zh-CN") -> dict:
         if searxng_url:
             result = _search_searxng(query, count, language, cfg)
             if "搜索失败" not in str(result.get("summary", "")):
+                result["__context__"] = f"搜索「{query}」"
                 return result
             logger.info("[web_search] SearXNG failed, falling back to Bing")
 
     bing_key = cfg.get("bing_search_key", "")
     if bing_key:
-        return _search_bing(query, count, language, cfg)
+        result = _search_bing(query, count, language, cfg)
+        result["__context__"] = f"搜索「{query}」"
+        return result
 
     searxng_ok = bool(cfg.get("searxng_url", ""))
     return {
@@ -297,4 +300,5 @@ def deep_search(query: str, count: int = 5, language: str = "zh-CN",
     if extracted == 0:
         extra_lines.append("(未能提取任何页面正文，请参考搜索摘要)")
 
-    return {"summary": summary + "\n".join(extra_lines)}
+    return {"summary": summary + "\n".join(extra_lines),
+            "__context__": f"深度搜索「{query}」（提取{extracted}条正文）"}

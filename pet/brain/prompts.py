@@ -3,7 +3,6 @@
 import math
 
 from pet.action.registry import generate_action_section
-from pet.skills.registry import SKILL_REGISTRY
 from config import config
 
 # context_builder._build_system 用于注入感受描述的锚点标记
@@ -17,41 +16,6 @@ def _action_params():
     return target_s, min_actions
 
 
-def _format_args(args: dict) -> str:
-    if not args:
-        return ""
-    parts = []
-    for k, v in args.items():
-        t = v.get("type", "any")
-        req = v.get("required", False)
-        desc = v.get("desc", "")
-        default = v.get("default")
-        tag = "必选" if req else f"可选, 默认 {default!r}"
-        parts.append(f"{k}({t}, {tag}): {desc}")
-    return "{" + "; ".join(parts) + "}"
-
-
-def generate_skill_section() -> str:
-    enabled = SKILL_REGISTRY.enabled_skills
-    if not enabled:
-        return ""
-    lines = [
-        "=== 可用技能 ===",
-        "主动判断何时使用技能。只能使用列表中技能，禁止编造。结果已包含所需信息时直接回复，不重复调用。",
-        '格式: Skill: {"name": "skill.method", "args": {}}（最多3轮调用）',
-        "",
-    ]
-    for skill in enabled:
-        lines.append(f"【{skill.name}】{skill.description}")
-        if skill.when:
-            lines.append(f"  使用场景: {skill.when}")
-        for m in skill.methods.values():
-            args_desc = _format_args(m.args)
-            args_str = f" 参数: {args_desc}" if args_desc else ""
-            lines.append(f"  • {skill.name}.{m.name}: {m.description}{args_str}")
-            if m.when:
-                lines.append(f"    触发: {m.when}")
-    return "\n".join(lines)
 
 _MEMORY_GUIDE = """=== 记忆存储指导 ===
 【输出示例】
@@ -140,7 +104,7 @@ _NON_VISION_INTRO = """=== 非视觉模式 ===
 _CHAT_INTRO = """=== 对话模式 ===
 - 用户给指令 → 生成对应动作
 - 用户闲聊 → 语言回应 + 配合表情动作
-- 用户要求使用技能 → 在可用技能中查找并调用
+- 用户要求使用工具 → 调用对应的 function
 - 用户让你评论屏幕 → 参考窗口探测数据回应
 - 无具体动作指令时，可自由选择 1-2 个配合语境的动作
 - 涉及方向/距离的指令，参考窗口探测数据精确执行"""
@@ -161,7 +125,6 @@ _PERCEPTION_SECTIONS = {
     "chat_vision":           [_CHAT_INTRO, _WINDOW_GUIDE, _VISION_CONTENT_GUIDE, _Lazy(generate_action_section), _VISION_CONSTRAINTS],
     "chat_non_vision":       [_CHAT_INTRO, _WINDOW_GUIDE, _Lazy(generate_action_section)],
     "interact":   [_Lazy(generate_action_section)],
-    "skill":      [_Lazy(generate_action_section)],
 }
 
 
@@ -214,7 +177,7 @@ def _autonomous_task() -> list[str]:
 
     format_guide = (
         f"=== 输出格式 ===\n"
-        f"必须按顺序输出：Summary → Emotion(可选) → Speech → Action(≥{min_actions}个) → Skill(可选) → Memory(可选) → Mood(可选) → Vitals(可选)：\n"
+        f"必须按顺序输出：Summary → Emotion(可选) → Speech → Action(≥{min_actions}个) → Memory(可选) → Mood(可选) → Vitals(可选)：\n"
         f"  Summary: <观察到的屏幕内容和行为决策，≤50字>\n"
         f"  Emotion: happy\n"
         f"  Speech: 又有新窗口了，我过去看看\n"
@@ -226,7 +189,6 @@ def _autonomous_task() -> list[str]:
         f"  Action: drive right 400\n"
         f"  Action: shake_arms\n"
         f"  Action: sit duration={sit_dur}\n"
-        f"  Skill: {{\"name\": \"skill.method\", \"args\": {{...}}}}\n"
         f"  Memory: user_fact 用户名为xxx，住在xx | keywords:[具体姓名],[居住地点] | importance:5 | level:L1\n"
         f"  Mood: joy+1 affection-1\n"
         f"  Vitals: satiety-2 energy-3\n"
@@ -239,13 +201,12 @@ def _autonomous_task() -> list[str]:
 def _chat_task() -> list[str]:
     parts = [
         "=== 输出格式 ===\n"
-        "按顺序输出：Summary → Emotion(可选) → Speech → Action(≥3个) → Skill(可选) → Memory(可选) → Mood(可选) → Vitals(可选)：\n"
+        "按顺序输出：Summary → Emotion(可选) → Speech → Action(≥3个) → Memory(可选) → Mood(可选) → Vitals(可选)：\n"
         "  Summary: <对话内容和行为决策，≤50字>\n"
         "  Emotion: happy\n"
         "  Speech: 好嘞，我跳过去看看！\n"
         "  Action: walk left 600\n"
         "  Action: thinking duration=15\n"
-        '  Skill: {"name": "skill.method", "args": {}}\n'
         "  Memory: user_fact 用户名为xxx，住在xx | keywords:[具体姓名],[居住地点] | importance:5 | level:L1\n"
         "  Mood: affection+1 joy+1\n"
         "  Vitals: satiety-2 energy-3",
@@ -257,7 +218,7 @@ def _chat_task() -> list[str]:
         "5. 带参数的动作用 duration=秒 或 direction=left/right 格式，参考动作表\n"
         "6. 必须用 Speech 回应用户，≤30字，性格语气\n"
         "7. 参考「近期对话/行为记录」保持连贯，不重复说过的话\n"
-        "8. 用户要求使用技能时，在可用技能中搜索，找到必须调用，找不到按人格回复\n"
+        "8. 用户要求使用工具时，调用对应的 function\n"
         "9. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored, crazy\n"
         "10. 必须查看[记忆存储指导]判断是否输出Memory行，如果值得，必须输出\n"
         "11. 你的言行必须反映「你现在的状态」中的感受——饿的时候引导喂食，累的时候多休息（sit/sleep），不开心的时候引导互动（点击可以让你开心一点），疯的时候说不着边际的话",
@@ -285,20 +246,9 @@ def _interact_task() -> list[str]:
         "3. 动作名只能是动作表列出的，必须从动作表复制准确名称\n"
         "4. 动作名和参数必须在 Action: 同行，禁止换行再写动作名\n"
         "5. Speech 是本能反应而非分析，≤20字，由个性决定语气\n"
-        "6. 禁止输出 Skill 行、Memory 行\n"
+        "6. 禁止输出 Memory 行\n"
         "7. 你的反应必须反映「你现在的状态」中的感受\n"
         "8. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored, crazy",
-    ]
-
-
-def _skill_round_task() -> list[str]:
-    return [
-        "你是桌面宠物，正在执行技能多轮调用。根据技能返回结果决策下一步。",
-        "=== 输出格式 ===\n"
-        "Summary: <简要记录，≤50字>\n"
-        "Speech: <你想说的话>\n"
-        "Action: <动作名>\n"
-        'Skill: {"name": "skill.method", "args": {}}   ← 仍需查询时才输出',
     ]
 
 
@@ -306,15 +256,14 @@ _TASK_SECTIONS = {
     "autonomous":  _autonomous_task,
     "chat":        _chat_task,
     "interact":    _interact_task,
-    "skill_round": _skill_round_task,
 }
 
 def build_system_prompt(mode: str, task: str, include_feeling_marker: bool = True) -> str:
     """分层组装 system prompt。
 
     Args:
-        mode: "autonomous_vision" | "autonomous_non_vision" | "chat_vision" | "chat_non_vision" | "interact" | "skill"
-        task: "autonomous" | "chat" | "interact" | "skill_round"
+        mode: "autonomous_vision" | "autonomous_non_vision" | "chat_vision" | "chat_non_vision" | "interact"
+        task: "autonomous" | "chat" | "interact"
         include_feeling_marker: 是否注入 <<FEELING>> 锚点（skill_round 等精简 prompt 不需要）
     """
     if mode not in _PERCEPTION_SECTIONS:
@@ -328,7 +277,6 @@ def build_system_prompt(mode: str, task: str, include_feeling_marker: bool = Tru
         ("chat_vision", "chat"),
         ("chat_non_vision", "chat"),
         ("interact", "interact"),
-        ("skill", "skill_round"),
     }
     if (mode, task) not in _VALID_COMBOS:
         raise ValueError(f"Invalid mode-task combination: ({mode!r}, {task!r})")
@@ -350,9 +298,7 @@ def build_system_prompt(mode: str, task: str, include_feeling_marker: bool = Tru
     sections.extend(_TASK_SECTIONS[task]())
 
     if task in ("autonomous", "chat"):
-        skill = generate_skill_section()
-        if skill:
-            sections.append(skill)
+        pass  # 工具详细 schema 通过 API tools 参数传递；简短概览由 context_builder 动态注入
 
     return "\n\n".join(sections)
 
@@ -377,7 +323,7 @@ def _base_autonomous(context: str, mode: str) -> str:
             f"   • 无窗口 → 巡视桌面或找地方坐下\n"
             f"5. 检查截图和对话中是否发现值得记住的信息——用户身份、偏好、重要事件等\n"
             f"   有则输出 Memory: [类别] 记忆内容 | keywords:关键词 | importance:1-5 | level:L1/L2/L3\n"
-            f"6. 检查你的感受——如果理智不正常，翻看可用技能找点疯狂的事做；饿了暗示喂食；累了多安排 sit/sleep 动作；不开心暗示点击（抚摸）你（可以让你开心一点）；正常时如有需要也可使用技能\n"
+            f"6. 检查你的感受——如果理智不正常，主动调用工具来做疯狂的事；饿了暗示喂食；累了多安排 sit/sleep 动作；不开心暗示点击（抚摸）你（可以让你开心一点）；正常时如有需要也可使用工具\n"
             f"7. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）\n"
             f"8. Summary 必须基于截图和探测数据描述实际看到的内容"
         )
@@ -392,7 +338,7 @@ def _base_autonomous(context: str, mode: str) -> str:
         f"   • drive 方向可随机\n"
         f"4. 检查窗口内容和对话中是否发现值得记住的信息——用户身份、偏好、重要事件等\n"
         f"   有则输出 Memory: [类别] 记忆内容 | keywords:关键词 | importance:1-5 | level:L1/L2/L3\n"
-        f"5. 检查你的感受——如果理智不正常，翻看可用技能找点疯狂的事做；饿了暗示喂食；累了多安排 sit/sleep 动作；不开心暗示点击（抚摸）你（可以让你开心一点）；正常时如有需要也可使用技能\n"
+        f"5. 检查你的感受——如果理智不正常，主动调用可用工具来做疯狂的事；饿了暗示喂食；累了多安排 sit/sleep 动作；不开心暗示点击（抚摸）你（可以让你开心一点）；正常时如有需要也可使用工具\n"
         f"6. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）\n"
         f"7. 禁止重复 Recent 中的行为和台词"
     )
@@ -419,7 +365,7 @@ def chat_vision_user_prompt(user_message: str, context: str) -> str:
         "5. 规划配合对话的动作序列，按输出格式要求凑满时长\n"
         "6. 检查用户消息和对话中是否发现值得记住的信息——身份、偏好、重要事件等\n"
         "   有则输出 Memory: [类别] 记忆内容 | keywords:关键词 | importance:1-5 | level:L1/L2/L3\n"
-        "7. 用户要求使用技能时必须调用；你的感受也可能暗示需要用技能做点不寻常的事\n"
+        "7. 用户要求使用工具时必须调用；你的感受也可能暗示需要用工具做点不寻常的事\n"
         "8. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）\n"
         "9. 参考「近期对话/行为记录」保持连贯，禁止重复说过的话"
     )
@@ -437,23 +383,13 @@ def chat_non_vision_user_prompt(user_message: str, context: str) -> str:
         "4. 规划配合对话的动作序列，按输出格式要求凑满时长\n"
         "5. 检查用户消息和对话中是否发现值得记住的信息——身份、偏好、重要事件等\n"
         "   有则输出 Memory: [类别] 记忆内容 | keywords:关键词 | importance:1-5 | level:L1/L2/L3\n"
-        "6. 用户要求使用技能时必须调用；你的感受也可能暗示需要用技能做点不寻常的事\n"
+        "6. 用户要求使用工具时必须调用；你的感受也可能暗示需要用工具做点不寻常的事\n"
         "7. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）\n"
         "8. 参考「近期对话/行为记录」保持连贯，禁止重复说过的话"
     )
 
 
-def skill_result_user_prompt(skill_results: str) -> str:
-    return (
-        "以下是你请求的技能执行结果：\n\n"
-        f"{skill_results}\n\n"
-        "请基于以上信息决策下一步：\n"
-        "• 若仍需查询更多信息，可继续输出 Skill 行（最多3轮）\n"
-        "• 若信息已足够，输出最终回复：\n"
-        "  Speech: <你想说的话>\n"
-        "  Action: <动作名>\n"
-        "避免重复调用相同参数的技能。若上轮返回「参数错误」，修正后重试。"
-    )
+
 
 INTERACT_GRABBED = config.INTERACT_GRABBED_PROMPT or (
     "用户正用鼠标把你抓起来，用一句话（≤15字）根据你的人格表达被抓住的反应"

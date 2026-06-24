@@ -46,7 +46,8 @@ class FileOpsTool:
             items = os.listdir(abs_path)[:30]
         except PermissionError:
             return {"error": f"无权限读取目录: {abs_path}"}
-        return {"path": abs_path, "items": items, "count": len(items)}
+        return {"path": abs_path, "items": items, "count": len(items),
+                "__context__": f"列出目录 {abs_path}（{len(items)}项）"}
 
     def read_file(self, path: str, max_chars: int = 500) -> dict:
         abs_path = self._check_path(path)
@@ -55,7 +56,9 @@ class FileOpsTool:
         try:
             with open(abs_path, "r", encoding="utf-8") as f:
                 content = f.read(max_chars)
-            return {"path": abs_path, "content": content, "truncated": len(content) >= max_chars}
+            truncated = len(content) >= max_chars
+            return {"path": abs_path, "content": content, "truncated": truncated,
+                    "__context__": f"读取文件 {abs_path}（{len(content)}字符{'，已截断' if truncated else ''}）"}
         except Exception as e:
             return {"error": str(e)}
 
@@ -74,7 +77,8 @@ class FileOpsTool:
                 f.write(content)
         except OSError as e:
             return {"error": f"写入失败: {e}"}
-        return {"status": "written", "path": abs_path}
+        return {"status": "written", "path": abs_path,
+                "__context__": f"写入文件 {abs_path}（{len(content)}字节）"}
 
     def write_file(self, path: str, content: str, mode: str = "w") -> dict:
         if mode not in ("w", "a"):
@@ -89,4 +93,5 @@ class FileOpsTool:
                 f.write(content)
         except OSError as e:
             return {"error": f"写入失败: {e}"}
-        return {"status": label, "path": abs_path}
+        return {"status": label, "path": abs_path,
+                "__context__": f"{'追加' if mode == 'a' else '写入'}文件 {abs_path}（{len(content)}字节）"}

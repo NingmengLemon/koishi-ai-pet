@@ -15,8 +15,8 @@ from pet.ui.chat_bubble import ChatBubble
 from pet.ui.feed_bubble import FeedBubble
 from pet.agent import PetAgent
 from pet.brain.prompts import interact_fed_prompt
-from pet.skills import load_skills
-from pet.skills.context import SKILL_CTX
+from pet.tools import load_tools
+from pet.tools.context import TOOL_CTX
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -74,8 +74,8 @@ def main():
     logger.info("===== DeskPet 启动 =====")
     logger.info(f"BRAIN={config.BRAIN}, MODEL={config.LLM_MODEL}")
 
-    # 启动时加载技能插件
-    load_skills(config.SKILLS_ENABLED)
+    # 启动时加载工具插件
+    load_tools(config.TOOLS_ENABLED)
 
     if sys.platform == "win32":
         try:
@@ -91,7 +91,7 @@ def main():
         pass
 
     agent = PetAgent()
-    SKILL_CTX.bind(agent)
+    TOOL_CTX.bind(agent)
     window = PetWindow()
     window.set_agent(agent)
     window.set_app(app)

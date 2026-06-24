@@ -11,7 +11,7 @@ from pet.ui.styles import MENU_QSS
 from pet.ui.settings_window import SettingsWindow
 from pet.action import PetActions, ActionQueue
 from pet.brain.prompts import INTERACT_GRABBED, INTERACT_RELEASED, INTERACT_WINDOW_DISAPPEARED
-from pet.skills.registry import SKILL_REGISTRY
+from pet.tools.registry import TOOL_REGISTRY
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -264,29 +264,29 @@ class PetWindow(TransparentWindow):
             settings_action.triggered.connect(lambda: self._open_settings())
             menu.addAction(settings_action)
 
-            # 技能子菜单（每技能支持独立子菜单）
-            skill_menu = StickyMenu("技能", menu)
-            for name in SKILL_REGISTRY.skill_names:
-                skill = SKILL_REGISTRY._skills.get(name)
-                if not skill:
+            # 工具子菜单（每工具支持独立子菜单）
+            tool_menu = StickyMenu("工具", menu)
+            for name in TOOL_REGISTRY.tool_names:
+                tool = TOOL_REGISTRY._tools.get(name)
+                if not tool:
                     continue
 
-                # 技能开关（checkable）
-                skill_action = skill_menu.addAction(name)
-                skill_action.setCheckable(True)
-                skill_action.setChecked(SKILL_REGISTRY.is_enabled(name))
-                skill_action.toggled.connect(
-                    lambda checked, n=name: SKILL_REGISTRY.set_enabled(n, checked))
+                # 工具开关（checkable）
+                tool_action = tool_menu.addAction(name)
+                tool_action.setCheckable(True)
+                tool_action.setChecked(TOOL_REGISTRY.is_enabled(name))
+                tool_action.toggled.connect(
+                    lambda checked, n=name: TOOL_REGISTRY.set_enabled(n, checked))
 
                 # 如果有子菜单项，挂到 action 上
-                if skill.menu_items:
+                if tool.menu_items:
                     sub_menu = _FlatMenuBase(name)
-                    for item in skill.menu_items:
+                    for item in tool.menu_items:
                         sub_action = sub_menu.addAction(item["label"])
                         sub_action.triggered.connect(item["handler"])
-                    skill_action.setMenu(sub_menu)
+                    tool_action.setMenu(sub_menu)
 
-            menu.addMenu(skill_menu)
+            menu.addMenu(tool_menu)
 
             # 互动反应开关
             on = self._event_reaction

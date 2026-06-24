@@ -17,8 +17,8 @@ def _find_project_root() -> Path:
         if (cur / "config.py").exists():
             return cur
         cur = cur.parent
-    # 回退：假设 pet/skills/plugins/todo/ → 4 层 parent
-    return Path(__file__).resolve().parent.parent.parent.parent.parent
+    # 回退：假设 pet/tools/todo/ → 3 层 parent to project root
+    return Path(__file__).resolve().parent.parent.parent.parent
 
 
 _DEFAULT_DB = str(_find_project_root() / "pet.db")

@@ -14,7 +14,7 @@ class ContextBuilder:
       build_autonomous_decide — 自主决策（视觉 / 非视觉自动选择）
       build_chat_decide          — 用户对话
       build_interact          — 即时交互（抓取、释放等）
-      build_skill_result_message — 技能多轮调用中的结果消息（单条 dict）
+      build_tool_result_message — 工具多轮调用中的结果消息（单条 dict）
     """
 
     def __init__(self, memory_store=None, screen_reader=None, vitals=None, mood=None, brain_mixin=None):
@@ -67,26 +67,6 @@ class ContextBuilder:
             {"role": "system", "content": system},
             {"role": "user",   "content": event_hint},
         ]
-
-    def build_skill_result_message(self, result_text: str,
-                                    images: list[str] | None = None) -> dict:
-        """构建技能执行结果对应的单条 user message（含可选图片）。"""
-        text = prompts.skill_result_user_prompt(result_text)
-        if images:
-            content = [{"type": "text", "text": text}]
-            for uri in images:
-                content.append({"type": "image_url", "image_url": {"url": uri}})
-            return {"role": "user", "content": content}
-        return {"role": "user", "content": text}
-
-    def build_skill_round_system(self) -> str:
-        """技能多轮调用的精简 system prompt（不注入感受，专注执行结果）。"""
-        content = prompts.build_system_prompt("skill", "skill_round", include_feeling_marker=False)
-        if self._memory_store:
-            memory_text = self._memory_store.retrieve_context("")
-            if memory_text:
-                content += f"\n\n[你对用户的记忆]\n{memory_text}"
-        return content
 
     # ── 多轮消息构建 ──
 
@@ -185,6 +165,13 @@ class ContextBuilder:
             if memory_text:
                 content += f"\n\n[你对用户的记忆]\n{memory_text}"
 
+        # 工具能力概览：从注册表动态生成，增强 LLM 主动调用意识
+        if task in ("autonomous", "chat"):
+            from pet.tools.registry import TOOL_REGISTRY
+            tool_summary = TOOL_REGISTRY.to_prompt_summary()
+            if tool_summary:
+                content += f"\n\n{tool_summary}"
+
         return content
 
     def _time_prefix(self) -> str:
@@ -268,9 +255,9 @@ class ContextBuilder:
                 _t = config.SANITY_CRITICAL_THRESHOLD
                 mild = _t * 2 / 3
                 moderate = _t / 3
-                if value >= mild:        return "有点神神叨叨的，想被摸摸头（点击宠物）来清醒一点。想用技能做点不寻常的事。"
-                elif value >= moderate:  return "脑子快炸了，想被摸摸头（点击宠物）来清醒一点。想对空气说话，对着屏幕傻笑，手痒想搞破坏——翻翻可用技能，搜些荒诞的关键词，或者创建个奇怪的文件。"
-                else:                    return "理智彻底崩坏，控制不住自己，想被摸摸头（点击宠物）来清醒一点。疯狂翻可用技能：搜猎奇、恐怖主题相关的东西、创建包含病娇、恐怖内容的文件、打开乱七八糟的网页，什么都想试试。"
+                if value >= mild:        return "有点神神叨叨的，想被摸摸头（点击宠物）来清醒一点。想用工具做点不寻常的事。"
+                elif value >= moderate:  return "脑子快炸了，想被摸摸头（点击宠物）来清醒一点。想对空气说话，对着屏幕傻笑，手痒想搞破坏——翻翻可用工具，搜些荒诞的关键词，或者创建个奇怪的文件。"
+                else:                    return "理智彻底崩坏，控制不住自己，想被摸摸头（点击宠物）来清醒一点。疯狂翻可用工具：搜猎奇、恐怖主题相关的东西、创建包含病娇、恐怖内容的文件、打开乱七八糟的网页，什么都想试试。"
             return None
 
         parts: list[str] = []

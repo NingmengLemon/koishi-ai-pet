@@ -1,8 +1,8 @@
-"""TodoList 核心处理逻辑 — LLM 可见方法实现。"""
+﻿"""TodoList 核心处理逻辑 — LLM 可见方法实现。"""
 
 import logging
 
-from pet.skills.plugins.todo.storage import TodoStorage
+from pet.tools.todo.storage import TodoStorage
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,4 @@
-"""与 AI 通信，解析响应为动作序列。"""
+﻿"""与 AI 通信，解析响应为动作序列。"""
 
 import time
 from datetime import datetime
@@ -185,28 +185,25 @@ class Behavior(BrainMixin):
             self._lock.release()
 
     @llm_retry(tag="Behavior")
-    def _llm_call(self, messages: list, max_tokens: int = 4000):
+    def _llm_call(self, messages: list, max_tokens: int = 4000, tools: list = None):
         self.llm_stats.increment()
         t0 = time.perf_counter()
-        resp = self._client.chat.completions.create(
-            model=self._model,
-            messages=messages,
-            max_tokens=max_tokens,
-        )
+        kwargs = {"model": self._model, "messages": messages, "max_tokens": max_tokens}
+        if tools:
+            kwargs["tools"] = tools
+        resp = self._client.chat.completions.create(**kwargs)
         elapsed = time.perf_counter() - t0
         logger.info(f"[Behavior] LLM call completed in {elapsed:.2f}s")
         return resp
 
-    def _llm_call_stream(self, messages: list, max_tokens: int = 4000):
+    def _llm_call_stream(self, messages: list, max_tokens: int = 4000, tools: list = None):
         self.llm_stats.increment()
         from pet.brain.llm_retry import llm_stream_with_retry
+        kwargs = {"model": self._model, "messages": messages, "max_tokens": max_tokens, "stream": True}
+        if tools:
+            kwargs["tools"] = tools
         return llm_stream_with_retry(
-            lambda: self._client.chat.completions.create(
-                model=self._model,
-                messages=messages,
-                max_tokens=max_tokens,
-                stream=True,
-            ),
+            lambda: self._client.chat.completions.create(**kwargs),
             tag="Behavior.stream",
         )
 
@@ -230,15 +227,31 @@ class Behavior(BrainMixin):
         self._dump_context(tag, messages)
         self._log_prompt_size(messages, tag)
         try:
-            resp = self._llm_call(messages)
-            content = resp.choices[0].message.content or ""
+            from pet.tools.registry import TOOL_REGISTRY
+            tools_param = TOOL_REGISTRY.to_openai_tools()
+            resp = self._llm_call(messages, tools=tools_param if tools_param else None)
+            msg = resp.choices[0].message
+            content = msg.content or ""
             logger.info(f"[{t}] [Behavior] === LLM RESPONSE ({tag}) ===")
             logger.info(f"[{t}] [Behavior]   finish_reason: {resp.choices[0].finish_reason}")
-            if hasattr(resp, 'usage') and resp.usage:
-                logger.info(f"[{t}] [Behavior]   usage: {resp.usage}")
             logger.info(f"[{t}] [Behavior]   raw: {content}")
-            result = self._execute_with_skills(content, system_content)
-            logger.info(f"[{t}] [Behavior]   parsed → {result}")
+
+            # 处理 tool_calls
+            if msg.tool_calls:
+                tool_calls_map = {}
+                for i, tc in enumerate(msg.tool_calls):
+                    tool_calls_map[i] = {
+                        "id": tc.id,
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    }
+                return self._handle_tool_calls(
+                    messages, tool_calls_map, content,
+                    tag=tag, tools_param=tools_param,
+                )
+
+            result = self._parse_behavior(content)
+            logger.info(f"[{t}] [Behavior]   parsed -> {result}")
             return result
         except Exception as e:
             logger.exception(f"[{t}] [Behavior]   {tag} LLM call failed: {type(e).__name__}: {e}")
@@ -251,12 +264,13 @@ class Behavior(BrainMixin):
         self._log_prompt_size(messages, tag)
         t0 = time.perf_counter()
         try:
-            stream = self._llm_call_stream(messages)
+            from pet.tools.registry import TOOL_REGISTRY
+            tools_param = TOOL_REGISTRY.to_openai_tools()
+            stream = self._llm_call_stream(messages, tools=tools_param if tools_param else None)
 
             buffer = ""
             actions = []
             speech_parts = []
-            skill_lines = []
             summary_holder = []
             memory_holder = []
             emotion_holder = []
@@ -265,85 +279,101 @@ class Behavior(BrainMixin):
             speech_streamed = False
             line_type = None
             speech_prefix_consumed = False
+            accumulated_tool_calls = {}  # {index: {"id":..., "name":..., "arguments":...}}
 
             for chunk in stream:
                 if not chunk.choices:
                     continue
-                delta = chunk.choices[0].delta.content
-                if delta is None:
-                    continue
+                delta = chunk.choices[0].delta
 
-                delta_speech = ""
-                for char in delta:
-                    if char in ("\n", "\r"):
-                        self._finish_line(buffer, actions, speech_parts, skill_lines, summary_holder, memory_holder, emotion_holder, mood_holder, vitals_holder)
-                        buffer = ""
-                        line_type = None
-                        speech_prefix_consumed = False
-                    else:
-                        buffer += char
+                # 文本内容
+                if delta.content:
+                    delta_speech = ""
+                    for char in delta.content:
+                        if char in ("\n", "\r"):
+                            self._finish_line(buffer, actions, speech_parts, summary_holder, memory_holder, emotion_holder, mood_holder, vitals_holder)
+                            buffer = ""
+                            line_type = None
+                            speech_prefix_consumed = False
+                        else:
+                            buffer += char
+                            if line_type is None:
+                                stripped = buffer.lstrip()
+                                lower = stripped.lower()
+                                if lower.startswith("speech:"):
+                                    line_type = "speech"
+                                elif lower.startswith("action:"):
+                                    line_type = "action"
+                                elif lower.startswith("summary:"):
+                                    line_type = "summary"
+                                elif lower.startswith("memory:"):
+                                    line_type = "memory"
+                                elif lower.startswith("emotion:"):
+                                    line_type = "emotion"
+                                elif lower.startswith("mood:"):
+                                    line_type = "mood"
+                                elif lower.startswith("vitals:"):
+                                    line_type = "vitals"
+                                elif len(stripped) >= 8:
+                                    line_type = "other"
+                            if line_type == "speech":
+                                stripped = buffer.lstrip()
+                                if not speech_prefix_consumed:
+                                    prefix = "Speech: "
+                                    if len(stripped) > len(prefix):
+                                        speech_prefix_consumed = True
+                                        delta_speech += stripped[len(prefix):]
+                                else:
+                                    delta_speech += char
+                    if delta_speech and on_chunk:
+                        on_chunk(delta_speech)
+                        speech_streamed = True
 
-                        if line_type is None:
-                            stripped = buffer.lstrip()
-                            lower = stripped.lower()
-                            if lower.startswith("speech:"):
-                                line_type = "speech"
-                            elif lower.startswith("action:"):
-                                line_type = "action"
-                            elif lower.startswith("skill:"):
-                                line_type = "skill"
-                            elif lower.startswith("summary:"):
-                                line_type = "summary"
-                            elif lower.startswith("memory:"):
-                                line_type = "memory"
-                            elif lower.startswith("emotion:"):
-                                line_type = "emotion"
-                            elif lower.startswith("mood:"):
-                                line_type = "mood"
-                            elif lower.startswith("vitals:"):
-                                line_type = "vitals"
-                            elif len(stripped) >= 8:
-                                line_type = "other"
-
-                        if line_type == "speech":
-                            stripped = buffer.lstrip()
-                            if not speech_prefix_consumed:
-                                prefix = "Speech: "
-                                if len(stripped) > len(prefix):
-                                    speech_prefix_consumed = True
-                                    delta_speech += stripped[len(prefix):]
-                            else:
-                                delta_speech += char
-
-                if delta_speech and on_chunk:
-                    on_chunk(delta_speech)
-                    speech_streamed = True
+                # 工具调用增量
+                if delta.tool_calls:
+                    for tc_delta in delta.tool_calls:
+                        idx = tc_delta.index
+                        if idx not in accumulated_tool_calls:
+                            accumulated_tool_calls[idx] = {"id": "", "name": "", "arguments": ""}
+                        if tc_delta.id:
+                            accumulated_tool_calls[idx]["id"] = tc_delta.id
+                        if tc_delta.function and tc_delta.function.name:
+                            accumulated_tool_calls[idx]["name"] = tc_delta.function.name
+                        if tc_delta.function and tc_delta.function.arguments:
+                            accumulated_tool_calls[idx]["arguments"] += tc_delta.function.arguments
 
             if buffer.strip():
-                self._finish_line(buffer, actions, speech_parts, skill_lines, summary_holder, memory_holder, emotion_holder, mood_holder, vitals_holder)
+                self._finish_line(buffer, actions, speech_parts, summary_holder, memory_holder, emotion_holder, mood_holder, vitals_holder)
 
             elapsed = time.perf_counter() - t0
             logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] stream completed in {elapsed:.2f}s ({tag})")
 
-            # Skill 调用 → 执行技能后二次 LLM 调用
-            if skill_lines:
+            # 如果有 tool_calls，执行工具并循环
+            if accumulated_tool_calls:
+                # 构建第一轮的 content 文本
+                first_content = "\n".join(
+                    ([f"Summary: {summary_holder[0]}"] if summary_holder else []) +
+                    ([f"Emotion: {emotion_holder[0]}"] if emotion_holder else []) +
+                    [f"Speech: {s}" for s in speech_parts] +
+                    [f"Action: {a.name} {' '.join(map(str, a.args))} {' '.join(f'{k}={v}' for k, v in a.kwargs.items())}".strip() for a in actions] +
+                    ([f"Memory: {memory_holder[0]}"] if memory_holder else []) +
+                    ([f"Mood: {mood_holder[0]}"] if mood_holder else []) +
+                    ([f"Vitals: {vitals_holder[0]}"] if vitals_holder else [])
+                )
+                logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   tool_calls: {len(accumulated_tool_calls)}")
                 if on_stream_end:
                     on_stream_end()
-                full_content = "\n".join(
-                    [f"Speech: {s}" for s in speech_parts] +
-                    [f"Action: {a.name} {' '.join(map(str, a.args))}" for a in actions] +
-                    skill_lines
+                return self._handle_tool_calls(
+                    messages, accumulated_tool_calls, first_content,
+                    on_chunk=on_chunk, on_stream_end=on_stream_end, tag=tag,
+                    tools_param=tools_param,
                 )
-                logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] === LLM RESPONSE ({tag}) ===")
-                logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {full_content}")
-                return self._execute_with_skills(full_content, messages[0]["content"], on_chunk=on_chunk, on_stream_end=on_stream_end)
 
             raw = "\n".join(
                 ([f"Summary: {summary_holder[0]}"] if summary_holder else []) +
                 ([f"Emotion: {emotion_holder[0]}"] if emotion_holder else []) +
                 [f"Speech: {s}" for s in speech_parts] +
                 [f"Action: {a.name} {' '.join(map(str, a.args))} {' '.join(f'{k}={v}' for k, v in a.kwargs.items())}".strip() for a in actions] +
-                skill_lines +
                 ([f"Memory: {memory_holder[0]}"] if memory_holder else []) +
                 ([f"Mood: {mood_holder[0]}"] if mood_holder else []) +
                 ([f"Vitals: {vitals_holder[0]}"] if vitals_holder else [])
@@ -406,7 +436,7 @@ class Behavior(BrainMixin):
         vitals_deltas = self._parse_vitals_line(vitals_line) if vitals_line else None
         return BehaviorOutput(actions=actions, speech=speech, summary=summary, memory_line=memory_line, emotion=emotion, mood_deltas=mood_deltas, vitals_deltas=vitals_deltas)
 
-    def _finish_line(self, buffer, actions, speech_parts, skill_lines,
+    def _finish_line(self, buffer, actions, speech_parts,
                       summary_holder=None, memory_holder=None, emotion_holder=None,
                       mood_holder=None, vitals_holder=None):
         line = buffer.strip()
@@ -420,8 +450,6 @@ class Behavior(BrainMixin):
             step = self._parse_action_line(raw)
             if step:
                 actions.append(step)
-        elif lower.startswith("skill:"):
-            skill_lines.append(line)
         elif lower.startswith("summary:"):
             if summary_holder is not None:
                 summary_holder.append(line.split(":", 1)[1].strip())
@@ -489,71 +517,85 @@ class Behavior(BrainMixin):
                 args.append(token)
         return ActionStep(name, tuple(args), kwargs)
 
-    def _execute_with_skills(self, first_content: str, system_content: str, on_chunk=None,
-                             on_stream_end=None, max_rounds: int = 5) -> BehaviorOutput:
-        from pet.skills.executor import SkillExecutor
+    def _handle_tool_calls(self, messages, tool_calls_map, first_content,
+                            on_chunk=None, on_stream_end=None, tag="", tools_param=None,
+                            max_rounds=5) -> BehaviorOutput:
+        """执行 tool_calls 并循环直到 LLM 不再请求工具。"""
+        import json as _json
+        from pet.tools.executor import ToolExecutor, ToolCall
 
-        executor = SkillExecutor()
-        current_content = first_content
-        history = []
+        executor = ToolExecutor()
+        current_messages = list(messages)
         speech_streamed = False
-        short_system = self.ctx.build_skill_round_system()
+        tool_log = []  # 记录工具调用摘要，用于写入上下文
 
         for round_idx in range(max_rounds):
-            tool_calls = executor.parse_skill_lines(current_content)
-            if not tool_calls:
-                result = self._parse_behavior(current_content)
+            # 构建 assistant 消息（含 tool_calls）
+            openai_tool_calls = []
+            for idx in sorted(tool_calls_map.keys()):
+                tc = tool_calls_map[idx]
+                openai_tool_calls.append({
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {"name": tc["name"], "arguments": tc["arguments"]},
+                })
+            assistant_msg = {"role": "assistant", "tool_calls": openai_tool_calls}
+            if first_content.strip():
+                assistant_msg["content"] = first_content
+            current_messages.append(assistant_msg)
+
+            # 执行每个工具调用
+            for idx in sorted(tool_calls_map.keys()):
+                tc = tool_calls_map[idx]
+                try:
+                    args = _json.loads(tc["arguments"] or "{}")
+                except _json.JSONDecodeError:
+                    args = {}
+                call = ToolCall(name=tc["name"], args=args)
+                result = executor._execute_one(call)
+                # 在 _normalize 之前提取摘要（_normalize 会 pop summary）
+                tool_brief = ""
+                if result.success and isinstance(result.data, dict):
+                    tool_brief = result.data.get("summary", "")
+                result_text = executor._normalize(result.data) if result.success else result.error
+                current_messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": result_text,
+                })
+                logger.info(f"[Behavior] tool_round_{round_idx+1} {tc['name']} -> {'OK' if result.success else 'FAIL'}")
+                tool_log.append(f"{tc['name']} → {result.context_brief or tool_brief or result_text[:200]}")
+
+            # 再次调用 LLM
+            t0 = time.perf_counter()
+            stream = self._llm_call_stream(current_messages, tools=tools_param)
+            content, new_tool_calls = self._consume_stream(stream, on_chunk=on_chunk, on_stream_end=on_stream_end, tag=f"{tag}_round_{round_idx+1}", t0=t0)
+            if on_chunk:
+                speech_streamed = speech_streamed or bool(content)
+
+            if not new_tool_calls:
+                # LLM 不再请求工具，解析最终行为
+                result = self._parse_behavior(content)
                 result.speech_streamed = speech_streamed
+                if tool_log:
+                    self.add_context(role="assistant", content=f"[工具调用] {' | '.join(tool_log)}")
                 return result
 
-            results = executor.execute(tool_calls)
-            result_text, images = executor.format_results(results)
-            logger.info(f"[Behavior] skill_round_{round_idx+1} executed {len(tool_calls)} tool(s), images={len(images)}")
+            # 准备下一轮
+            first_content = content
+            tool_calls_map = new_tool_calls
 
-            # 保存 skill 请求和结果到上下文
-            self.add_context(role="assistant", content=f"[Skill] {current_content[:300]}")
-            for r in results:
-                if r.success:
-                    detail = f"[✓ {r.name}] {r.data}"[:200]
-                else:
-                    detail = f"[✗ {r.name}] 失败: {r.error}"[:200]
-                self.add_context(role="system", content=detail)
-
-            history.append({"role": "assistant", "content": current_content})
-            history.append(self.ctx.build_skill_result_message(result_text, images))
-
-            sys = system_content if round_idx == 0 else short_system
-            messages = [{"role": "system", "content": sys}] + history
-            tag = f"skill_round_{round_idx+1}"
-            self._dump_context(tag, messages)
-            self._log_prompt_size(messages, tag)
-            try:
-                if on_chunk:
-                    current_content = self._stream_text_raw(messages, on_chunk=on_chunk, tag=tag)
-                    speech_streamed = True
-                    if on_stream_end:
-                        on_stream_end()
-                else:
-                    resp = self._llm_call(messages)
-                    current_content = resp.choices[0].message.content or ""
-                    logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] === LLM RESPONSE ({tag}) ===")
-                    logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {current_content}")
-            except Exception as e:
-                logger.error(f"[Behavior] {tag} failed: {e}")
-                result = self._parse_behavior(current_content)
-                result.speech_streamed = speech_streamed
-                return result
-
-        logger.warning(f"[Behavior] reached MAX_ROUNDS={max_rounds}, force terminate skill loop")
-        result = self._parse_behavior(current_content)
+        logger.warning(f"[Behavior] reached MAX_ROUNDS={max_rounds}, force terminate tool loop")
+        result = self._parse_behavior(first_content)
         result.speech_streamed = speech_streamed
+        if tool_log:
+            self.add_context(role="assistant", content=f"[工具调用] {' | '.join(tool_log)}")
         return result
 
-    def _stream_text_raw(self, messages: list, on_chunk=None, tag: str = "") -> str:
-        """流式调用并返回原始文本，不做 Skill/Action 行解析，避免多轮 Skill 循环中递归触发。"""
-        t0 = time.perf_counter()
-        stream = self._llm_call_stream(messages)
-        full_content = ""
+    def _consume_stream(self, stream, on_chunk=None, on_stream_end=None, tag="", t0=None):
+        """消费流，返回 (content_text, tool_calls_map)。"""
+        content = ""
+        tool_calls_map = {}
         line_buffer = ""
         in_speech = False
         prefix_consumed = False
@@ -561,45 +603,58 @@ class Behavior(BrainMixin):
         for chunk in stream:
             if not chunk.choices:
                 continue
-            delta = chunk.choices[0].delta.content
-            if delta is None:
-                continue
-            full_content += delta
+            delta = chunk.choices[0].delta
 
-            delta_speech = ""
-            for char in delta:
-                if char in ("\n", "\r"):
-                    line_buffer = ""
-                    in_speech = False
-                    prefix_consumed = False
-                else:
-                    line_buffer += char
-                    if not in_speech:
-                        stripped = line_buffer.lstrip()
-                        if stripped.lower().startswith("speech:"):
-                            in_speech = True
-                            prefix = "Speech: "
-                            if len(stripped) > len(prefix):
-                                prefix_consumed = True
-                                delta_speech += stripped[len(prefix):]
+            if delta.content:
+                content += delta.content
+                delta_speech = ""
+                for char in delta.content:
+                    if char in ("\n", "\r"):
+                        line_buffer = ""
+                        in_speech = False
+                        prefix_consumed = False
                     else:
-                        if not prefix_consumed:
+                        line_buffer += char
+                        if not in_speech:
                             stripped = line_buffer.lstrip()
-                            prefix = "Speech: "
-                            if len(stripped) > len(prefix):
-                                prefix_consumed = True
-                                delta_speech += stripped[len(prefix):]
+                            if stripped.lower().startswith("speech:"):
+                                in_speech = True
+                                prefix = "Speech: "
+                                if len(stripped) > len(prefix):
+                                    prefix_consumed = True
+                                    delta_speech += stripped[len(prefix):]
                         else:
-                            delta_speech += char
+                            if not prefix_consumed:
+                                stripped = line_buffer.lstrip()
+                                prefix = "Speech: "
+                                if len(stripped) > len(prefix):
+                                    prefix_consumed = True
+                                    delta_speech += stripped[len(prefix):]
+                            else:
+                                delta_speech += char
+                if delta_speech and on_chunk:
+                    on_chunk(delta_speech)
 
-            if delta_speech and on_chunk:
-                on_chunk(delta_speech)
+            if delta.tool_calls:
+                for tc_delta in delta.tool_calls:
+                    idx = tc_delta.index
+                    if idx not in tool_calls_map:
+                        tool_calls_map[idx] = {"id": "", "name": "", "arguments": ""}
+                    if tc_delta.id:
+                        tool_calls_map[idx]["id"] = tc_delta.id
+                    if tc_delta.function and tc_delta.function.name:
+                        tool_calls_map[idx]["name"] = tc_delta.function.name
+                    if tc_delta.function and tc_delta.function.arguments:
+                        tool_calls_map[idx]["arguments"] += tc_delta.function.arguments
 
-        elapsed = time.perf_counter() - t0
-        logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] stream completed in {elapsed:.2f}s ({tag})")
+        if t0:
+            elapsed = time.perf_counter() - t0
+            logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] stream completed in {elapsed:.2f}s ({tag})")
         logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] === LLM RESPONSE ({tag}) ===")
-        logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {full_content}")
-        return full_content
+        logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {content}")
+        if on_stream_end:
+            on_stream_end()
+        return content, tool_calls_map
 
     _LOCAL_ACTIONS = [
         ("sit", "Taking a little break."),
