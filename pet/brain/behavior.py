@@ -39,7 +39,8 @@ class BehaviorOutput:
 class Behavior(BrainMixin):
 
     def __init__(self, memory_store=None, screen_reader=None, vitals=None, mood=None):
-        super().__init__()
+        db_path = memory_store._db_path if memory_store else None
+        super().__init__(db_path=db_path)
         self._client = None
         self._model = None
         self._lock = threading.RLock()

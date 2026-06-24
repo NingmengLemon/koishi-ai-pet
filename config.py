@@ -71,6 +71,10 @@ _KEY_META = {
     "MEMORY_RERANK_WEIGHT_RECENCY": {"type": "float", "default": 0.1,           "category": "memory",   "needs_restart": False, "hidden": True,  "description": "重排序-时效性权重"},
     "CONTEXT_MAX_ENTRIES":       {"type": "int",      "default": 30,             "category": "behavior", "needs_restart": False, "hidden": False, "description": "上下文最大条目数"},
     "CONTEXT_MAX_SUMMARIES":     {"type": "int",      "default": 5,              "category": "behavior", "needs_restart": False, "hidden": True,  "description": "上下文最大摘要数"},
+    "CONTEXT_HALF_LIFE_S":       {"type": "int",      "default": 1800,           "category": "behavior", "needs_restart": False, "hidden": True,  "description": "上下文评分半衰期(秒)"},
+    "CONTEXT_TOKEN_BUDGET":      {"type": "int",      "default": 2000,           "category": "behavior", "needs_restart": False, "hidden": True,  "description": "上下文token预算上限"},
+    "CONTEXT_MULTI_TURN":        {"type": "bool",     "default": True,           "category": "behavior", "needs_restart": False, "hidden": True,  "description": "启用多轮消息模式"},
+    "CONTEXT_PERSIST_ENABLED":   {"type": "bool",     "default": True,           "category": "behavior", "needs_restart": False, "hidden": True,  "description": "启用上下文持久化"},
 }
 
 

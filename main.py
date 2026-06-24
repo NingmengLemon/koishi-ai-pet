@@ -186,6 +186,11 @@ def main():
             agent.behavior.llm_stats.save()
         except Exception:
             pass
+        # 保存上下文并记录关闭时间
+        try:
+            agent.behavior._save_context(record_shutdown=True)
+        except Exception:
+            pass
         # 清理设置窗口
         try:
             from pet.ui.settings_window import SettingsWindow

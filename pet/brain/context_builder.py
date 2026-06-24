@@ -32,20 +32,15 @@ class ContextBuilder:
         vision = base64_img is not None
         mode = "autonomous_vision" if vision else "autonomous_non_vision"
         system = self._build_system(mode, "autonomous", user_message=window_context)
-        ctx_str = self._build_user_context(window_context)
 
-        if vision:
-            return [
-                {"role": "system", "content": system},
-                {"role": "user", "content": [
-                    {"type": "text", "text": prompts.autonomous_vision_user_prompt(ctx_str)},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_img}"}},
-                ]},
-            ]
-        return [
-            {"role": "system", "content": system},
-            {"role": "user", "content": prompts.autonomous_non_vision_user_prompt(ctx_str)},
-        ]
+        if config.CONTEXT_MULTI_TURN and self._brain:
+            return self._build_multi_turn_autonomous(system, window_context, vision, base64_img)
+
+        # 非多轮模式：压扁文本
+        ctx_str = self._build_user_context(window_context)
+        return self._wrap_user_prompt(system, ctx_str, vision, base64_img,
+                                      prompt_fn=prompts.autonomous_vision_user_prompt if vision
+                                      else prompts.autonomous_non_vision_user_prompt)
 
     def build_chat_decide(self, user_message: str, window_context: str,
                    screenshot: bool = True) -> list[dict]:
@@ -54,22 +49,16 @@ class ContextBuilder:
         vision = base64_img is not None
         mode = "chat_vision" if vision else "chat_non_vision"
         system = self._build_system(mode, "chat", user_message=user_message)
+
+        if config.CONTEXT_MULTI_TURN and self._brain:
+            return self._build_multi_turn_chat(system, user_message, window_context, vision, base64_img)
+
+        # 非多轮模式：压扁文本
         history = self._build_history()
         ctx = self._time_prefix() + "\n" + window_context + "\n" + history
-        if vision:
-            user_content = prompts.chat_vision_user_prompt(user_message, ctx)
-            return [
-                {"role": "system", "content": system},
-                {"role": "user", "content": [
-                    {"type": "text", "text": user_content},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_img}"}},
-                ]},
-            ]
-        user_content = prompts.chat_non_vision_user_prompt(user_message, ctx)
-        return [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user_content},
-        ]
+        prompt_fn = prompts.chat_vision_user_prompt if vision else prompts.chat_non_vision_user_prompt
+        user_content = prompt_fn(user_message, ctx)
+        return self._wrap_text_message(system, user_content, vision, base64_img)
 
     def build_interact(self, event_hint: str) -> list[dict]:
         """即时交互模式的 messages（抓取、释放等）"""
@@ -98,6 +87,83 @@ class ContextBuilder:
             if memory_text:
                 content += f"\n\n[你对用户的记忆]\n{memory_text}"
         return content
+
+    # ── 多轮消息构建 ──
+
+    def _build_multi_turn_autonomous(self, system: str, window_context: str,
+                                     vision: bool, base64_img: str | None) -> list[dict]:
+        """多轮消息模式：自主决策。"""
+        token_budget = config.CONTEXT_TOKEN_BUDGET
+        history_msgs = self._brain.get_multi_turn_messages(
+            max_entries=8, skip_last=1, token_budget=token_budget,
+        )
+
+        # 当前 user prompt：时间 + 窗口探测 + 决策指令
+        ctx_str = self._time_prefix() + "\n" + (window_context or "no context")
+        current_prompt = prompts.autonomous_non_vision_user_prompt(ctx_str)
+
+        messages = [{"role": "system", "content": system}]
+        messages.extend(history_msgs)
+
+        if vision:
+            messages.append({"role": "user", "content": [
+                {"type": "text", "text": current_prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_img}"}},
+            ]})
+        else:
+            messages.append({"role": "user", "content": current_prompt})
+        return messages
+
+    def _build_multi_turn_chat(self, system: str, user_message: str, window_context: str,
+                               vision: bool, base64_img: str | None) -> list[dict]:
+        """多轮消息模式：用户对话。"""
+        token_budget = config.CONTEXT_TOKEN_BUDGET
+        history_msgs = self._brain.get_multi_turn_messages(
+            max_entries=8, skip_last=1, token_budget=token_budget,
+        )
+
+        # 当前 user prompt：时间 + 窗口探测 + 用户消息
+        ctx = self._time_prefix() + "\n" + window_context
+        current_prompt = prompts.chat_non_vision_user_prompt(user_message, ctx)
+
+        messages = [{"role": "system", "content": system}]
+        messages.extend(history_msgs)
+
+        if vision:
+            messages.append({"role": "user", "content": [
+                {"type": "text", "text": current_prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_img}"}},
+            ]})
+        else:
+            messages.append({"role": "user", "content": current_prompt})
+        return messages
+
+    # ── 辅助 ──
+
+    @staticmethod
+    def _wrap_text_message(system: str, user_content: str,
+                           vision: bool, base64_img: str | None) -> list[dict]:
+        """构建标准 [system, user] 消息（vision 时 user 为多模态）。"""
+        if vision:
+            return [
+                {"role": "system", "content": system},
+                {"role": "user", "content": [
+                    {"type": "text", "text": user_content},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_img}"}},
+                ]},
+            ]
+        return [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_content},
+        ]
+
+    @staticmethod
+    def _wrap_user_prompt(system: str, ctx_str: str,
+                          vision: bool, base64_img: str | None,
+                          prompt_fn) -> list[dict]:
+        """用 prompt_fn 包裹 ctx_str 后构建消息。"""
+        user_content = prompt_fn(ctx_str)
+        return ContextBuilder._wrap_text_message(system, user_content, vision, base64_img)
 
     # internal
 
@@ -141,13 +207,16 @@ class ContextBuilder:
         return f"当前时间: {now.strftime('%Y-%m-%d %H:%M')} {weekday} {period}"
 
     def _build_user_context(self, window_context: str) -> str:
-        """窗口探测文本 + 历史对话（非当前输入）+ 近期行为历史（给 decide 模式用）。"""
+        """窗口探测文本 + 历史对话（去重后）+ 近期行为历史（给 decide 模式用）。"""
         ctx = self._time_prefix() + "\n" + (window_context or "no context")
         if self._brain:
-            user_msgs = self._brain.get_recent_user_messages(3, skip_last=1)
+            # 使用去重方法一次遍历获取 user 消息 + 全部上下文
+            user_msgs, recent = self._brain.get_context_with_user_messages(
+                max_entries=6, max_user_msgs=3, skip_last=1,
+                token_budget=config.CONTEXT_TOKEN_BUDGET,
+            )
             if user_msgs:
                 ctx += f"\n=== 近期历史对话（不是当前输入，仅作背景参考）===\n{user_msgs}"
-            recent = self._brain.get_context_inline(6, skip_last=1)
             if recent:
                 ctx += f"\nRecent: {recent}"
         return ctx
@@ -155,7 +224,9 @@ class ContextBuilder:
     def _build_history(self) -> str:
         """近期对话/行为记录的格式化文本（给 chat 模式用）"""
         if self._brain:
-            text = self._brain.get_context_for_llm(9, skip_last=1)
+            text = self._brain.get_context_for_llm(
+                9, skip_last=1, token_budget=config.CONTEXT_TOKEN_BUDGET,
+            )
             if text:
                 return "\n\n=== 近期对话/行为记录 ===\n" + text
         return ""
