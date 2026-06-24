@@ -11,6 +11,8 @@ from difflib import SequenceMatcher
 from typing import Optional, List, Tuple
 from abc import ABC, abstractmethod
 
+from config import config
+
 logger = logging.getLogger(__name__)
 
 # 尝试导入 jieba，如果未安装则降级
@@ -72,14 +74,28 @@ class LightweightDeduplicator:
         return results
 
 
+def _escape_like(s: str) -> str:
+    """转义 LIKE 通配符，防止关键词中的 % 和 _ 被误解析。"""
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 # ── Abstract base with shared logic ──
 
 class _MemoryRetriever(ABC):
     """Abstract base for memory retrieval strategies with shared logic."""
 
-    MAX_MEMORIES = 200
     # 记忆被召回后多长时间内禁止被 LLM 再次保存
-    RECALL_COOLDOWN_SECONDS = 300
+    # 以下值从 config 动态读取，通过 property 暴露
+
+    @property
+    def MAX_MEMORIES(self) -> int:
+        from config import config
+        return config.MEMORY_MAX_CAPACITY
+
+    @property
+    def RECALL_COOLDOWN_SECONDS(self) -> int:
+        from config import config
+        return config.MEMORY_RECALL_COOLDOWN_S
 
     def __init__(self, conn: sqlite3.Connection, dedup_threshold: float = 0.6):
         self._conn = conn
@@ -177,7 +193,7 @@ class _MemoryRetriever(ABC):
     def save_from_line(self, line: str):
         """Parse and save a memory from LLM output line."""
         line = line.strip()
-        cat_match = re.match(r"\[(\w+)\]\s*(.+)", line)
+        cat_match = re.match(r"\[(\w+)\][:：]?\s*(.+)", line)
         if not cat_match:
             cat_match = re.match(r"(\w+)\s+(.+)", line)
         if not cat_match:
@@ -302,8 +318,8 @@ class _MemoryRetriever(ABC):
         candidate_rows = []
 
         if keywords:
-            conditions = " OR ".join(["keywords LIKE ?" for _ in keywords])
-            params = [f"%{kw}%" for kw in keywords]
+            conditions = " OR ".join(["keywords LIKE ? ESCAPE '\\'" for _ in keywords])
+            params = [f"%{_escape_like(kw)}%" for kw in keywords]
             candidate_rows = self._conn.execute(
                 f"SELECT * FROM memories WHERE {conditions} LIMIT 20", params
             ).fetchall()
@@ -334,8 +350,8 @@ class _MemoryRetriever(ABC):
         keywords = self._extract_keywords(text)
         if not keywords:
             return []
-        conditions = " OR ".join(["keywords LIKE ?" for _ in keywords])
-        params = [f"%{kw}%" for kw in keywords]
+        conditions = " OR ".join(["keywords LIKE ? ESCAPE '\\'" for _ in keywords])
+        params = [f"%{_escape_like(kw)}%" for kw in keywords]
 
         with self._lock:
             rows = self._conn.execute(
@@ -355,6 +371,8 @@ class _MemoryRetriever(ABC):
         return result_dicts
 
     def touch(self, ids_or_rows):
+        if isinstance(ids_or_rows, int):
+            ids_or_rows = [ids_or_rows]
         if not ids_or_rows:
             return
         if isinstance(ids_or_rows[0], int):
@@ -375,7 +393,7 @@ class _MemoryRetriever(ABC):
         count = self._conn.execute("SELECT COUNT(*) FROM memories").fetchall()[0][0]
         if count <= self.MAX_MEMORIES:
             # 未超容量，但仍执行轻量 L3 硬清理（仅当存在过期 L3 时才写）
-            cutoff_l3 = (datetime.now() - timedelta(days=3)).isoformat()
+            cutoff_l3 = (datetime.now() - timedelta(days=config.MEMORY_L3_EXPIRE_DAYS)).isoformat()
             stale = self._conn.execute(
                 "SELECT 1 FROM memories WHERE level='L3' AND COALESCE(last_accessed_at, created_at) < ? LIMIT 1",
                 (cutoff_l3,)
@@ -388,16 +406,17 @@ class _MemoryRetriever(ABC):
                 self._conn.commit()
             return
 
-        # 阶段 0：L3 硬清理 — 超过 3 天未访问的 L3 记忆直接删除
-        cutoff_l3 = (datetime.now() - timedelta(days=3)).isoformat()
+        # 超容量：多阶段清理，统一在最后一次 commit
+        # 阶段 0：L3 硬清理
+        cutoff_l3 = (datetime.now() - timedelta(days=config.MEMORY_L3_EXPIRE_DAYS)).isoformat()
         self._conn.execute(
             "DELETE FROM memories WHERE level='L3' AND COALESCE(last_accessed_at, created_at) < ?",
             (cutoff_l3,)
         )
-        self._conn.commit()
 
         count = self._conn.execute("SELECT COUNT(*) FROM memories").fetchall()[0][0]
         if count <= self.MAX_MEMORIES:
+            self._conn.commit()
             return
 
         # 阶段 1：删除 L3 中 access_count <= 1 的旧记忆
@@ -406,7 +425,6 @@ class _MemoryRetriever(ABC):
             "DELETE FROM memories WHERE level='L3' AND COALESCE(last_accessed_at, created_at) < ? AND access_count <= 1",
             (cutoff,)
         )
-        self._conn.commit()
 
         # 阶段 2：L1 完全豁免，仅在 L2/L3 中按 effective_importance 淘汰
         total = self._conn.execute("SELECT COUNT(*) FROM memories").fetchall()[0][0]
@@ -423,7 +441,7 @@ class _MemoryRetriever(ABC):
                     f"DELETE FROM memories WHERE id IN ({placeholders})",
                     ids_to_delete
                 )
-                self._conn.commit()
+        self._conn.commit()  # 统一一次 commit
 
     def close(self):
         with self._lock:
@@ -607,7 +625,7 @@ class VectorRetriever(_MemoryRetriever):
                     (vec_bytes,)
                 )
                 vec_hits = cursor.fetchall()
-                if vec_hits and vec_hits[0][1] < 0.6:  # 语义去重阈值
+                if vec_hits and vec_hits[0][1] < config.EMBEDDING_DEDUP_THRESHOLD:  # 语义去重阈值
                     mid = vec_hits[0][0]
                     row = self._conn.execute("SELECT * FROM memories WHERE id=?", (mid,)).fetchall()
                     if row:
@@ -664,7 +682,7 @@ class VectorRetriever(_MemoryRetriever):
                 except Exception:
                     age_hours = 9999
                 recency = 1.0 / (1.0 + age_hours / 24)
-                return 0.7 * sim + 0.2 * eff_imp + 0.1 * recency
+                return config.MEMORY_RERANK_WEIGHT_SIM * sim + config.MEMORY_RERANK_WEIGHT_IMP * eff_imp + config.MEMORY_RERANK_WEIGHT_RECENCY * recency
 
             ordered.sort(key=rerank_score, reverse=True)
             ordered = ordered[:limit]

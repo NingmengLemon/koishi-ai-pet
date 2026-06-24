@@ -62,6 +62,15 @@ _KEY_META = {
     "EMBEDDING_KEY":             {"type": "str",      "default": "",             "category": "memory",   "needs_restart": True,  "hidden": False, "description": "Embedding API Key"},
     "EMBEDDING_MODEL":           {"type": "str",      "default": "",             "category": "memory",   "needs_restart": True,  "hidden": False, "description": "Embedding 模型名", "placeholder": "embedding-3"},
     "EMBEDDING_DIM":             {"type": "int",      "default": 2048,           "category": "memory",   "needs_restart": True,  "hidden": False, "description": "向量维度(需与模型匹配)", "minimum": 64, "maximum": 8192},
+    "EMBEDDING_DEDUP_THRESHOLD": {"type": "float",    "default": 0.6,            "category": "memory",   "needs_restart": False, "hidden": True,  "description": "向量语义去重距离阈值(0~1)"},
+    "MEMORY_MAX_CAPACITY":       {"type": "int",      "default": 200,            "category": "memory",   "needs_restart": False, "hidden": False, "description": "记忆最大容量"},
+    "MEMORY_RECALL_COOLDOWN_S":  {"type": "int",      "default": 300,            "category": "memory",   "needs_restart": False, "hidden": True,  "description": "记忆召回冷却时间(秒)"},
+    "MEMORY_L3_EXPIRE_DAYS":     {"type": "int",      "default": 3,              "category": "memory",   "needs_restart": False, "hidden": False, "description": "L3临时记忆过期天数"},
+    "MEMORY_RERANK_WEIGHT_SIM":  {"type": "float",    "default": 0.7,            "category": "memory",   "needs_restart": False, "hidden": True,  "description": "重排序-语义相似度权重"},
+    "MEMORY_RERANK_WEIGHT_IMP":  {"type": "float",    "default": 0.2,            "category": "memory",   "needs_restart": False, "hidden": True,  "description": "重排序-有效重要性权重"},
+    "MEMORY_RERANK_WEIGHT_RECENCY": {"type": "float", "default": 0.1,           "category": "memory",   "needs_restart": False, "hidden": True,  "description": "重排序-时效性权重"},
+    "CONTEXT_MAX_ENTRIES":       {"type": "int",      "default": 30,             "category": "behavior", "needs_restart": False, "hidden": False, "description": "上下文最大条目数"},
+    "CONTEXT_MAX_SUMMARIES":     {"type": "int",      "default": 5,              "category": "behavior", "needs_restart": False, "hidden": True,  "description": "上下文最大摘要数"},
 }
 
 

@@ -449,6 +449,7 @@ class SettingsWindow(QWidget):
         sched_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         sched_form.addRow("自主行动间隔(ms):", self._line("SCHEDULER_MID_MS", "300000", QIntValidator(60000, 3600000)))
         sched_form.addRow("", self._check("SCHEDULER_AUTO_START_MID", "默认开启自动行动"))
+        sched_form.addRow("上下文最大条目数:", self._line("CONTEXT_MAX_ENTRIES", "30", QIntValidator(10, 100)))
         inner.addWidget(sched_group)
 
         # 视觉
@@ -509,6 +510,8 @@ class SettingsWindow(QWidget):
         memory_form.addRow("API Key:", mem_key_row)
         memory_form.addRow("模型名:", self._line("EMBEDDING_MODEL", "embedding-3"))
         memory_form.addRow("向量维度:", self._line("EMBEDDING_DIM", "2048", QIntValidator(64, 8192)))
+        memory_form.addRow("记忆最大容量:", self._line("MEMORY_MAX_CAPACITY", "200", QIntValidator(50, 1000)))
+        memory_form.addRow("临时记忆过期(天):", self._line("MEMORY_L3_EXPIRE_DAYS", "3", QIntValidator(1, 30)))
         memory_layout.addLayout(memory_form)
 
         # 连接测试

@@ -3,6 +3,8 @@ import threading
 import time
 from dataclasses import dataclass, field
 
+from config import config
+
 
 @dataclass
 class ContextEntry:
@@ -16,8 +18,14 @@ class ContextEntry:
 class BrainMixin:
     """为 Behavior 提供结构化上下文存储与加权检索。"""
 
-    _MAX_ENTRIES = 30
-    _MAX_SUMMARIES = 5
+    # 以下值从 config 动态读取
+    @property
+    def _MAX_ENTRIES(self) -> int:
+        return config.CONTEXT_MAX_ENTRIES
+
+    @property
+    def _MAX_SUMMARIES(self) -> int:
+        return config.CONTEXT_MAX_SUMMARIES
 
     # 角色权重：用户意图 > 系统通知 > 宠物行为
     _ROLE_WEIGHTS = {"user": 3, "system": 2, "assistant": 1}
