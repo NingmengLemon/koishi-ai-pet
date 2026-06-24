@@ -591,11 +591,10 @@ class DebugWindow(QWidget):
         for i, e in enumerate(entries, 1):
             age = int(now - e.timestamp)
             age_str = f"{age}s" if age < 60 else f"{age // 60}m{age % 60}s"
-            label = {"user": "用户", "assistant": "宠物", "system": "系统"}.get(e.role, e.role)
-            prefix = "★摘要" if e.is_summary else label
             score = self.agent.behavior._score_entry(e) if hasattr(self.agent.behavior, '_score_entry') else 0
+            summary_flag = " [summary]" if e.is_summary else ""
             self.ctx_output.append(
-                f"#{i} [{prefix}] {score:.1f}分 | {age_str}前\n  {e.content[:120]}"
+                f"#{i} role={e.role}{summary_flag} score={score:.1f} age={age_str} ts={e.timestamp:.0f}\n  {e.content}"
             )
 
         # 内容追加后恢复滚动位置，新内容追加到底部时不跳转
