@@ -52,6 +52,7 @@ class PetAgent(QObject):
     speak_stream_start = Signal()
     speak_stream_chunk = Signal(str)
     speak_stream_end   = Signal(int)
+    llm_loading        = Signal(bool)  # True=开始等待, False=结束
     notify_requested   = Signal(str, str, int)  # title, message, duration_ms
 
     def __init__(self, parent=None):
@@ -417,6 +418,7 @@ class PetAgent(QObject):
                 pass
             old_worker.deleteLater()
         self._cancel_flag = False
+        self.llm_loading.emit(True)  # 开始 LLM 加载粒子
         self._worker = BrainWorker(fn, *args)
         self._thread = QThread(self)
         self._worker.moveToThread(self._thread)
@@ -426,6 +428,10 @@ class PetAgent(QObject):
         self._worker.finished.connect(self._thread.quit)
         self._thread.finished.connect(self._cleanup_thread)
         self._thread.start()
+
+    def _stop_loading(self):
+        """停止 LLM 加载粒子（流式开始或调用结束时调用）。"""
+        self.llm_loading.emit(False)
 
     def _cleanup_thread(self):
         sender = self.sender()
@@ -437,6 +443,7 @@ class PetAgent(QObject):
             self._worker = None
 
     def _on_brain_result(self, result):
+        self._stop_loading()
         ts = datetime.now().strftime("%H:%M:%S")
         from pet.agent.state import PetState
         if self.state_machine.state in (PetState.INTERACTING, PetState.AUTONOMOUS):
@@ -489,6 +496,7 @@ class PetAgent(QObject):
         logger.info(f"[{ts}] [PetAgent] === call complete ===")
         
     def _on_brain_error(self, msg: str):
+        self._stop_loading()
         from pet.agent.state import PetState
         if self.state_machine.state in (PetState.INTERACTING, PetState.AUTONOMOUS):
             self.state_machine.transition(PetState.IDLE)

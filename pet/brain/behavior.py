@@ -1,5 +1,6 @@
 """与 AI 通信，解析响应为动作序列。"""
 
+import time
 from datetime import datetime
 import logging
 import threading
@@ -186,11 +187,15 @@ class Behavior(BrainMixin):
     @llm_retry(tag="Behavior")
     def _llm_call(self, messages: list, max_tokens: int = 4000):
         self.llm_stats.increment()
-        return self._client.chat.completions.create(
+        t0 = time.perf_counter()
+        resp = self._client.chat.completions.create(
             model=self._model,
             messages=messages,
             max_tokens=max_tokens,
         )
+        elapsed = time.perf_counter() - t0
+        logger.info(f"[Behavior] LLM call completed in {elapsed:.2f}s")
+        return resp
 
     def _llm_call_stream(self, messages: list, max_tokens: int = 4000):
         self.llm_stats.increment()
@@ -244,6 +249,7 @@ class Behavior(BrainMixin):
         self._apply_cache_control(messages)
         self._dump_context(tag, messages)
         self._log_prompt_size(messages, tag)
+        t0 = time.perf_counter()
         try:
             stream = self._llm_call_stream(messages)
 
@@ -315,6 +321,9 @@ class Behavior(BrainMixin):
 
             if buffer.strip():
                 self._finish_line(buffer, actions, speech_parts, skill_lines, summary_holder, memory_holder, emotion_holder, mood_holder, vitals_holder)
+
+            elapsed = time.perf_counter() - t0
+            logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] stream completed in {elapsed:.2f}s ({tag})")
 
             # Skill 调用 → 执行技能后二次 LLM 调用
             if skill_lines:
@@ -542,6 +551,7 @@ class Behavior(BrainMixin):
 
     def _stream_text_raw(self, messages: list, on_chunk=None, tag: str = "") -> str:
         """流式调用并返回原始文本，不做 Skill/Action 行解析，避免多轮 Skill 循环中递归触发。"""
+        t0 = time.perf_counter()
         stream = self._llm_call_stream(messages)
         full_content = ""
         line_buffer = ""
@@ -585,6 +595,8 @@ class Behavior(BrainMixin):
             if delta_speech and on_chunk:
                 on_chunk(delta_speech)
 
+        elapsed = time.perf_counter() - t0
+        logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] stream completed in {elapsed:.2f}s ({tag})")
         logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] === LLM RESPONSE ({tag}) ===")
         logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {full_content}")
         return full_content

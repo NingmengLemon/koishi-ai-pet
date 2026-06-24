@@ -161,7 +161,6 @@ def _spawn_dark_hearts(cx: float, cy: float) -> list[Particle]:
         ))
     return particles
 
-
 # ── 粒子绘制 ──
 
 def _draw_star(painter: QPainter, x: float, y: float, size: float, color: QColor, alpha: float):
@@ -252,6 +251,9 @@ class ParticleWidget(QWidget):
         self._follow_timer.setInterval(50)
         self._follow_timer.timeout.connect(self._reposition)
 
+        self._loading_active = False
+        self._loading_phase = 0.0  # 动画相位
+
         # 宠物移动时重定位
         self._pet.installEventFilter(self)
         self.hide()
@@ -268,11 +270,11 @@ class ParticleWidget(QWidget):
     # ── 默认播放位置（相对于宠物区域的偏移像素，0=宠物顶部） ──
 
     _DEFAULT_Y = {
-        "dust":   -1,         # 特殊: 脚底（代码中特殊处理）
+        "dust":   -1,         # 特殊: 脚底
         "stars":  1 / 4,      # 头部附近
         "hearts":      1 / 4,  # 头部附近
         "dark_hearts": 1 / 4,  # 头部附近
-        "zzz":         1 / 2,  # 窗口中部（sleep 姿势是卧倒的）
+        "zzz":         1 / 2,  # 窗口中部
     }
 
     def spawn(self, effect: str, cx: float | None = None, cy: float | None = None):
@@ -329,6 +331,57 @@ class ParticleWidget(QWidget):
         self.effect_triggered.emit(effect)
         logger.debug(f"particle: {effect} ({len(new)} particles)")
 
+    # ── 加载中粒子（LLM 等待） ──
+
+    _LOADING_OFFSET_Y = 15  # 头顶上方 15px
+    _LOADING_DOT_COUNT = 4
+    _LOADING_DOT_SPACING = 8  # 圆点水平间距
+    _LOADING_DOT_RADIUS = 2.5
+    _LOADING_AMPLITUDE = 4  # 上下波动幅度
+    _LOADING_COLOR = QColor(100, 180, 255)
+
+    def start_loading(self):
+        """开始播放加载中粒子效果。"""
+        if self._loading_active:
+            return
+        self._loading_active = True
+        self._ensure_visible()
+        if not self._tick_timer.isActive():
+            self._tick_timer.start()
+        logger.debug("particle: loading started")
+
+    def stop_loading(self):
+        """停止加载粒子。"""
+        self._loading_active = False
+        logger.debug("particle: loading stopped")
+
+    def _draw_loading_dots(self, painter: QPainter):
+        """绘制 4 个此起彼伏的圆点。"""
+        cx = self.width() / 2
+        cy = _MARGIN + self._LOADING_OFFSET_Y
+        total_width = (self._LOADING_DOT_COUNT - 1) * self._LOADING_DOT_SPACING
+        start_x = cx - total_width / 2
+
+        for i in range(self._LOADING_DOT_COUNT):
+            # 每个圆点相位错开 π/2，形成波浪效果
+            phase = self._loading_phase + i * (math.pi / 2)
+            offset_y = math.sin(phase) * self._LOADING_AMPLITUDE
+            x = start_x + i * self._LOADING_DOT_SPACING
+            y = cy + offset_y
+
+            # 透明度随高度变化：在波谷时更亮
+            alpha = 0.4 + 0.6 * (math.sin(phase) + 1) / 2
+
+            c = QColor(self._LOADING_COLOR)
+            c.setAlphaF(alpha)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(c)
+            painter.drawEllipse(
+                QPointF(x, y),
+                self._LOADING_DOT_RADIUS,
+                self._LOADING_DOT_RADIUS,
+            )
+
     # ── 内部 ──
 
     def _ensure_visible(self):
@@ -355,17 +408,22 @@ class ParticleWidget(QWidget):
         for p in self._particles:
             p.tick(dt)
         self._particles = [p for p in self._particles if p.alive]
+        # 加载动画相位推进（~1 个完整周期/秒）
+        if self._loading_active:
+            self._loading_phase += dt * 0.006  # 30ms * 0.006 ≈ 0.18 rad/tick
         self.update()  # 触发 paintEvent
-        if not self._particles:
+        if not self._particles and not self._loading_active:
             self._tick_timer.stop()
             self._follow_timer.stop()
             self.hide()
 
     def paintEvent(self, event):
-        if not self._particles:
+        if not self._particles and not self._loading_active:
             return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         for p in self._particles:
             _draw_particle(painter, p)
+        if self._loading_active:
+            self._draw_loading_dots(painter)
         painter.end()
