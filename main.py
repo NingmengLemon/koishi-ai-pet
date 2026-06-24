@@ -143,12 +143,17 @@ def main():
         agent._voice_session = _voice_session  # 供设置窗口热重载
         _hotkey_mgr = HotkeyManager()
 
-        # 热键 → 语音（toggle，由 VoiceSession 判断当前状态）
-        _hotkey_mgr.voice_toggle.connect(_voice_session.toggle_recording)
+        # 热键 → 语音（push-to-talk：按下开始，松开停止）
+        _hotkey_mgr.voice_start.connect(_voice_session.start_recording)
+        _hotkey_mgr.voice_stop.connect(_voice_session.stop_recording)
 
         # 语音 → 气泡 UI（实时文字展示）
         _voice_session.partial_text.connect(chat_bubble.set_voice_text)
-        _voice_session.transcription_done.connect(chat_bubble.set_voice_text)
+        _voice_session.transcription_done.connect(chat_bubble.finalize_voice_text)
+
+        # 全局回车拦截（语音输入完成后，通过 pynput 捕获回车提交）
+        chat_bubble.enter_intercept.connect(_hotkey_mgr.set_intercept_enter)
+        _hotkey_mgr.enter_pressed.connect(chat_bubble._on_submit)
 
         # 录音开始 → 自动展开输入框 + 切换图标
         _voice_session.recording_started.connect(chat_bubble.show_voice_input)
@@ -158,7 +163,6 @@ def main():
         _voice_session.recording_stopped.connect(lambda: chat_bubble.set_recording_icon(False))
         _voice_session.transcription_done.connect(lambda _: chat_bubble.set_recording_icon(False))
 
-        # 错误日志
         _voice_session.error.connect(lambda msg: logger.error(f"[Voice] {msg}"))
 
         _hotkey_mgr.start()
@@ -179,21 +183,30 @@ def main():
 
     def _shutdown():
         logger.info("shutting down...")
-        # 语音模块清理
+        # 语音模块清理（各自独立 try/except，避免阻断后续保存）
         if _hotkey_mgr:
-            _hotkey_mgr.stop()
+            try:
+                _hotkey_mgr.stop()
+            except Exception as e:
+                logger.warning(f"shutdown: hotkey stop failed: {e}")
         if _voice_session:
-            _voice_session.disconnect()
-        logging.getLogger().removeHandler(_log_handler)
+            try:
+                _voice_session.disconnect()
+            except Exception as e:
+                logger.warning(f"shutdown: voice disconnect failed: {e}")
+        # 先保存数据，再移除日志 handler
         try:
             agent.behavior.llm_stats.save()
-        except Exception:
-            pass
+            agent.behavior.llm_stats.close()
+        except Exception as e:
+            logger.warning(f"shutdown: llm_stats save failed: {e}")
         # 保存上下文并记录关闭时间
         try:
             agent.behavior._save_context(record_shutdown=True)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"shutdown: context save failed: {e}")
+        # 移除日志 handler（放在最后，确保前面步骤的日志能输出）
+        logging.getLogger().removeHandler(_log_handler)
         # 清理设置窗口
         try:
             from pet.ui.settings_window import SettingsWindow

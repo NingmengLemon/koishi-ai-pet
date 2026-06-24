@@ -78,6 +78,9 @@ class DebugWindow(QWidget):
     def showEvent(self, event):
         super().showEvent(event)
         ensure_taskbar_icon(self)
+        # 确保定时器运行（关闭后重新打开时需要重启）
+        if not self._pos_timer.isActive():
+            self._pos_timer.start(1000)
         if self.agent:
             try:
                 ns = self.agent.vitals.numeric_summary()
@@ -632,7 +635,8 @@ class DebugWindow(QWidget):
 
     def closeEvent(self, event):
         self._pos_timer.stop()
-        super().closeEvent(event)
+        self.hide()
+        event.ignore()  # 阻止真正关闭，仅隐藏
 
     def _refresh_llm_stats(self):
         if hasattr(self.brain, 'llm_stats') and self.brain.llm_stats:

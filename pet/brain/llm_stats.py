@@ -36,11 +36,14 @@ class LlmStats:
 
     def save(self):
         with self._lock:
-            self._conn.execute(
-                "INSERT OR REPLACE INTO llm_stats (key, value) VALUES ('total_calls', ?)",
-                (self._total,),
-            )
-            self._conn.commit()
+            try:
+                self._conn.execute(
+                    "INSERT OR REPLACE INTO llm_stats (key, value) VALUES ('total_calls', ?)",
+                    (self._total,),
+                )
+                self._conn.commit()
+            except Exception as e:
+                logger.warning(f"[LlmStats] save failed: {e}")
 
     def close(self):
         self.save()

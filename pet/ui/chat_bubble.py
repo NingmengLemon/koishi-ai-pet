@@ -13,6 +13,7 @@ class ChatBubble(QWidget):
     """聊天交互气泡 - 悬停桌宠时显示，点击展开输入框。"""
 
     chat_submitted = Signal(str)  # 用户提交消息时发出
+    enter_intercept = Signal(bool)  # 请求开启/关闭全局回车拦截
 
     _INPUT_STYLE = (
         "QLineEdit {"
@@ -60,6 +61,10 @@ class ChatBubble(QWidget):
         self._collapse_timer = QTimer(self)
         self._collapse_timer.setSingleShot(True)
         self._collapse_timer.timeout.connect(self._on_auto_collapse)
+        # 语音完成后自动收回（用户不提交时）
+        self._voice_auto_collapse = QTimer(self)
+        self._voice_auto_collapse.setSingleShot(True)
+        self._voice_auto_collapse.timeout.connect(self._on_voice_auto_collapse)
 
         self._input.installEventFilter(self)
 
@@ -97,6 +102,7 @@ class ChatBubble(QWidget):
         self._input.setMinimumHeight(28)
         self._input.setStyleSheet(self._INPUT_STYLE)
         self._input.returnPressed.connect(self._on_submit)
+        self._input.textChanged.connect(self._on_input_changed)
         self._input.hide()
         self._layout.addWidget(self._input)
 
@@ -163,6 +169,10 @@ class ChatBubble(QWidget):
         self.adjustSize()
 
     def _on_submit(self):
+        # 取消语音自动收回定时器
+        self._voice_auto_collapse.stop()
+        # 关闭回车拦截
+        self.enter_intercept.emit(False)
         text = self._input.text().strip()
         if text:
             self.chat_submitted.emit(text)
@@ -188,6 +198,32 @@ class ChatBubble(QWidget):
         self._input.setText(text)
         if not self._expanded:
             self._expand()
+        # 每次收到语音文字都重置自动收回定时器
+        self._voice_auto_collapse.start(5000)
+
+    def finalize_voice_text(self, text: str):
+        """语音识别最终结果：填入文字并激活焦点供用户编辑。"""
+        self._input.setText(text)
+        if not self._expanded:
+            self._expand()
+        self.raise_()
+        self.activateWindow()
+        self._input.setFocus()
+        # 开启全局回车拦截（通过 pynput，不受窗口焦点限制）
+        self.enter_intercept.emit(True)
+        self._voice_auto_collapse.start(5000)
+
+    def _on_voice_auto_collapse(self):
+        """语音完成后超时未提交，自动收回气泡。"""
+        self.enter_intercept.emit(False)
+        if self._expanded:
+            self._collapse()
+            self.hide_bubble()
+
+    def _on_input_changed(self):
+        """用户手动编辑时重置语音自动收回定时器。"""
+        if self._voice_auto_collapse.isActive():
+            self._voice_auto_collapse.start(5000)
 
     # ── 显示/隐藏 ──
 
