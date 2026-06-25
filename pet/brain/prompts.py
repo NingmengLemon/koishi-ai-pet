@@ -242,7 +242,9 @@ def autonomous_vision_user_prompt(context: str) -> str:
         f"   • 有窗口 → drive 走到附近 + bounce 跳上窗口顶部，参数用探测数据的「相对桌宠」和「上跳_N_px」\n"
         f"   • 无窗口 → 巡视桌面或找地方坐下\n"
         f"4. 理智不正常时主动调用可用工具做疯狂的事；正常时如有需要也可使用工具\n"
-        f"5. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）"
+        f"5. 探索新话题，不要延续近期对话中已充分讨论的内容（除非有新的变化）\n"
+        f"6. 禁止重复 Recent 中的行为和台词\n"
+        f"7. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）"
     )
 
 
@@ -256,7 +258,9 @@ def autonomous_non_vision_user_prompt(context: str) -> str:
         f"   • 无窗口 → 巡视桌面或找地方坐下\n"
         f"   • drive 方向可随机\n"
         f"3. 理智不正常时主动调用可用工具做疯狂的事；正常时如有需要也可使用工具\n"
-        f"4. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）"
+        f"4. 探索新话题，不要延续近期对话中已充分讨论的内容（除非有新的变化）\n"
+        f"5. 禁止重复 Recent 中的行为和台词\n"
+        f"6. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）"
     )
 
 
