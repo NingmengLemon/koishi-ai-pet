@@ -143,7 +143,10 @@ class ContextBuilder:
 
         # 当前 user prompt：时间 + 窗口探测 + 决策指令
         ctx_str = self._time_prefix() + "\n" + (window_context or "no context")
-        current_prompt = prompts.autonomous_non_vision_user_prompt(ctx_str)
+        if vision:
+            current_prompt = prompts.autonomous_vision_user_prompt(ctx_str)
+        else:
+            current_prompt = prompts.autonomous_non_vision_user_prompt(ctx_str)
 
         messages = [{"role": "system", "content": system}]
         messages.extend(history_msgs)
@@ -167,7 +170,10 @@ class ContextBuilder:
 
         # 当前 user prompt：时间 + 窗口探测 + 用户消息
         ctx = self._time_prefix() + "\n" + window_context
-        current_prompt = prompts.chat_non_vision_user_prompt(user_message, ctx)
+        if vision:
+            current_prompt = prompts.chat_vision_user_prompt(user_message, ctx)
+        else:
+            current_prompt = prompts.chat_non_vision_user_prompt(user_message, ctx)
 
         messages = [{"role": "system", "content": system}]
         messages.extend(history_msgs)
