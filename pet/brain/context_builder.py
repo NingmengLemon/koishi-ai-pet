@@ -32,15 +32,7 @@ class ContextBuilder:
         vision = base64_img is not None
         mode = "autonomous_vision" if vision else "autonomous_non_vision"
         system = self._build_system(mode, "autonomous", user_message=window_context)
-
-        if config.CONTEXT_MULTI_TURN and self._brain:
-            return self._build_multi_turn_autonomous(system, window_context, vision, base64_img)
-
-        # 非多轮模式：压扁文本
-        ctx_str = self._build_one_turn_autonomous(window_context)
-        return self._wrap_user_prompt(system, ctx_str, vision, base64_img,
-                                      prompt_fn=prompts.autonomous_vision_user_prompt if vision
-                                      else prompts.autonomous_non_vision_user_prompt)
+        return self._build_multi_turn_autonomous(system, window_context, vision, base64_img)
 
     def build_chat_decide(self, user_message: str, window_context: str,
                    screenshot: bool = True) -> list[dict]:
@@ -49,16 +41,7 @@ class ContextBuilder:
         vision = base64_img is not None
         mode = "chat_vision" if vision else "chat_non_vision"
         system = self._build_system(mode, "chat", user_message=user_message)
-
-        if config.CONTEXT_MULTI_TURN and self._brain:
-            return self._build_multi_turn_chat(system, user_message, window_context, vision, base64_img)
-
-        # 非多轮模式：压扁文本
-        history = self._build_one_turn_chat()
-        ctx = self._time_prefix() + "\n" + window_context + "\n" + history
-        prompt_fn = prompts.chat_vision_user_prompt if vision else prompts.chat_non_vision_user_prompt
-        user_content = prompt_fn(user_message, ctx)
-        return self._wrap_text_message(system, user_content, vision, base64_img)
+        return self._build_multi_turn_chat(system, user_message, window_context, vision, base64_img)
 
     def build_interact(self, event_hint: str) -> list[dict]:
         """即时交互模式的 messages（抓取、释放等）"""
@@ -118,33 +101,6 @@ class ContextBuilder:
             messages.append({"role": "user", "content": current_prompt})
         return messages
 
-    # ── 辅助 ──
-
-    @staticmethod
-    def _wrap_text_message(system: str, user_content: str,
-                           vision: bool, base64_img: str | None) -> list[dict]:
-        """构建标准 [system, user] 消息（vision 时 user 为多模态）。"""
-        if vision:
-            return [
-                {"role": "system", "content": system},
-                {"role": "user", "content": [
-                    {"type": "text", "text": user_content},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_img}"}},
-                ]},
-            ]
-        return [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user_content},
-        ]
-
-    @staticmethod
-    def _wrap_user_prompt(system: str, ctx_str: str,
-                          vision: bool, base64_img: str | None,
-                          prompt_fn) -> list[dict]:
-        """用 prompt_fn 包裹 ctx_str 后构建消息。"""
-        user_content = prompt_fn(ctx_str)
-        return ContextBuilder._wrap_text_message(system, user_content, vision, base64_img)
-
     # internal
 
     def _build_system(self, mode: str, task: str, user_message: str = "") -> str:
@@ -192,31 +148,6 @@ class ContextBuilder:
         else:
             period = "深夜"
         return f"当前时间: {now.strftime('%Y-%m-%d %H:%M')} {weekday} {period}"
-
-    def _build_one_turn_autonomous(self, window_context: str) -> str:
-        """单轮自主决策的用户文本"""
-        ctx = self._time_prefix() + "\n" + (window_context or "no context")
-        if self._brain:
-            # 使用去重方法一次遍历获取 user 消息 + 全部上下文
-            user_msgs, recent = self._brain.get_context_with_user_messages(
-                max_entries=6, max_user_msgs=3, skip_last=0,
-                token_budget=config.CONTEXT_TOKEN_BUDGET,
-            )
-            if user_msgs:
-                ctx += f"\n=== 近期历史对话（不是当前输入，仅作背景参考）===\n{user_msgs}"
-            if recent:
-                ctx += f"\nRecent: {recent}"
-        return ctx
-
-    def _build_one_turn_chat(self) -> str:
-        """单轮对话的用户文本"""
-        if self._brain:
-            text = self._brain.get_context_for_llm(
-                9, skip_last=1, token_budget=config.CONTEXT_TOKEN_BUDGET,
-            )
-            if text:
-                return "\n\n=== 近期对话/行为记录 ===\n" + text
-        return ""
 
     def _build_feeling(self) -> str:
         """将 vitals/mood 数值翻译为自然语言感受描述，注入 system prompt 顶部"""

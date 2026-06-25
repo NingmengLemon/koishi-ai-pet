@@ -192,99 +192,6 @@ class BrainMixin:
         with self._ctx_lock:
             return len(self._context)
 
-    def get_context_for_llm(self, max_entries: int = 10,
-                            skip_last: int = 0,
-                            token_budget: int = 0) -> str:
-        """加权检索 + 格式化，给 chat 模式用"""
-        selected = self._select_entries(max_entries, skip_last, token_budget)
-        if not selected:
-            return ""
-        return "\n".join(self._format_entries(selected))
-
-    def get_context_inline(self, max_entries: int = 6,
-                           skip_last: int = 0,
-                           token_budget: int = 0) -> str:
-        """加权检索 + 紧凑单行格式，给 decide 模式的 user prompt 用。"""
-        selected = self._select_entries(max_entries, skip_last, token_budget)
-        if not selected:
-            return ""
-        return " | ".join(self._format_entries(selected))
-
-    def get_recent_user_messages(self, max_entries: int = 3,
-                                 skip_last: int = 0) -> str:
-        """获取最近的用户消息（供 autonomous 模式了解历史对话，非当前输入）。"""
-        with self._ctx_lock:
-            if not self._context:
-                return ""
-            end = -skip_last if skip_last > 0 else len(self._context)
-            available = self._context[:end]
-            user_msgs = [e for e in available if e.role == "user"]
-            if not user_msgs:
-                return ""
-            user_msgs.sort(key=self._score_entry, reverse=True)
-            parts = [e.content for e in user_msgs[:max_entries]]
-        return " | ".join(parts)
-
-    def get_context_with_user_messages(self, max_entries: int = 6,
-                                       max_user_msgs: int = 3,
-                                       skip_last: int = 0,
-                                       token_budget: int = 0) -> tuple[str, str]:
-        """一次遍历获取 user 消息 + 全部上下文，用 seen_ids 去重。
-        返回 (user_messages_str, context_inline_str)。"""
-        with self._ctx_lock:
-            if not self._context:
-                return "", ""
-            end = -skip_last if skip_last > 0 else len(self._context)
-            available = self._context[:end]
-            if not available:
-                return "", ""
-
-            # 分离 summary / ordinary / user
-            summaries = [e for e in available if e.is_summary]
-            ordinary = [e for e in available if not e.is_summary]
-            user_entries = [e for e in ordinary if e.role == "user"]
-
-            # summary 按分排序取前 N
-            summaries.sort(key=self._score_entry, reverse=True)
-            summaries = summaries[:self._MAX_SUMMARIES]
-
-            # user 消息按分排序取前 N
-            user_entries.sort(key=self._score_entry, reverse=True)
-            user_entries = user_entries[:max_user_msgs]
-            user_ids = {id(e) for e in user_entries}
-
-            # 普通条目（排除已选为 user 消息的）按分排序填满配额
-            remaining_ordinary = [e for e in ordinary if id(e) not in user_ids]
-            quota = max_entries - len(summaries) - len(user_entries)
-            if quota > 0 and remaining_ordinary:
-                remaining_ordinary.sort(key=self._score_entry, reverse=True)
-                remaining_ordinary = remaining_ordinary[:quota]
-            else:
-                remaining_ordinary = []
-
-            # 合并并按时间排序
-            all_selected = sorted(
-                summaries + user_entries + remaining_ordinary,
-                key=lambda e: e.timestamp,
-            )
-
-            # token 预算截断
-            if token_budget > 0:
-                total_tokens = 0
-                truncated = []
-                for e in all_selected:
-                    est = self._estimate_tokens(e.content)
-                    if total_tokens + est > token_budget:
-                        break
-                    total_tokens += est
-                    truncated.append(e)
-                all_selected = truncated
-
-            user_parts = [e.content for e in user_entries]
-            context_parts = self._format_entries(all_selected)
-
-        return " | ".join(user_parts), " | ".join(context_parts)
-
     def get_multi_turn_messages(self, max_entries: int = 10,
                                 skip_last: int = 0,
                                 token_budget: int = 0) -> list[dict]:
@@ -344,50 +251,6 @@ class BrainMixin:
 
             return merged
 
-    def _select_entries(self, max_entries: int, skip_last: int,
-                        token_budget: int = 0) -> list[ContextEntry]:
-        """加权选择：summary 硬优先 + 普通条目按分排序后截断。"""
-        with self._ctx_lock:
-            if not self._context:
-                return []
-
-            end = -skip_last if skip_last > 0 else len(self._context)
-            available = self._context[:end]
-            if not available:
-                return []
-
-            summaries = [e for e in available if e.is_summary]
-            ordinary = [e for e in available if not e.is_summary]
-
-            # summary：按分排序，取前 N
-            summaries.sort(key=self._score_entry, reverse=True)
-            summaries = summaries[:self._MAX_SUMMARIES]
-
-            # 普通条目：按分排序，填满剩余配额
-            quota = max_entries - len(summaries)
-            if quota > 0 and ordinary:
-                ordinary.sort(key=self._score_entry, reverse=True)
-                ordinary = ordinary[:quota]
-            else:
-                ordinary = []
-
-            # 最终按时间排序输出
-            result = sorted(summaries + ordinary, key=lambda e: e.timestamp)
-
-            # token 预算截断
-            if token_budget > 0:
-                total_tokens = 0
-                truncated = []
-                for e in result:
-                    est = self._estimate_tokens(e.content)
-                    if total_tokens + est > token_budget:
-                        break
-                    total_tokens += est
-                    truncated.append(e)
-                result = truncated
-
-            return result
-
     @staticmethod
     def _estimate_tokens(text: str) -> int:
         """粗略估算 token 数（中文约 3 字/token，英文约 4 字符/token）。"""
@@ -407,16 +270,6 @@ class BrainMixin:
         density_score = 1.0 if len(entry.content) > 30 else 0.0
 
         return role_score + time_score + density_score
-
-
-    _ROLE_LABELS = {"user": "用户", "assistant": "宠物", "system": "系统"}
-
-    def _format_entries(self, entries: list[ContextEntry]) -> list[str]:
-        parts = []
-        for e in entries:
-            prefix = "摘要" if e.is_summary else self._ROLE_LABELS.get(e.role, e.role)
-            parts.append(f"[{prefix}] {e.content}")
-        return parts
 
 
     def _trim(self):
