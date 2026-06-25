@@ -38,7 +38,7 @@ def main():
     for _lib in ("httpx", "httpcore", "openai", "urllib3"):
         logging.getLogger(_lib).setLevel(logging.WARNING)
 
-    # 文件日志：按天切分，保留 7 天
+    # 文件日志：按天切分，保留 3 天
     _log_dir = "logs"
     os.makedirs(_log_dir, exist_ok=True)
     _file_handler = TimedRotatingFileHandler(
@@ -117,6 +117,9 @@ def main():
     agent.emotion_requested.connect(emotion_bubble.show_emotion)
     agent.emotion_requested.connect(
         lambda e, d: window.particles.spawn("hearts") if e == "love" else None
+    )
+    agent.mood.affection_increased.connect(
+        lambda: window.particles.spawn("hearts")
     )
     agent.speak_requested.connect(bubble.show_text)
     agent.speak_stream_start.connect(bubble.start_stream)

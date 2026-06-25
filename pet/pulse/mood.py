@@ -31,6 +31,7 @@ class Mood(QObject):
 
     affection_low       = Signal()
     affection_estranged = Signal()
+    affection_increased = Signal()
     joy_low             = Signal()
     joy_depressed       = Signal()
     sanity_low          = Signal()
@@ -185,6 +186,8 @@ class Mood(QObject):
         old = self._affection
         self._affection = max(0.0, min(100.0, self._affection + delta))
         logger.info(f"[Mood] 好感度 {delta:+.1f} ({old:.1f}→{self._affection:.1f})")
+        if delta > 0:
+            self.affection_increased.emit()
 
     def modify_joy(self, delta: float):
         delta = max(-self._DELTA_MAX, min(self._DELTA_MAX, delta))
