@@ -386,6 +386,17 @@ class SettingsWindow(QWidget):
         self._retry_max_delay_edit.setMaxLength(5)
         form.addRow("最大重试延迟(秒):", self._retry_max_delay_edit)
 
+        self._temperature_edit = self._line("LLM_TEMPERATURE", "0.7", QDoubleValidator(0, 2, 2))
+        self._temperature_edit.setMaxLength(4)
+        form.addRow("采样温度:", self._temperature_edit)
+
+        self._tokens_interact_edit = self._line("LLM_MAX_TOKENS_INTERACT", "600", QIntValidator(100, 8000))
+        form.addRow("交互模式输出Token上限:", self._tokens_interact_edit)
+        self._tokens_chat_edit = self._line("LLM_MAX_TOKENS_CHAT", "1500", QIntValidator(100, 8000))
+        form.addRow("聊天模式输出Token上限:", self._tokens_chat_edit)
+        self._tokens_auto_edit = self._line("LLM_MAX_TOKENS_AUTONOMOUS", "2500", QIntValidator(100, 8000))
+        form.addRow("自主模式输出Token上限:", self._tokens_auto_edit)
+
         self._cache_check = self._check("LLM_CACHE_PROMPT", "Prompt 缓存")
         form.addRow("", self._cache_check)
 
@@ -431,6 +442,9 @@ class SettingsWindow(QWidget):
         common_fields = [self._model_edit, self._btn_fetch_models,
                          self._timeout_edit, self._retries_edit,
                          self._retry_delay_edit, self._retry_max_delay_edit,
+                         self._temperature_edit,
+                         self._tokens_interact_edit, self._tokens_chat_edit,
+                         self._tokens_auto_edit,
                          self._btn_test, self._label_test, self._test_output]
 
         if mode == "local":
@@ -474,6 +488,7 @@ class SettingsWindow(QWidget):
         sched_form.addRow("自主行动间隔(ms):", self._line("SCHEDULER_MID_MS", "300000", QIntValidator(60000, 3600000)))
         sched_form.addRow("", self._check("SCHEDULER_AUTO_START_MID", "默认开启自动行动"))
         sched_form.addRow("上下文最大条目数:", self._line("CONTEXT_MAX_ENTRIES", "30", QIntValidator(10, 100)))
+        sched_form.addRow("LLM历史消息条数:", self._line("CONTEXT_HISTORY_ENTRIES", "8", QIntValidator(1, 50)))
         inner.addWidget(sched_group)
 
         # 视觉
@@ -594,6 +609,9 @@ class SettingsWindow(QWidget):
         form.addRow("宠物高度:", self._line("PET_HEIGHT", "125", QIntValidator(50, 500)))
         form.addRow("气泡最大宽度:", self._line("BUBBLE_MAX_WIDTH", "300", QIntValidator(100, 1000)))
         form.addRow("气泡字号:", self._line("BUBBLE_FONT_SIZE", "14", QIntValidator(8, 48)))
+        tools_edit = self._line("TOOLS_ENABLED", "*")
+        tools_edit.setPlaceholderText("* 表示全部，多个用逗号分隔")
+        form.addRow("启用工具:", tools_edit)
         form.addRow("", self._check("SHOW_TRAY", "显示托盘图标"))
 
         inner.addLayout(form)

@@ -345,7 +345,12 @@ class ParticleWidget(QWidget):
         if self._loading_active:
             return
         self._loading_active = True
-        self._ensure_visible()
+        self._reposition()
+        if not self.isVisible():
+            self.show()
+        self.raise_()
+        if not self._follow_timer.isActive():
+            self._follow_timer.start()
         if not self._tick_timer.isActive():
             self._tick_timer.start()
         logger.debug("particle: loading started")
@@ -356,9 +361,10 @@ class ParticleWidget(QWidget):
         logger.debug("particle: loading stopped")
 
     def _draw_loading_dots(self, painter: QPainter):
-        """绘制 4 个此起彼伏的圆点。"""
+        """绘制 4 个此起彼伏的圆点，位于宠物头顶上方。"""
         cx = self.width() / 2
-        cy = _MARGIN + self._LOADING_OFFSET_Y
+        # 圆点在 margin 区域内、宠物窗口顶部上方
+        cy = _MARGIN - self._LOADING_OFFSET_Y
         total_width = (self._LOADING_DOT_COUNT - 1) * self._LOADING_DOT_SPACING
         start_x = cx - total_width / 2
 
@@ -389,6 +395,7 @@ class ParticleWidget(QWidget):
             self._reposition()
             self.show()
             self._follow_timer.start()
+        self.raise_()
 
     def _reposition(self):
         """让粒子窗口始终覆盖宠物及其周围区域。"""

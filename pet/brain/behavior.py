@@ -193,13 +193,20 @@ class Behavior(BrainMixin):
             kwargs["tools"] = tools
         resp = self._client.chat.completions.create(**kwargs)
         elapsed = time.perf_counter() - t0
-        logger.info(f"[Behavior] LLM call completed in {elapsed:.2f}s")
+        usage = resp.usage
+        if usage:
+            logger.info(f"[Behavior] LLM call completed in {elapsed:.2f}s, "
+                        f"tokens: prompt={usage.prompt_tokens}, completion={usage.completion_tokens}, total={usage.total_tokens}")
+        else:
+            logger.info(f"[Behavior] LLM call completed in {elapsed:.2f}s")
         return resp
 
     def _llm_call_stream(self, messages: list, max_tokens: int = 4000, tools: list = None):
         self.llm_stats.increment()
         from pet.brain.llm_retry import llm_stream_with_retry
-        kwargs = {"model": self._model, "messages": messages, "max_tokens": max_tokens, "temperature": config.LLM_TEMPERATURE, "stream": True}
+        kwargs = {"model": self._model, "messages": messages, "max_tokens": max_tokens,
+                   "temperature": config.LLM_TEMPERATURE, "stream": True,
+                   "stream_options": {"include_usage": True}}
         if tools:
             kwargs["tools"] = tools
         return llm_stream_with_retry(
@@ -208,18 +215,28 @@ class Behavior(BrainMixin):
         )
 
     def _log_prompt_size(self, messages: list, tag: str):
-        """计算并打印 system + user messages 的总字符数。"""
-        total = 0
-        for i, m in enumerate(messages):
+        """计算并打印 prompt 规模：文本字符数 + 图片 base64 大小。"""
+        text_chars = 0
+        image_count = 0
+        image_bytes = 0
+        for m in messages:
             content = m["content"]
             if isinstance(content, str):
-                total += len(content)
+                text_chars += len(content)
             elif isinstance(content, list):
                 for part in content:
                     if isinstance(part, dict) and part.get("type") == "text":
-                        total += len(part.get("text", ""))
+                        text_chars += len(part.get("text", ""))
+                    elif isinstance(part, dict) and part.get("type") == "image_url":
+                        image_count += 1
+                        url = part.get("image_url", {}).get("url", "")
+                        if "," in url:
+                            image_bytes += len(url.split(",", 1)[1])
         t = datetime.now().strftime("%H:%M:%S")
-        logger.info(f"[{t}] [Behavior]   prompt_chars: {total} ({tag})")
+        parts = [f"prompt_chars: {text_chars}"]
+        if image_count:
+            parts.append(f"images: {image_count} ({image_bytes // 1024}KB base64)")
+        logger.info(f"[{t}] [Behavior]   {', '.join(parts)} ({tag})")
 
     def _call_llm_and_parse(self, messages: list, system_content: str, tag: str, max_tokens: int = 4000) -> BehaviorOutput:
         t = datetime.now().strftime("%H:%M:%S")
@@ -281,10 +298,19 @@ class Behavior(BrainMixin):
             speech_prefix_consumed = False
             accumulated_tool_calls = {}  # {index: {"id":..., "name":..., "arguments":...}}
 
+            finish_reason = None
+            stream_usage = None
+
             for chunk in stream:
+                # usage-only chunk（choices 为空，仅含 usage）
                 if not chunk.choices:
+                    if hasattr(chunk, "usage") and chunk.usage:
+                        stream_usage = chunk.usage
                     continue
-                delta = chunk.choices[0].delta
+                choice = chunk.choices[0]
+                if choice.finish_reason:
+                    finish_reason = choice.finish_reason
+                delta = choice.delta
 
                 # 文本内容
                 if delta.content:
@@ -346,7 +372,11 @@ class Behavior(BrainMixin):
                 self._finish_line(buffer, actions, speech_parts, summary_holder, memory_holder, emotion_holder, mood_holder, vitals_holder)
 
             elapsed = time.perf_counter() - t0
-            logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] stream completed in {elapsed:.2f}s ({tag})")
+            usage_log = f", finish_reason: {finish_reason}"
+            if stream_usage:
+                usage_log += (f", tokens: prompt={stream_usage.prompt_tokens}, "
+                              f"completion={stream_usage.completion_tokens}, total={stream_usage.total_tokens}")
+            logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] stream completed in {elapsed:.2f}s ({tag}){usage_log}")
 
             # 如果有 tool_calls，执行工具并循环
             if accumulated_tool_calls:
@@ -636,11 +666,18 @@ class Behavior(BrainMixin):
         line_buffer = ""
         in_speech = False
         prefix_consumed = False
+        finish_reason = None
+        stream_usage = None
 
         for chunk in stream:
             if not chunk.choices:
+                if hasattr(chunk, "usage") and chunk.usage:
+                    stream_usage = chunk.usage
                 continue
-            delta = chunk.choices[0].delta
+            choice = chunk.choices[0]
+            if choice.finish_reason:
+                finish_reason = choice.finish_reason
+            delta = choice.delta
 
             if delta.content:
                 content += delta.content
@@ -686,7 +723,11 @@ class Behavior(BrainMixin):
 
         if t0:
             elapsed = time.perf_counter() - t0
-            logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] stream completed in {elapsed:.2f}s ({tag})")
+            usage_log = f", finish_reason: {finish_reason}"
+            if stream_usage:
+                usage_log += (f", tokens: prompt={stream_usage.prompt_tokens}, "
+                              f"completion={stream_usage.completion_tokens}, total={stream_usage.total_tokens}")
+            logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] stream completed in {elapsed:.2f}s ({tag}){usage_log}")
         logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] === LLM RESPONSE ({tag}) ===")
         logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {content}")
         if on_stream_end:
