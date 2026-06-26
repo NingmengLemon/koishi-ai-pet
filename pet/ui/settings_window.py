@@ -397,6 +397,9 @@ class SettingsWindow(QWidget):
         self._tokens_auto_edit = self._line("LLM_MAX_TOKENS_AUTONOMOUS", "2500", QIntValidator(100, 8000))
         form.addRow("自主模式输出Token上限:", self._tokens_auto_edit)
 
+        self._tool_rounds_edit = self._line("LLM_TOOL_MAX_ROUNDS", "5", QIntValidator(1, 20))
+        form.addRow("工具调用最大轮次:", self._tool_rounds_edit)
+
         self._cache_check = self._check("LLM_CACHE_PROMPT", "Prompt 缓存")
         form.addRow("", self._cache_check)
 
@@ -445,6 +448,7 @@ class SettingsWindow(QWidget):
                          self._temperature_edit,
                          self._tokens_interact_edit, self._tokens_chat_edit,
                          self._tokens_auto_edit,
+                         self._tool_rounds_edit,
                          self._btn_test, self._label_test, self._test_output]
 
         if mode == "local":

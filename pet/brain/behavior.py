@@ -265,6 +265,7 @@ class Behavior(BrainMixin):
                 return self._handle_tool_calls(
                     messages, tool_calls_map, content,
                     tag=tag, tools_param=tools_param, max_tokens=max_tokens,
+                    max_rounds=config.LLM_TOOL_MAX_ROUNDS,
                 )
 
             result = self._parse_behavior(content)
@@ -398,6 +399,7 @@ class Behavior(BrainMixin):
                     messages, accumulated_tool_calls, first_content,
                     on_chunk=on_chunk, on_stream_end=None, tag=tag,
                     tools_param=tools_param, max_tokens=max_tokens,
+                    max_rounds=config.LLM_TOOL_MAX_ROUNDS,
                 )
 
             raw = "\n".join(
