@@ -33,18 +33,31 @@ class _LLMTestWorker(QObject):
     """子线程执行 LLM 连通性测试。"""
     finished = Signal(bool, str, float)  # success, content_or_error, elapsed
 
-    def __init__(self, brain):
+    def __init__(self, url: str, key: str, model: str, timeout: float = 30.0):
         super().__init__()
-        self._brain = brain
+        self._url = url
+        self._key = key
+        self._model = model
+        self._timeout = timeout
 
     def run(self):
         import time
         start = time.time()
         try:
-            reply = self._brain._llm_call([
-                {"role": "system", "content": "你是调试助手。"},
-                {"role": "user", "content": "请回复 'OK' 表示联通正常。"},
-            ], max_tokens=50)
+            from openai import OpenAI
+            client = OpenAI(
+                api_key=self._key or "empty",
+                base_url=self._url or "",
+                timeout=self._timeout,
+            )
+            reply = client.chat.completions.create(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": "你是调试助手。"},
+                    {"role": "user", "content": "请回复 'OK' 表示联通正常。"},
+                ],
+                max_tokens=50,
+            )
             elapsed = time.time() - start
             content = reply.choices[0].message.content or "(空响应)"
             self.finished.emit(True, content, elapsed)
@@ -142,6 +155,8 @@ class SettingsWindow(QWidget):
         self._llm_worker = None
         self._models_thread = None
         self._models_worker = None
+        self._mem_models_thread = None
+        self._mem_models_worker = None
         self._voice_thread = None
         self._voice_worker = None
         self._embedding_thread = None
@@ -498,7 +513,15 @@ class SettingsWindow(QWidget):
         # API Key + toggle
         mem_key_row = self._secret_row("EMBEDDING_KEY")
         memory_form.addRow("API Key:", mem_key_row)
-        memory_form.addRow("模型名:", self._line("EMBEDDING_MODEL", "embedding-3"))
+        mem_model_row = QHBoxLayout()
+        mem_model_edit = self._line("EMBEDDING_MODEL", "embedding-3")
+        mem_model_row.addWidget(mem_model_edit)
+        self._btn_fetch_mem_models = QPushButton("获取列表")
+        self._btn_fetch_mem_models.setStyleSheet(BUTTON_PRIMARY_QSS)
+        self._btn_fetch_mem_models.setFixedWidth(72)
+        self._btn_fetch_mem_models.clicked.connect(self._fetch_embedding_models)
+        mem_model_row.addWidget(self._btn_fetch_mem_models)
+        memory_form.addRow("模型名:", mem_model_row)
         memory_form.addRow("向量维度:", self._line("EMBEDDING_DIM", "2048", QIntValidator(64, 8192)))
         memory_form.addRow("记忆最大容量:", self._line("MEMORY_MAX_CAPACITY", "200", QIntValidator(50, 1000)))
         memory_form.addRow("临时记忆过期(天):", self._line("MEMORY_L3_EXPIRE_DAYS", "3", QIntValidator(1, 30)))
@@ -825,17 +848,36 @@ class SettingsWindow(QWidget):
     # ── LLM 连通性测试 ──
 
     def _test_llm(self):
-        """在子线程测试 LLM 连通性。"""
+        """在子线程测试 LLM 连通性，使用界面当前填入的值。"""
         if self._llm_thread is not None and self._llm_thread.isRunning():
             return  # 上一次测试还在运行
-        if not self.agent or not hasattr(self.agent, 'behavior'):
-            return
+
         brain_cfg = self._brain_combo.currentText()
-        if brain_cfg == "local" or not self.agent.behavior._client:
+        if brain_cfg == "local":
             self._test_output.clear()
-            self._test_output.append("⚠ 当前为 local 模式或未配置客户端")
+            self._test_output.append("⚠ 当前为 local 模式，无需测试连接")
             self._label_test.setText("未配置")
             return
+
+        # 从界面读取最新值
+        model = self._fields["LLM_MODEL"].text().strip()
+        if brain_cfg == "ollama":
+            url = self._fields["OLLAMA_BASE_URL"].text().strip()
+            key = "ollama"
+        else:
+            url = self._fields["LLM_URL"].text().strip()
+            key = self._fields["LLM_KEY"].text().strip()
+
+        if not model:
+            self._test_output.clear()
+            self._test_output.append("⚠ 请先填写模型名称")
+            self._label_test.setText("未配置")
+            return
+
+        try:
+            timeout = float(self._fields["LLM_TIMEOUT"].text().strip() or "30")
+        except ValueError:
+            timeout = 30.0
 
         self._test_output.clear()
         self._test_output.append("测试中...")
@@ -843,7 +885,7 @@ class SettingsWindow(QWidget):
         self._label_test.setText("测试中...")
 
         self._llm_thread = QThread()
-        self._llm_worker = _LLMTestWorker(self.agent.behavior)
+        self._llm_worker = _LLMTestWorker(url, key, model, timeout)
         self._llm_worker.moveToThread(self._llm_thread)
         self._llm_thread.started.connect(self._llm_worker.run)
         self._llm_worker.finished.connect(self._on_llm_test_result)
@@ -1058,6 +1100,57 @@ class SettingsWindow(QWidget):
         )
         menu.exec(pos)
 
+    # ── 向量模型获取 ──
+
+    def _fetch_embedding_models(self):
+        if self._mem_models_thread and self._mem_models_thread.isRunning():
+            return
+
+        url = self._fields["EMBEDDING_URL"].text().strip()
+        key = self._fields["EMBEDDING_KEY"].text().strip()
+
+        if not url or not key:
+            self._msg("提示", "请先填写向量 API 地址和 Key。")
+            return
+
+        from openai import OpenAI
+        client = OpenAI(api_key=key, base_url=url, timeout=30.0)
+
+        self._btn_fetch_mem_models.setEnabled(False)
+        self._btn_fetch_mem_models.setText("获取中…")
+
+        self._mem_models_thread = QThread()
+        self._mem_models_worker = _ModelsFetchWorker(client)
+        self._mem_models_worker.moveToThread(self._mem_models_thread)
+        self._mem_models_thread.started.connect(self._mem_models_worker.run)
+        self._mem_models_worker.finished.connect(self._on_mem_models_fetched)
+        self._mem_models_worker.finished.connect(self._mem_models_thread.quit)
+        self._mem_models_thread.start()
+
+    def _on_mem_models_fetched(self, success: bool, model_ids: list, error_msg: str):
+        self._btn_fetch_mem_models.setEnabled(True)
+        self._btn_fetch_mem_models.setText("获取列表")
+
+        if not success:
+            self._msg("获取失败", f"无法获取模型列表：\n{error_msg}")
+            return
+
+        if not model_ids:
+            self._msg("提示", "未找到可用模型。")
+            return
+
+        menu = QMenu(self)
+        for mid in model_ids:
+            action = menu.addAction(mid)
+            action.triggered.connect(
+                lambda checked=False, m=mid: self._fields["EMBEDDING_MODEL"].setText(m)
+            )
+
+        pos = self._btn_fetch_mem_models.mapToGlobal(
+            self._btn_fetch_mem_models.rect().bottomLeft()
+        )
+        menu.exec(pos)
+
     # ── 窗口事件 ──
 
     def closeEvent(self, event):
@@ -1090,6 +1183,9 @@ class SettingsWindow(QWidget):
         if self._models_thread is not None and self._models_thread.isRunning():
             self._models_thread.quit()
             self._models_thread.wait(2000)
+        if self._mem_models_thread is not None and self._mem_models_thread.isRunning():
+            self._mem_models_thread.quit()
+            self._mem_models_thread.wait(2000)
         if self._embedding_thread is not None and self._embedding_thread.isRunning():
             self._embedding_thread.quit()
             self._embedding_thread.wait(2000)
