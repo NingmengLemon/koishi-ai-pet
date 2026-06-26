@@ -110,7 +110,7 @@ class Behavior(BrainMixin):
         logger.info(f"[{t}] [Behavior]   model: {self._model}, context({len(context)} chars): \"{ctx_preview}\"")
         logger.info(f"[{t}] [Behavior]   history: {self.context_count()} entries")
 
-        return self._call_llm_and_parse(messages, messages[0]["content"], tag, max_tokens=config.LLM_MAX_TOKENS_AUTONOMOUS)
+        return self._retry_if_empty(self._call_llm_and_parse, messages, messages[0]["content"], tag, tag=tag, max_tokens=config.LLM_MAX_TOKENS_AUTONOMOUS)
 
     def autonomous_decide_stream(self, context: str = "", screenshot: bool = True,
                       on_chunk=None, on_stream_end=None) -> BehaviorOutput:
@@ -123,7 +123,7 @@ class Behavior(BrainMixin):
             messages = self.ctx.build_autonomous_decide(context, screenshot=screenshot)
             is_vision = isinstance(messages[1]["content"], list)
             tag = "autonomous_decide_vision_stream" if is_vision else "autonomous_decide_stream"
-            return self._stream_and_parse(messages, on_chunk=on_chunk, on_stream_end=on_stream_end, tag=tag, max_tokens=config.LLM_MAX_TOKENS_AUTONOMOUS)
+            return self._retry_if_empty(self._stream_and_parse, messages, tag=tag, on_chunk=on_chunk, on_stream_end=on_stream_end, max_tokens=config.LLM_MAX_TOKENS_AUTONOMOUS)
         finally:
             self._lock.release()
 
@@ -131,7 +131,7 @@ class Behavior(BrainMixin):
         if not self._client:
             return self._decide_local()
         messages = self.ctx.build_interact(event_hint)
-        return self._call_llm_and_parse(messages, messages[0]["content"], "interact", max_tokens=config.LLM_MAX_TOKENS_INTERACT)
+        return self._retry_if_empty(self._call_llm_and_parse, messages, messages[0]["content"], "interact", tag="interact", max_tokens=config.LLM_MAX_TOKENS_INTERACT)
 
     def interact_decide_stream(self, event_hint: str,
                                on_chunk=None, on_stream_end=None) -> BehaviorOutput:
@@ -142,10 +142,7 @@ class Behavior(BrainMixin):
             return self._decide_local()
         try:
             messages = self.ctx.build_interact(event_hint)
-            return self._stream_and_parse(
-                messages, on_chunk=on_chunk, on_stream_end=on_stream_end,
-                tag="interact", max_tokens=config.LLM_MAX_TOKENS_INTERACT
-            )
+            return self._retry_if_empty(self._stream_and_parse, messages, tag="interact", on_chunk=on_chunk, on_stream_end=on_stream_end, max_tokens=config.LLM_MAX_TOKENS_INTERACT)
         finally:
             self._lock.release()
 
@@ -165,7 +162,7 @@ class Behavior(BrainMixin):
         logger.info(f"[{t}] [Behavior]   model: {self._model}")
         logger.info(f"[{t}] [Behavior]   history: {self.context_count()} entries")
 
-        return self._call_llm_and_parse(messages, messages[0]["content"], tag, max_tokens=config.LLM_MAX_TOKENS_CHAT)
+        return self._retry_if_empty(self._call_llm_and_parse, messages, messages[0]["content"], tag, tag=tag, max_tokens=config.LLM_MAX_TOKENS_CHAT)
 
     def chat_decide_stream(self, user_message: str, context: str, screenshot: bool = True,
                            on_chunk=None, on_stream_end=None) -> BehaviorOutput:
@@ -181,9 +178,17 @@ class Behavior(BrainMixin):
             messages = self.ctx.build_chat_decide(user_message, context, screenshot=screenshot)
             is_vision = isinstance(messages[1]["content"], list)
             tag = "chat_decide_vision_stream" if is_vision else "chat_decide_stream"
-            return self._stream_and_parse(messages, on_chunk=on_chunk, on_stream_end=on_stream_end, tag=tag, max_tokens=config.LLM_MAX_TOKENS_CHAT)
+            return self._retry_if_empty(self._stream_and_parse, messages, tag=tag, on_chunk=on_chunk, on_stream_end=on_stream_end, max_tokens=config.LLM_MAX_TOKENS_CHAT)
         finally:
             self._lock.release()
+
+    def _retry_if_empty(self, fn, *args, tag="", **kwargs) -> BehaviorOutput:
+        """调用 fn 并在结果为空时重试一次。"""
+        result = fn(*args, **kwargs)
+        if not result.actions and not result.speech:
+            logger.warning(f"[Behavior] empty LLM response (no actions, no speech), retrying once ({tag})")
+            result = fn(*args, **kwargs)
+        return result
 
     @llm_retry(tag="Behavior")
     def _llm_call(self, messages: list, max_tokens: int = 4000, tools: list = None):
