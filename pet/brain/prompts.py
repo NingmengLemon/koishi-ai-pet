@@ -87,7 +87,8 @@ def _autonomous_task() -> list[str]:
         "【格式】",
         f"1. Summary 行必须在最前面，≤50字",
         f"2. 最少 {min_actions} 个 Action，总时长约 {target_s}s，用 sit/thinking/sleep 穿插移动动作撞满时长",
-        "3. 必须说话，Speech ≤20字，不能是 none",
+        "3. 必须说话，Speech ≤50字，不能是 none。可输出多行 Speech，将一段话分成几句输出",
+        "3a. 多行 Speech 示例：先说一句感想，再说一句评论，让对话更自然",
         "4. Emotion 行可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored, crazy",
         "【动作】",
         "5. 动作名只能是动作表列出的，严格格式: Action: 动作名 [参数...]",
@@ -111,6 +112,7 @@ def _autonomous_task() -> list[str]:
         f"  Summary: <观察到的屏幕内容和行为决策，≤50字>\n"
         f"  Emotion: happy\n"
         f"  Speech: 又有新窗口了，我过去看看\n"
+        f"  Speech: 嘿嘿，好奇好奇～\n"
         f"  Action: drive right 800\n"
         f"  Action: stretch\n"
         f"  Action: walk left 600\n"
@@ -135,6 +137,7 @@ def _chat_task() -> list[str]:
         "  Summary: <对话内容和行为决策，≤50字>\n"
         "  Emotion: happy\n"
         "  Speech: 好嘞，我跳过去看看！\n"
+        "  Speech: 嘿嘿～\n"
         "  Action: walk left 600\n"
         "  Action: thinking duration=15\n"
         "  Memory: user_fact 用户名为xxx，住在xx | keywords:[具体姓名],[居住地点] | importance:5 | level:L1\n"
@@ -146,7 +149,7 @@ def _chat_task() -> list[str]:
         "3. 动作名只能是动作表列出的，必须从动作表复制准确名称\n"
         "4. 动作名和参数必须在 Action: 同行，禁止换行再写动作名\n"
         "5. 带参数的动作用 duration=秒 或 direction=left/right 格式，参考动作表\n"
-        "6. 必须用 Speech 回应用户，≤30字，性格语气\n"
+        "6. 必须用 Speech 回应用户，≤50字，性格语气。可输出多行 Speech，将一段话分成几句输出",
         "7. 参考「近期对话/行为记录」保持连贯，不重复说过的话\n"
         "8. 用户要求使用工具时，调用对应的 function\n"
         "9. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored, crazy\n"
@@ -175,7 +178,7 @@ def _interact_task() -> list[str]:
         "2. 只输出 1-2 个 Action，每行一个，格式严格为 Action: 动作名 [参数...]\n"
         "3. 动作名只能是动作表列出的，必须从动作表复制准确名称\n"
         "4. 动作名和参数必须在 Action: 同行，禁止换行再写动作名\n"
-        "5. Speech 是本能反应而非分析，≤20字，由个性决定语气\n"
+        "5. Speech 是本能反应而非分析，≤20字，由个性决定语气。可输出多行 Speech，将一段话分成几句输出",
         "6. 禁止输出 Memory 行\n"
         "7. 你的反应必须反映「你现在的状态」中的感受\n"
         "8. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored, crazy",
@@ -237,7 +240,7 @@ def autonomous_vision_user_prompt(context: str) -> str:
         f"{context}\n\n"
         f"按以下步骤思考和行动：\n\n"
         f"1. 分析截图，识别窗口内容——理解用户正在做什么（代码/网页/聊天/视频等）\n"
-        f"2. 结合「你现在的状态」决定语气和态度，说一句符合当下心境的话\n"
+        f"2. 结合「你现在的状态」和截图内容，说一句符合人格和当下心境的话\n"
         f"3. 规划动作序列：先用移动类动作接近目标，中间穿插驻留类动作，最后用耗时动作收尾，按输出格式要求凑满时长\n"
         f"   • 有窗口 → drive 走到附近 + bounce 跳上窗口顶部，参数用探测数据的「相对桌宠」和「上跳_N_px」\n"
         f"   • 无窗口 → 巡视桌面或找地方坐下\n"
@@ -252,7 +255,7 @@ def autonomous_non_vision_user_prompt(context: str) -> str:
     return (
         f"{context}\n\n"
         f"按以下步骤思考和行动：\n\n"
-        f"1. 结合「你现在的状态」决定语气和态度，说一句符合当下心境的话\n"
+        f"1. 结合「你现在的状态」决定语气和态度，说一句符合人格和当下心境的话\n"
         f"2. 规划动作序列：先移动，中间穿插驻留动作，按输出格式要求凑满时长\n"
         f"   • 有窗口 → drive 走到附近，用人格语气评论窗口内容\n"
         f"   • 无窗口 → 巡视桌面或找地方坐下\n"
@@ -271,7 +274,7 @@ def chat_vision_user_prompt(user_message: str, context: str) -> str:
         "按以下步骤思考和行动：\n\n"
         "1. 理解用户说了什么，判断意图\n"
         "2. 分析截图，识别窗口内容——结合画面理解语境\n"
-        "3. 结合「你现在的状态」决定语气和态度，说一句符合当下心境的话\n"
+        "3. 结合「你现在的状态」和截图内容，说一句符合人格和当下心境的话\n"
         "4. 规划配合对话的动作序列，按输出格式要求凑满时长\n"
         "5. 理智不正常时也可主动调用可用工具做不寻常的事\n"
         "6. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）"
@@ -284,7 +287,7 @@ def chat_non_vision_user_prompt(user_message: str, context: str) -> str:
         f"{context}\n\n"
         "按以下步骤思考和行动：\n\n"
         "1. 理解用户说了什么，判断意图\n"
-        "2. 结合「你现在的状态」决定语气和态度，说一句符合当下心境的话\n"
+        "2. 结合「你现在的状态」和用户消息内容，说一句符合人格和当下心境的话\n"
         "3. 规划配合对话的动作序列，按输出格式要求凑满时长\n"
         "4. 理智不正常时也可主动调用可用工具做不寻常的事\n"
         "5. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）"

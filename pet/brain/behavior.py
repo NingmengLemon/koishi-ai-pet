@@ -29,6 +29,7 @@ class ActionStep:
 class BehaviorOutput:
     actions: list = field(default_factory=list)
     speech: Optional[str] = None
+    speech_parts: list = field(default_factory=list)
     speech_streamed: bool = False
     summary: Optional[str] = None
     memory_line: Optional[str] = None
@@ -330,6 +331,8 @@ class Behavior(BrainMixin):
                                 lower = stripped.lower()
                                 if lower.startswith("speech:"):
                                     line_type = "speech"
+                                    if speech_parts and on_stream_end:
+                                        on_stream_end()
                                 elif lower.startswith("action:"):
                                     line_type = "action"
                                 elif lower.startswith("summary:"):
@@ -394,11 +397,11 @@ class Behavior(BrainMixin):
                 )
                 logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   tool_calls: {len(accumulated_tool_calls)}")
                 # 不在此处调用 on_stream_end：保持气泡流不中断，
-                # 后续 tool call 轮次的 speech 可继续追加到同一气泡。
-                # 流的收尾由 pipeline 的 if stream_started 处理。
+                # on_stream_end 仅用于 speech 中断（多行 Speech 分开显示），
+                # 不在轮次间调用（_consume_stream 末尾不再调 on_stream_end）。
                 return self._handle_tool_calls(
                     messages, accumulated_tool_calls, first_content,
-                    on_chunk=on_chunk, on_stream_end=None, tag=tag,
+                    on_chunk=on_chunk, on_stream_end=on_stream_end, tag=tag,
                     tools_param=tools_param, max_tokens=max_tokens,
                     max_rounds=config.LLM_TOOL_MAX_ROUNDS,
                     speech_streamed=speech_streamed,
@@ -421,6 +424,7 @@ class Behavior(BrainMixin):
             return BehaviorOutput(
                 actions=actions,
                 speech=" ".join(speech_parts),
+                speech_parts=list(speech_parts),
                 speech_streamed=speech_streamed,
                 summary=summary_holder[0] if summary_holder else None,
                 memory_line=memory_holder[0] if memory_holder else None,
@@ -435,7 +439,7 @@ class Behavior(BrainMixin):
 
     def _parse_behavior(self, content: str) -> BehaviorOutput:
         actions: list = []
-        speech = None
+        speech_parts = []
         summary = None
         memory_line = None
         emotion = None
@@ -454,7 +458,7 @@ class Behavior(BrainMixin):
             elif lower.startswith("speech:"):
                 raw = line.split(":", 1)[1].strip()
                 if raw.lower() not in ("none", "", "null"):
-                    speech = raw
+                    speech_parts.append(raw)
             elif lower.startswith("summary:"):
                 summary = line.split(":", 1)[1].strip()
             elif lower.startswith("memory:") and memory_line is None:
@@ -469,7 +473,8 @@ class Behavior(BrainMixin):
             actions.append(ActionStep("sit", kwargs={"duration": 5}))
         mood_deltas = self._parse_mood_line(mood_line) if mood_line else None
         vitals_deltas = self._parse_vitals_line(vitals_line) if vitals_line else None
-        return BehaviorOutput(actions=actions, speech=speech, summary=summary, memory_line=memory_line, emotion=emotion, mood_deltas=mood_deltas, vitals_deltas=vitals_deltas)
+        speech = " ".join(speech_parts) if speech_parts else None
+        return BehaviorOutput(actions=actions, speech=speech, speech_parts=speech_parts, summary=summary, memory_line=memory_line, emotion=emotion, mood_deltas=mood_deltas, vitals_deltas=vitals_deltas)
 
     def _finish_line(self, buffer, actions, speech_parts,
                       summary_holder=None, memory_holder=None, emotion_holder=None,
@@ -670,6 +675,7 @@ class Behavior(BrainMixin):
         tool_calls_map = {}
         line_buffer = ""
         in_speech = False
+        speech_count = 0
         prefix_consumed = False
         finish_reason = None
         stream_usage = None
@@ -698,6 +704,9 @@ class Behavior(BrainMixin):
                             stripped = line_buffer.lstrip()
                             if stripped.lower().startswith("speech:"):
                                 in_speech = True
+                                speech_count += 1
+                                if speech_count > 1 and on_stream_end:
+                                    on_stream_end()
                                 prefix = "Speech: "
                                 if len(stripped) > len(prefix):
                                     prefix_consumed = True
@@ -735,8 +744,6 @@ class Behavior(BrainMixin):
             logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] stream completed in {elapsed:.2f}s ({tag}){usage_log}")
         logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior] === LLM RESPONSE ({tag}) ===")
         logger.info(f"[{datetime.now().strftime('%H:%M:%S')}] [Behavior]   raw: {content}")
-        if on_stream_end:
-            on_stream_end()
         return content, tool_calls_map
 
     _LOCAL_ACTIONS = [

@@ -381,9 +381,9 @@ class PetAgent(QObject):
                 role="assistant",
                 content=f"did {', '.join(action_names)}, said: {result.speech or '(silent)'}")
             if result.speech and not result.speech_streamed:
-                self.speak_stream_start.emit()
-                self.speak_stream_chunk.emit(result.speech)
-                self.speak_stream_end.emit(4000)
+                parts = result.speech_parts if result.speech_parts else [result.speech]
+                for part in parts:
+                    self.speak_requested.emit(part, 5000)
             if result.summary:
                 self.behavior.add_context(role="assistant", content=result.summary, is_summary=True)
             for step in result.actions:
