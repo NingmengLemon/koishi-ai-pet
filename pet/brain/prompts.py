@@ -99,6 +99,7 @@ def _autonomous_task() -> list[str]:
         '9. bounce 的 height ≤900px，禁止跳到标记"禁止跳跃"的窗口',
         "【行为】",
         "10. 避免重复 Recent 中的行为和台词",
+        "10a. 动作选择要有多样性，根据当前情境和情绪从动作表中选择不同动作，不要每次都用同一组动作组合",
         "11. 台词、动作、互动方式全部由你的人格描述决定",
         "12. 必须查看[记忆存储指导]判断是否输出Memory行，如果值得，必须输出",
         "13. 你的言行必须反映「你现在的状态」中的感受——饿的时候引导投喂，累的时候多休息，不开心的时候引导摸摸头，疯的时候说不着边际的话",
@@ -151,6 +152,7 @@ def _chat_task() -> list[str]:
         "5. 带参数的动作用 duration=秒 或 direction=left/right 格式，参考动作表\n"
         "6. 必须用 Speech 回应用户，≤50字，性格语气。可输出多行 Speech，将一段话分成几句输出",
         "7. 参考「近期对话/行为记录」保持连贯，不重复说过的话\n"
+        "7a. 动作选择要有多样性，根据对话内容和情绪选择不同动作，不要总是用同一组\n"
         "8. 用户要求使用工具时，调用对应的 function\n"
         "9. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored, crazy\n"
         "10. 必须查看[记忆存储指导]判断是否输出Memory行，如果值得，必须输出\n"
@@ -179,6 +181,7 @@ def _interact_task() -> list[str]:
         "3. 动作名只能是动作表列出的，必须从动作表复制准确名称\n"
         "4. 动作名和参数必须在 Action: 同行，禁止换行再写动作名\n"
         "5. Speech 是本能反应而非分析，≤20字，由个性决定语气。可输出多行 Speech，将一段话分成几句输出",
+        "5a. 根据互动类型选择不同动作，不要总用同一个",
         "6. 禁止输出 Memory 行\n"
         "7. 你的反应必须反映「你现在的状态」中的感受\n"
         "8. Emotion 可选: happy, excited, sad, angry, surprised, thinking, sleepy, love, cool, shy, scared, hungry, curious, proud, bored, crazy",
@@ -246,7 +249,7 @@ def autonomous_vision_user_prompt(context: str) -> str:
         f"   • 无窗口 → 巡视桌面或找地方坐下\n"
         f"4. 理智不正常时主动调用可用工具做疯狂的事；正常时如有需要也可使用工具\n"
         f"5. 探索新话题，不要延续近期对话中已充分讨论的内容（除非有新的变化）\n"
-        f"6. 禁止重复 Recent 中的行为和台词\n"
+        f"6. 禁止重复说之前的话题\n"
         f"7. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）"
     )
 
@@ -262,7 +265,7 @@ def autonomous_non_vision_user_prompt(context: str) -> str:
         f"   • drive 方向可随机\n"
         f"3. 理智不正常时主动调用可用工具做疯狂的事；正常时如有需要也可使用工具\n"
         f"4. 探索新话题，不要延续近期对话中已充分讨论的内容（除非有新的变化）\n"
-        f"5. 禁止重复 Recent 中的行为和台词\n"
+        f"5. 禁止重复说之前的话题\n"
         f"6. 按顺序写出完整输出（Summary → Emotion → Speech → Actions → Mood → Vitals）"
     )
 
