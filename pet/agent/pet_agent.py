@@ -295,7 +295,7 @@ class PetAgent(QObject):
             if self._cancel_flag or my_stream_id != self._active_stream_id:
                 return
             if stream_started:
-                self.speak_stream_end.emit(8000)
+                self.speak_stream_end.emit(4000)
                 stream_started = False
 
         result = self.behavior.chat_decide_stream(
@@ -304,7 +304,7 @@ class PetAgent(QObject):
         )
 
         if stream_started:
-            self.speak_stream_end.emit(8000)
+            self.speak_stream_end.emit(4000)
         return result
 
     def _async_brain(self, fn, *args, on_result=None, on_error=None):
