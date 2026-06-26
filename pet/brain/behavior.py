@@ -819,4 +819,3 @@ class Behavior(BrainMixin):
                     else:
                         logger.debug(f"[{t}] [Behavior] --- msg[{i}] role={m['role']} part[{j}] {part['type']} len={len(str(part))} --- (binary omitted)")
         logger.debug(f"[{t}] [Behavior] ====== END CONTEXT ({tag}) ======")
-        logger.debug(f"[{t}] [Behavior] ====== END CONTEXT ({tag}) ======")
