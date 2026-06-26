@@ -1,5 +1,8 @@
 # Koishi AI Pet 🐾
 
+![image1](image1forReadMe.png)
+![image2](image2forReadMe.png)
+
 > 基于 PySide6 + LLM 的桌面 AI 虚拟宠物，形象来自东方Project的古明地恋，能感知屏幕、与窗口互动、与你对话。
 
 ## ✨ 项目功能
