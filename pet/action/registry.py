@@ -131,7 +131,7 @@ def _build_duration_registry() -> dict[str, ActionDef]:
             "sit": "坐下",
             "sleep": "睡觉",
             "thinking": "沉思",
-            "calling": "无事可做打电话",
+            "calling": "打电话消磨时间",
             "finger_heart": "表达喜欢的比心",
         }
         result[name] = ActionDef(
