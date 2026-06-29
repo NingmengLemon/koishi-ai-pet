@@ -50,6 +50,14 @@ def _cancel(timer_id: str) -> dict:
     return t.cancel_timer(timer_id)
 
 
+def _cancel_all() -> dict:
+    """取消所有定时器。"""
+    if not (t := _ensure()):
+        return {"error": "定时器未初始化"}
+    TOOL_CTX.speech_random(["全部取消…", "清空啦…", "都忘掉…"])
+    return t.cancel_all()
+
+
 def register(registry):
     tool = registry.register(TOOL_NAME, TOOL_DESCRIPTION)
 
@@ -79,6 +87,12 @@ def register(registry):
         args={
             "timer_id": {"type": "str", "required": True, "desc": "定时器ID"},
         },
+    )
+
+    registry.add_method(
+        TOOL_NAME, "cancel_all",
+        "取消所有活跃的定时器。",
+        handler=_cancel_all,
     )
 
     logger.info("[timer] tool registered")

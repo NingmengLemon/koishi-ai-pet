@@ -64,9 +64,15 @@ class ToolContext:
             self._agent.scheduler.register(name, callback)
 
     def register_alarm(self, timestamp_ms: int, callback: Callable[[], None],
-                       key: str | None = None):
+                       key: str | None = None) -> str | None:
         if self._check_agent():
-            self._agent.scheduler.schedule_at(timestamp_ms, callback, key=key)
+            return self._agent.scheduler.schedule_at(timestamp_ms, callback, key=key)
+        return None
+
+    def unregister_alarm(self, key: str):
+        """取消一个已注册的一次性闹钟（幂等）。"""
+        if self._check_agent():
+            self._agent.scheduler.cancel_alarm_by_key(key)
 
     def register_panel(self, tool_name: str,
                        factory: Callable[[], object]):

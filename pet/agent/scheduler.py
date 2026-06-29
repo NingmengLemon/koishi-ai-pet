@@ -2,10 +2,12 @@
 
 import logging
 import sys
+import time
+import uuid
 from datetime import datetime
 from typing import Callable
 
-from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtCore import QObject, QTimer, Signal, Qt
 
 from pet.config import config
 
@@ -41,6 +43,7 @@ class Scheduler(QObject):
     """基于注册机制的多频率调度器"""
 
     idle_paused = Signal(bool)
+    _alarm_signal = Signal(str, int)  # key, delay_ms（跨线程投递）
 
     _VALID_NAMES = ("fast", "mid", "slow")
 
@@ -55,6 +58,8 @@ class Scheduler(QObject):
         self._idle_timeout_ms = config.SCHEDULER_IDLE_TIMEOUT_MS
         self._initialized = False
         self._alarm_timers: dict[str, QTimer] = {}
+        self._pending_alarms: dict[str, Callable] = {}  # key → callback（跨线程中转）
+        self._alarm_signal.connect(self._on_alarm, Qt.ConnectionType.QueuedConnection)
         logger.debug("[Scheduler] Created")
 
     # 注册 / 注销 
@@ -137,6 +142,7 @@ class Scheduler(QObject):
 
     def stop(self):
         self._idle_check.stop()
+        self._pending_alarms.clear()
         for key in list(self._alarm_timers):
             self._cleanup_alarm_timer(key)
         if not self._timers:
@@ -215,15 +221,27 @@ class Scheduler(QObject):
         return self.is_paused("mid")
 
     def schedule_at(self, timestamp_ms: int, callback: Callable[[], None],
-                    key: str | None = None):
+                    key: str | None = None) -> str:
         """在指定绝对时间戳（ms）精准触发一次性回调。
-        已过期则立即触发，同 ID 重复注册会覆盖旧的。"""
-        import time
+
+        同 ID 重复注册会覆盖旧的。通过 Signal 投递到主线程创建 QTimer，
+        调用者可在任意线程安全调用。
+        """
         now_ms = int(time.time() * 1000)
         delay_ms = max(0, timestamp_ms - now_ms)
 
         if key is None:
-            key = str(id(callback))
+            key = f"alarm_{uuid.uuid4().hex}"
+
+        self._pending_alarms[key] = callback
+        self._alarm_signal.emit(key, delay_ms)
+        return key
+
+    def _on_alarm(self, key: str, delay_ms: int):
+        """在主线程创建一次性 QTimer（由 _alarm_signal 触发）。"""
+        callback = self._pending_alarms.pop(key, None)
+        if callback is None:
+            return
 
         # 覆盖旧 timer
         self._cleanup_alarm_timer(key)
@@ -241,6 +259,11 @@ class Scheduler(QObject):
         t.start(delay_ms)
         self._alarm_timers[key] = t
         logger.info(f"[Scheduler] alarm '{key}' scheduled in {delay_ms}ms")
+
+    def cancel_alarm_by_key(self, key: str):
+        """公开方法：按 key 取消一个一次性闹钟（幂等）。"""
+        self._pending_alarms.pop(key, None)
+        self._cleanup_alarm_timer(key)
 
     def _cleanup_alarm_timer(self, key: str):
         """Stop and delete a single alarm timer by key (idempotent)."""
