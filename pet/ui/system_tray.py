@@ -49,7 +49,6 @@ def _wrap_menu_paint(menu: QMenu):
 
 
 class SystemTrayManager(QObject):
-
     def __init__(self, app, pet_window):
         super().__init__()
         self.app = app
@@ -88,7 +87,9 @@ class SystemTrayManager(QObject):
                 lines.append(f"饱食度 {ns['satiety']:.0f} | 精力 {ns['energy']:.0f}")
             if m:
                 ms = m.numeric_summary()
-                lines.append(f"好感 {ms['affection']:.0f} | 愉悦 {ms['joy']:.0f} | 理智 {ms['sanity']:.0f}")
+                lines.append(
+                    f"好感 {ms['affection']:.0f} | 愉悦 {ms['joy']:.0f} | 理智 {ms['sanity']:.0f}"
+                )
         # 资源占用
         try:
             mem_info = _PROCESS.memory_info()
@@ -104,6 +105,7 @@ class SystemTrayManager(QObject):
         try:
             if sys.platform == "darwin":
                 from AppKit import NSApp
+
                 NSApp.activateIgnoringOtherApps_(True)
             else:
                 ctypes.windll.user32.SetForegroundWindow(int(self.pet.winId()))
@@ -114,7 +116,11 @@ class SystemTrayManager(QObject):
         menu.setStyleSheet(MENU_QSS)
         # Windows 原生菜单不认 QSS border-radius，需 frameless + 自绘
         if sys.platform == "win32":
-            menu.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Popup | Qt.WindowType.NoDropShadowWindowHint)
+            menu.setWindowFlags(
+                Qt.WindowType.FramelessWindowHint
+                | Qt.WindowType.Popup
+                | Qt.WindowType.NoDropShadowWindowHint
+            )
             menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
             _wrap_menu_paint(menu)
 
@@ -129,7 +135,9 @@ class SystemTrayManager(QObject):
 
         # 设置入口
         settings_action = QAction("设置", menu)
-        settings_action.triggered.connect(lambda: SettingsWindow.show_instance(self._agent, self.pet))
+        settings_action.triggered.connect(
+            lambda: SettingsWindow.show_instance(self._agent, self.pet)
+        )
         menu.addAction(settings_action)
         menu.addSeparator()
 

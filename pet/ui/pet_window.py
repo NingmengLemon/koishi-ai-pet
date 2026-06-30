@@ -10,7 +10,11 @@ from pet.ui.particle import ParticleWidget
 from pet.ui.styles import MENU_QSS
 from pet.ui.settings_window import SettingsWindow
 from pet.action import PetActions, ActionQueue
-from pet.brain.prompts import INTERACT_GRABBED, INTERACT_RELEASED, INTERACT_WINDOW_DISAPPEARED
+from pet.brain.prompts import (
+    INTERACT_GRABBED,
+    INTERACT_RELEASED,
+    INTERACT_WINDOW_DISAPPEARED,
+)
 from pet.tools.registry import TOOL_REGISTRY
 from pet.config import config
 
@@ -80,9 +84,9 @@ class PetWindow(TransparentWindow):
         self._event_reaction = False
         self._drag_history: list = []  # [(QPoint, timestamp_ms), ...]
         self._press_pos: QPoint | None = None  # 按下时的全局坐标
-        self._click_timer = QTimer(self)       # 单击检测定时器
+        self._click_timer = QTimer(self)  # 单击检测定时器
         self._click_timer.setSingleShot(True)
-        self._click_timer.setInterval(200)      # 200ms 内无移动 → 判定为单击
+        self._click_timer.setInterval(200)  # 200ms 内无移动 → 判定为单击
         self._click_timer.timeout.connect(self._on_click_confirmed)
         self._PROMPT_GRABBED = INTERACT_GRABBED
         self._PROMPT_RELEASED = INTERACT_RELEASED
@@ -143,6 +147,7 @@ class PetWindow(TransparentWindow):
 
         # 初始位置：屏幕底部居中
         from PySide6.QtWidgets import QApplication
+
         screen = QApplication.primaryScreen()
         if screen:
             geo = screen.availableGeometry()
@@ -230,7 +235,7 @@ class PetWindow(TransparentWindow):
                 vx = (p2.x() - p1.x()) / dt
                 vy = (p2.y() - p1.y()) / dt
         self._drag_history.clear()
-        speed = (vx ** 2 + vy ** 2) ** 0.5
+        speed = (vx**2 + vy**2) ** 0.5
         self.pet_actions.gravity.enable(True)
         if speed > 80:
             self.pet_actions.gravity.apply_impulse(vx, vy)
@@ -281,7 +286,8 @@ class PetWindow(TransparentWindow):
                 tool_action.setCheckable(True)
                 tool_action.setChecked(TOOL_REGISTRY.is_enabled(name))
                 tool_action.toggled.connect(
-                    lambda checked, n=name: TOOL_REGISTRY.set_enabled(n, checked))
+                    lambda checked, n=name: TOOL_REGISTRY.set_enabled(n, checked)
+                )
 
                 # 如果有子菜单项，挂到 action 上
                 if tool.menu_items:
@@ -326,11 +332,14 @@ class PetWindow(TransparentWindow):
 
     def _toggle_event_reaction(self):
         self._event_reaction = not self._event_reaction
-        logger.info(f"Event reaction {'enabled' if self._event_reaction else 'disabled'}")
+        logger.info(
+            f"Event reaction {'enabled' if self._event_reaction else 'disabled'}"
+        )
 
     def _show_debug_window(self):
         if self._debug_window is None:
             from pet.ui.debug_window import DebugWindow
+
             self._debug_window = DebugWindow(self, agent=self._agent)
         self._debug_window.show()
         self._debug_window.activateWindow()
@@ -342,6 +351,7 @@ class PetWindow(TransparentWindow):
     def _show_log_window(self):
         if self._log_window is None:
             from pet.ui.log_window import LogWindow
+
             self._log_window = LogWindow(self._log_relay)
         self._log_window.show()
         self._log_window.activateWindow()
@@ -350,6 +360,7 @@ class PetWindow(TransparentWindow):
     def _show_chat_history(self):
         if self._chat_history_window is None:
             from pet.ui.chat_history import ChatHistoryWindow
+
             store = self._agent.conversation_store if self._agent else None
             if store is None:
                 return
@@ -374,7 +385,7 @@ class PetWindow(TransparentWindow):
         hint = self._PROMPT_WINDOW_DISAPPEARED
         if window_title:
             hint += f"\n消失的窗口标题：「{window_title}」"
-        logger.info(f"[PetWindow] standing_lost: \"{window_title}\"")
+        logger.info(f'[PetWindow] standing_lost: "{window_title}"')
         if self._agent and self._event_reaction:
             self._agent.trigger("interact", hint=hint)
 

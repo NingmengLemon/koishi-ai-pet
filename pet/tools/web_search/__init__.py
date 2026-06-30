@@ -24,7 +24,8 @@ def register(registry):
     tool = registry.register(TOOL_NAME, TOOL_DESCRIPTION)
 
     registry.add_method(
-        TOOL_NAME, "search",
+        TOOL_NAME,
+        "search",
         "搜索网络获取最新信息（返回标题和摘要，速度快）",
         handler=_search,
         timeout=15.0,
@@ -56,7 +57,8 @@ def register(registry):
         },
     )
     registry.add_method(
-        TOOL_NAME, "deep_search",
+        TOOL_NAME,
+        "deep_search",
         "深度搜索：搜索后自动抓取前几条结果的页面正文，信息更完整详细（比 search 慢）",
         handler=_deep_search,
         timeout=60.0,

@@ -6,9 +6,20 @@ import logging
 import os
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
-    QPushButton, QLabel, QMessageBox, QLineEdit, QTextEdit,
-    QDialog, QFormLayout, QDialogButtonBox, QFileDialog,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QLabel,
+    QMessageBox,
+    QLineEdit,
+    QTextEdit,
+    QDialog,
+    QFormLayout,
+    QDialogButtonBox,
+    QFileDialog,
 )
 from PySide6.QtCore import Qt
 
@@ -32,8 +43,7 @@ class KnowledgePanel(QWidget):
         self.resize(_W, _H)
         self.setFixedWidth(_W)
         self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self._setup_ui()
@@ -149,15 +159,25 @@ class KnowledgePanel(QWidget):
         btn_row.setSpacing(6)
 
         for text, handler, hover_qss in [
-            ("➕ 添加", self._on_add,
-             "QPushButton:hover { background: #4a90d9; border-color: #4a90d9; color: #fff; }"),
-            ("📁 导入文件", self._on_import,
-             "QPushButton:hover { background: #27ae60; border-color: #27ae60; color: #fff; }"),
-            ("🗑️ 删除", self._on_delete,
-             "QPushButton:hover { background: #e74c3c; border-color: #e74c3c; color: #fff; }"),
+            (
+                "➕ 添加",
+                self._on_add,
+                "QPushButton:hover { background: #4a90d9; border-color: #4a90d9; color: #fff; }",
+            ),
+            (
+                "📁 导入文件",
+                self._on_import,
+                "QPushButton:hover { background: #27ae60; border-color: #27ae60; color: #fff; }",
+            ),
+            (
+                "🗑️ 删除",
+                self._on_delete,
+                "QPushButton:hover { background: #e74c3c; border-color: #e74c3c; color: #fff; }",
+            ),
         ]:
             btn = QPushButton(text)
-            btn.setStyleSheet("""
+            btn.setStyleSheet(
+                """
                 QPushButton {
                     background: #fff; border: 1px solid #ddd;
                     border-radius: 6px; padding: 4px 12px;
@@ -165,7 +185,9 @@ class KnowledgePanel(QWidget):
                 }
                 QPushButton:hover { background: #e8e8e8; }
                 QPushButton:pressed { background: #d8d8d8; }
-            """ + hover_qss)
+            """
+                + hover_qss
+            )
             btn.clicked.connect(handler)
             btn_row.addWidget(btn)
 
@@ -226,9 +248,7 @@ class KnowledgePanel(QWidget):
             item.setData(Qt.ItemDataRole.UserRole, doc["id"])
             self._list.addItem(item)
 
-        self._stats.setText(
-            f"第 {data['page']}/{data['total_pages']} 页"
-        )
+        self._stats.setText(f"第 {data['page']}/{data['total_pages']} 页")
         self._btn_prev.setEnabled(data["has_prev"])
         self._btn_next.setEnabled(data["has_next"])
         self._result_label.setVisible(False)
@@ -257,8 +277,7 @@ class KnowledgePanel(QWidget):
         form.addRow("内容:", edt_content)
 
         btn_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         btn_box.accepted.connect(dlg.accept)
         btn_box.rejected.connect(dlg.reject)
@@ -285,8 +304,7 @@ class KnowledgePanel(QWidget):
     def _on_import(self):
         """从文件导入知识。"""
         path, _ = QFileDialog.getOpenFileName(
-            self, "选择文件",
-            "", "文本文件 (*.txt *.md);;所有文件 (*.*)"
+            self, "选择文件", "", "文本文件 (*.txt *.md);;所有文件 (*.*)"
         )
         if not path:
             return
@@ -311,8 +329,9 @@ class KnowledgePanel(QWidget):
             QMessageBox.warning(self, "错误", f"导入失败: {e}")
             return
         QMessageBox.information(
-            self, "导入成功",
-            f"已导入「{title}」，共 {result['chunks']} 个分块\n来源: {path}"
+            self,
+            "导入成功",
+            f"已导入「{title}」，共 {result['chunks']} 个分块\n来源: {path}",
         )
         self._refresh()
 
@@ -355,8 +374,7 @@ class KnowledgePanel(QWidget):
         doc_id = self._current_id()
         if doc_id is None:
             return
-        reply = QMessageBox.question(
-            self, "确认删除", "确定要删除这条知识吗？")
+        reply = QMessageBox.question(self, "确认删除", "确定要删除这条知识吗？")
         if reply == QMessageBox.StandardButton.Yes:
             try:
                 self._storage.delete_document(doc_id)

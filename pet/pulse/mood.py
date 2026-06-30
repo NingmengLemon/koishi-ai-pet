@@ -27,20 +27,25 @@ class MoodThresholds:
 
 # ── Mood ──────────────────────────────────────────────
 
+
 class Mood(QObject):
     """心理数值系统"""
 
-    affection_low       = Signal()
+    affection_low = Signal()
     affection_estranged = Signal()
     affection_increased = Signal()
-    joy_low             = Signal()
-    joy_depressed       = Signal()
-    sanity_low          = Signal()
-    sanity_mad          = Signal()
-    mood_recovered      = Signal()
+    joy_low = Signal()
+    joy_depressed = Signal()
+    sanity_low = Signal()
+    sanity_mad = Signal()
+    mood_recovered = Signal()
 
-    def __init__(self, db_path: Optional[str] = None,
-                 thresholds: Optional[MoodThresholds] = None, parent=None):
+    def __init__(
+        self,
+        db_path: Optional[str] = None,
+        thresholds: Optional[MoodThresholds] = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self._thresholds = thresholds or MoodThresholds()
 
@@ -52,17 +57,18 @@ class Mood(QObject):
         self._load()
 
         # 信号防抖
-        self._was_aff_low       = False
+        self._was_aff_low = False
         self._was_aff_estranged = False
-        self._was_joy_low       = False
+        self._was_joy_low = False
         self._was_joy_depressed = False
-        self._was_sanity_low    = False
-        self._was_sanity_mad    = False
+        self._was_sanity_low = False
+        self._was_sanity_mad = False
         self._init_threshold_flags()
 
-        logger.info(f"[Mood] 初始化完成 好感={self._affection:.1f} "
-                    f"愉悦={self._joy:.1f} 理智={self._sanity:.1f}")
-
+        logger.info(
+            f"[Mood] 初始化完成 好感={self._affection:.1f} "
+            f"愉悦={self._joy:.1f} 理智={self._sanity:.1f}"
+        )
 
     def _create_table(self):
         """创建 mood 表（单行存储当前心理状态）。"""
@@ -88,17 +94,16 @@ class Mood(QObject):
                 "SELECT affection, joy, sanity FROM mood WHERE id = 1"
             ).fetchone()
             self._affection: float = row[0]
-            self._joy: float       = row[1]
-            self._sanity: float    = row[2]
+            self._joy: float = row[1]
+            self._sanity: float = row[2]
 
     def save(self):
         with self._lock:
             self._conn.execute(
                 "UPDATE mood SET affection=?, joy=?, sanity=? WHERE id = 1",
-                (self._affection, self._joy, self._sanity)
+                (self._affection, self._joy, self._sanity),
             )
             self._conn.commit()
-
 
     @property
     def affection(self) -> float:
@@ -124,7 +129,6 @@ class Mood(QObject):
 
     def is_sanity_low(self) -> bool:
         return self._sanity < self._thresholds.sanity_low
-
 
     def summary(self) -> str:
         """返回当前心理状态的人可读摘要。"""
@@ -172,13 +176,12 @@ class Mood(QObject):
         """返回数值摘要，供规则系统使用。"""
         return {
             "affection": round(self._affection, 1),
-            "joy":       round(self._joy, 1),
-            "sanity":    round(self._sanity, 1),
-            "aff_low":   self.is_affection_low(),
-            "joy_low":   self.is_joy_low(),
+            "joy": round(self._joy, 1),
+            "sanity": round(self._sanity, 1),
+            "aff_low": self.is_affection_low(),
+            "joy_low": self.is_joy_low(),
             "sanity_low": self.is_sanity_low(),
         }
-
 
     _DELTA_MAX = 5.0
 
@@ -217,12 +220,12 @@ class Mood(QObject):
     def _init_threshold_flags(self):
         """启动时根据当前数值设置防抖标记。"""
         t = self._thresholds
-        self._was_aff_low       = self._affection < t.affection_low
+        self._was_aff_low = self._affection < t.affection_low
         self._was_aff_estranged = self._affection < t.affection_estranged
-        self._was_joy_low       = self._joy < t.joy_low
+        self._was_joy_low = self._joy < t.joy_low
         self._was_joy_depressed = self._joy < t.joy_depressed
-        self._was_sanity_low    = self._sanity < t.sanity_low
-        self._was_sanity_mad    = self._sanity < t.sanity_mad
+        self._was_sanity_low = self._sanity < t.sanity_low
+        self._was_sanity_mad = self._sanity < t.sanity_mad
 
     def check_thresholds(self):
         t = self._thresholds
@@ -276,10 +279,19 @@ class Mood(QObject):
             self._was_sanity_mad = False
 
         # 恢复信号
-        if (self._affection > 50 and self._joy > 50 and self._sanity > 50
-                and (self._was_aff_low or self._was_aff_estranged
-                     or self._was_joy_low or self._was_joy_depressed
-                     or self._was_sanity_low or self._was_sanity_mad)):
+        if (
+            self._affection > 50
+            and self._joy > 50
+            and self._sanity > 50
+            and (
+                self._was_aff_low
+                or self._was_aff_estranged
+                or self._was_joy_low
+                or self._was_joy_depressed
+                or self._was_sanity_low
+                or self._was_sanity_mad
+            )
+        ):
             self._was_aff_low = False
             self._was_aff_estranged = False
             self._was_joy_low = False
@@ -288,7 +300,6 @@ class Mood(QObject):
             self._was_sanity_mad = False
             self.mood_recovered.emit()
             logger.info("[Mood] 心理状态恢复正常！")
-
 
     def close(self):
         self.save()

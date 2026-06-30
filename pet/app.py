@@ -44,7 +44,9 @@ def main():
         logging.getLogger(_lib).setLevel(logging.WARNING)
 
     # 文件日志：按天切分，保留 3 天
-    _log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+    _log_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs"
+    )
     os.makedirs(_log_dir, exist_ok=True)
     _file_handler = TimedRotatingFileHandler(
         filename=os.path.join(_log_dir, "koishiai.log"),
@@ -53,10 +55,12 @@ def main():
         backupCount=3,
         encoding="utf-8",
     )
-    _file_handler.setFormatter(logging.Formatter(
-        "[%(asctime)s] [%(name)s] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    ))
+    _file_handler.setFormatter(
+        logging.Formatter(
+            "[%(asctime)s] [%(name)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
     _file_handler.setLevel(getattr(logging, config.LOG_LEVEL, logging.INFO))
     logging.getLogger().addHandler(_file_handler)
 
@@ -87,7 +91,9 @@ def main():
 
     if sys.platform == "win32":
         try:
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("KoishiAI.App.1")
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                "KoishiAI.App.1"
+            )
         except Exception:
             pass
 
@@ -110,15 +116,17 @@ def main():
 
     chat_bubble = ChatBubble(window)
     window.set_chat_bubble(chat_bubble)
-    chat_bubble.chat_submitted.connect(
-        lambda text: agent.trigger("chat", message=text)
-    )
+    chat_bubble.chat_submitted.connect(lambda text: agent.trigger("chat", message=text))
 
     feed_bubble = FeedBubble(window)
     window.set_feed_bubble(feed_bubble)
     feed_bubble.feed_submitted.connect(
-        lambda text: agent.trigger("interact", hint=interact_fed_prompt(text),
-                                    record_context=True, context_hint=f"用户投喂了{text}")
+        lambda text: agent.trigger(
+            "interact",
+            hint=interact_fed_prompt(text),
+            record_context=True,
+            context_hint=f"用户投喂了{text}",
+        )
     )
 
     agent.action_requested.connect(window.queue_enqueue_action)
@@ -126,15 +134,17 @@ def main():
     agent.emotion_requested.connect(
         lambda e, d: window.particles.spawn("hearts") if e == "love" else None
     )
-    agent.mood.affection_increased.connect(
-        lambda: window.particles.spawn("hearts")
-    )
+    agent.mood.affection_increased.connect(lambda: window.particles.spawn("hearts"))
     agent.speak_requested.connect(bubble.show_text)
     agent.speak_stream_start.connect(bubble.start_stream)
     agent.speak_stream_chunk.connect(bubble.append_stream)
     agent.speak_stream_end.connect(bubble.end_stream)
     agent.llm_loading.connect(
-        lambda loading: window.particles.start_loading() if loading else window.particles.stop_loading()
+        lambda loading: (
+            window.particles.start_loading()
+            if loading
+            else window.particles.stop_loading()
+        )
     )
     agent.state_changed.connect(
         lambda s: chat_bubble.set_busy(s in ("autonomous", "interacting"))
@@ -165,10 +175,16 @@ def main():
         _hotkey_mgr.enter_pressed.connect(chat_bubble._on_submit)
 
         _voice_session.recording_started.connect(chat_bubble.show_voice_input)
-        _voice_session.recording_started.connect(lambda: chat_bubble.set_recording_icon(True))
+        _voice_session.recording_started.connect(
+            lambda: chat_bubble.set_recording_icon(True)
+        )
 
-        _voice_session.recording_stopped.connect(lambda: chat_bubble.set_recording_icon(False))
-        _voice_session.transcription_done.connect(lambda _: chat_bubble.set_recording_icon(False))
+        _voice_session.recording_stopped.connect(
+            lambda: chat_bubble.set_recording_icon(False)
+        )
+        _voice_session.transcription_done.connect(
+            lambda _: chat_bubble.set_recording_icon(False)
+        )
 
         _voice_session.error.connect(lambda msg: logger.error(f"[Voice] {msg}"))
 
@@ -182,8 +198,11 @@ def main():
     logger.info("SystemTrayManager ready")
 
     agent.notify_requested.connect(
-        lambda t, m, d: tray.tray_icon.showMessage(t, m, QSystemTrayIcon.MessageIcon.Information, d)
-        if tray.tray_icon else None
+        lambda t, m, d: (
+            tray.tray_icon.showMessage(t, m, QSystemTrayIcon.MessageIcon.Information, d)
+            if tray.tray_icon
+            else None
+        )
     )
 
     tray.set_agent(agent)
@@ -212,6 +231,7 @@ def main():
         logging.getLogger().removeHandler(_log_handler)
         try:
             from pet.ui.settings_window import SettingsWindow
+
             if SettingsWindow._instance:
                 SettingsWindow._instance.close()
         except Exception:

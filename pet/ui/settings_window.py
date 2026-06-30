@@ -6,22 +6,61 @@ import logging
 import threading
 import logging
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QLineEdit, QCheckBox, QComboBox, QTextEdit, QTabWidget,
-    QFormLayout, QGroupBox, QMessageBox, QScrollArea, QMenu, QApplication,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QPushButton,
+    QLabel,
+    QLineEdit,
+    QCheckBox,
+    QComboBox,
+    QTextEdit,
+    QTabWidget,
+    QFormLayout,
+    QGroupBox,
+    QMessageBox,
+    QScrollArea,
+    QMenu,
+    QApplication,
 )
 from PySide6.QtCore import Qt, QThread, Signal, QObject
-from PySide6.QtGui import QIcon, QFont, QPainter, QPainterPath, QPen, QColor, QIntValidator, QDoubleValidator
+from PySide6.QtGui import (
+    QIcon,
+    QFont,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QColor,
+    QIntValidator,
+    QDoubleValidator,
+)
 
 from pet.config import config, _KEY_META
 from pet.auto_start import set_auto_start
 from pet.ui.styles import (
-    ICON_PATH, SETTING_ICON_PATH, SHOW_ICON_PATH, HIDE_ICON_PATH, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
-    INPUT_QSS, INPUT_HIGHLIGHT_QSS, COMBOBOX_QSS, TEXTEDIT_QSS, CHECKBOX_QSS,
-    TAB_BAR_QSS, SCROLLBAR_QSS,
-    _COLOR_BG, _COLOR_BORDER_DARK, _COLOR_TEXT_TITLE,
-    _COLOR_TEXT_SEC, _COLOR_TEXT_MUTED, _COLOR_WARNING,
-    make_minimize_button, make_close_button, ensure_taskbar_icon,
+    ICON_PATH,
+    SETTING_ICON_PATH,
+    SHOW_ICON_PATH,
+    HIDE_ICON_PATH,
+    PANEL_QSS,
+    BUTTON_QSS,
+    BUTTON_PRIMARY_QSS,
+    INPUT_QSS,
+    INPUT_HIGHLIGHT_QSS,
+    COMBOBOX_QSS,
+    TEXTEDIT_QSS,
+    CHECKBOX_QSS,
+    TAB_BAR_QSS,
+    SCROLLBAR_QSS,
+    _COLOR_BG,
+    _COLOR_BORDER_DARK,
+    _COLOR_TEXT_TITLE,
+    _COLOR_TEXT_SEC,
+    _COLOR_TEXT_MUTED,
+    _COLOR_WARNING,
+    make_minimize_button,
+    make_close_button,
+    ensure_taskbar_icon,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,6 +71,7 @@ _H = 720
 
 class _LLMTestWorker(QObject):
     """子线程执行 LLM 连通性测试。"""
+
     finished = Signal(bool, str, float)  # success, content_or_error, elapsed
 
     def __init__(self, url: str, key: str, model: str, timeout: float = 30.0):
@@ -43,9 +83,11 @@ class _LLMTestWorker(QObject):
 
     def run(self):
         import time
+
         start = time.time()
         try:
             from openai import OpenAI
+
             client = OpenAI(
                 api_key=self._key or "empty",
                 base_url=self._url or "",
@@ -69,6 +111,7 @@ class _LLMTestWorker(QObject):
 
 class _EmbeddingTestWorker(QObject):
     """子线程执行 Embedding 连通性测试。"""
+
     finished = Signal(bool, str, float)  # success, content_or_error, elapsed
 
     def __init__(self, url, key, model, dim):
@@ -80,15 +123,19 @@ class _EmbeddingTestWorker(QObject):
 
     def run(self):
         import time
+
         start = time.time()
         try:
             from pet.brain.embedding_client import EmbeddingClient
+
             client = EmbeddingClient(self._url, self._key, self._model, self._dim)
             vectors = client.embed("测试")
             elapsed = time.time() - start
             vec_count = len(vectors)
             vec_dim = len(vectors[0]) if vectors else 0
-            self.finished.emit(True, f"向量维度: {vec_dim}, 响应正常 ({vec_count} 条)", elapsed)
+            self.finished.emit(
+                True, f"向量维度: {vec_dim}, 响应正常 ({vec_count} 条)", elapsed
+            )
         except Exception as e:
             elapsed = time.time() - start
             self.finished.emit(False, str(e), elapsed)
@@ -96,6 +143,7 @@ class _EmbeddingTestWorker(QObject):
 
 class _ModelsFetchWorker(QObject):
     """子线程获取模型列表。"""
+
     finished = Signal(bool, list, str)  # success, model_ids, error_msg
 
     def __init__(self, client):
@@ -114,6 +162,7 @@ class _ModelsFetchWorker(QObject):
 
 class _VoiceTestWorker(QObject):
     """子线程执行讯飞语音连接测试。"""
+
     finished = Signal(bool)  # success
 
     def __init__(self, app_id, api_key, api_secret):
@@ -124,6 +173,7 @@ class _VoiceTestWorker(QObject):
 
     def run(self):
         from pet.voice.xunfei_stt import XunfeiSTT
+
         stt = XunfeiSTT()
         ok = stt.test_connection(self._app_id, self._api_key, self._api_secret)
         self.finished.emit(ok)
@@ -200,7 +250,7 @@ class MarkdownEdit(QWidget):
 class SettingsWindow(QWidget):
     _instance: SettingsWindow | None = None
 
-    _key_captured = Signal(str)   # 热键捕获完成（跨线程 → 主线程）
+    _key_captured = Signal(str)  # 热键捕获完成（跨线程 → 主线程）
 
     @classmethod
     def show_instance(cls, agent, parent=None):
@@ -239,11 +289,10 @@ class SettingsWindow(QWidget):
         self.setWindowTitle("设置")
         self.resize(_W, _H)
         self.setFixedSize(_W, _H)
-        self.move(QApplication.primaryScreen().geometry().center() - self.rect().center())
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.Window
+        self.move(
+            QApplication.primaryScreen().geometry().center() - self.rect().center()
         )
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         try:
             self.setWindowIcon(QIcon(SETTING_ICON_PATH))
@@ -252,9 +301,14 @@ class SettingsWindow(QWidget):
 
         self._setup_ui()
         self.setStyleSheet(
-            PANEL_QSS + BUTTON_QSS + BUTTON_PRIMARY_QSS +
-            INPUT_QSS + COMBOBOX_QSS + TEXTEDIT_QSS + CHECKBOX_QSS +
-            TAB_BAR_QSS
+            PANEL_QSS
+            + BUTTON_QSS
+            + BUTTON_PRIMARY_QSS
+            + INPUT_QSS
+            + COMBOBOX_QSS
+            + TEXTEDIT_QSS
+            + CHECKBOX_QSS
+            + TAB_BAR_QSS
         )
 
     def showEvent(self, event):
@@ -283,7 +337,9 @@ class SettingsWindow(QWidget):
             pass
 
         title = QLabel("设置")
-        title.setStyleSheet(f"font-size:13px; color:{_COLOR_TEXT_TITLE}; font-weight:bold; background:transparent;")
+        title.setStyleSheet(
+            f"font-size:13px; color:{_COLOR_TEXT_TITLE}; font-weight:bold; background:transparent;"
+        )
         title_row.addWidget(title)
         title_row.addStretch()
         title_row.addWidget(make_minimize_button(self))
@@ -320,9 +376,14 @@ class SettingsWindow(QWidget):
 
     # ── 无图标消息框 ──
 
-    def _msg(self, title: str, text: str, *,
-             icon: QMessageBox.Icon = QMessageBox.Icon.NoIcon,
-             warning: bool = False):
+    def _msg(
+        self,
+        title: str,
+        text: str,
+        *,
+        icon: QMessageBox.Icon = QMessageBox.Icon.NoIcon,
+        warning: bool = False,
+    ):
         """显示无图标的消息框。warning=True 时用 Warning 图标，否则 NoIcon。"""
         box = QMessageBox(self)
         box.setWindowTitle(title)
@@ -334,8 +395,7 @@ class SettingsWindow(QWidget):
     # ── 值控件映射 ──
     # _fields: dict[str, QWidget] — key 是 Config 属性名
 
-    def _line(self, key: str, placeholder: str = "",
-              validator=None) -> QLineEdit:
+    def _line(self, key: str, placeholder: str = "", validator=None) -> QLineEdit:
         """创建 QLineEdit 并注册到 _fields。"""
         edit = QLineEdit()
         edit.setPlaceholderText(placeholder)
@@ -345,8 +405,9 @@ class SettingsWindow(QWidget):
         self._fields[key] = edit
         return edit
 
-    def _secret_row(self, key: str, placeholder: str = "",
-                    stylesheet: str = INPUT_HIGHLIGHT_QSS) -> QHBoxLayout:
+    def _secret_row(
+        self, key: str, placeholder: str = "", stylesheet: str = INPUT_HIGHLIGHT_QSS
+    ) -> QHBoxLayout:
         """带显示/隐藏按钮的密钥输入行，注册到 _fields。"""
         row = QHBoxLayout()
         edit = QLineEdit()
@@ -364,8 +425,10 @@ class SettingsWindow(QWidget):
             lambda checked: (
                 toggle.setIcon(QIcon(HIDE_ICON_PATH if checked else SHOW_ICON_PATH)),
                 edit.setEchoMode(
-                    QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
-                )
+                    QLineEdit.EchoMode.Normal
+                    if checked
+                    else QLineEdit.EchoMode.Password
+                ),
             )[:0]  # suppress True from lambda
         )
         row.addWidget(toggle)
@@ -393,7 +456,9 @@ class SettingsWindow(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setStyleSheet(f"QScrollArea {{ border: none; background: {_COLOR_BG}; }}" + SCROLLBAR_QSS)
+        scroll.setStyleSheet(
+            f"QScrollArea {{ border: none; background: {_COLOR_BG}; }}" + SCROLLBAR_QSS
+        )
         scroll.viewport().setStyleSheet(f"background: {_COLOR_BG};")
 
         content = QWidget()
@@ -415,7 +480,9 @@ class SettingsWindow(QWidget):
         self._url_edit = self._line("LLM_URL", "https://api.example.com/v1")
         form.addRow("API 地址:", self._url_edit)
 
-        self._ollama_url_edit = self._line("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+        self._ollama_url_edit = self._line(
+            "OLLAMA_BASE_URL", "http://localhost:11434/v1"
+        )
         form.addRow("Ollama 地址:", self._ollama_url_edit)
 
         # API Key + toggle
@@ -438,7 +505,9 @@ class SettingsWindow(QWidget):
         model_row.addWidget(self._btn_fetch_models)
         form.addRow("模型名称:", model_row)
 
-        self._timeout_edit = self._line("LLM_TIMEOUT", "30", QDoubleValidator(1, 300, 1))
+        self._timeout_edit = self._line(
+            "LLM_TIMEOUT", "30", QDoubleValidator(1, 300, 1)
+        )
         self._timeout_edit.setMaxLength(5)
         form.addRow("请求超时(秒):", self._timeout_edit)
 
@@ -446,26 +515,40 @@ class SettingsWindow(QWidget):
         self._retries_edit.setMaxLength(2)
         form.addRow("最大重试次数:", self._retries_edit)
 
-        self._retry_delay_edit = self._line("LLM_RETRY_DELAY", "1", QDoubleValidator(0, 60, 1))
+        self._retry_delay_edit = self._line(
+            "LLM_RETRY_DELAY", "1", QDoubleValidator(0, 60, 1)
+        )
         self._retry_delay_edit.setMaxLength(4)
         form.addRow("重试延迟(秒):", self._retry_delay_edit)
 
-        self._retry_max_delay_edit = self._line("LLM_RETRY_MAX_DELAY", "8", QDoubleValidator(0, 300, 1))
+        self._retry_max_delay_edit = self._line(
+            "LLM_RETRY_MAX_DELAY", "8", QDoubleValidator(0, 300, 1)
+        )
         self._retry_max_delay_edit.setMaxLength(5)
         form.addRow("最大重试延迟(秒):", self._retry_max_delay_edit)
 
-        self._temperature_edit = self._line("LLM_TEMPERATURE", "0.7", QDoubleValidator(0, 2, 2))
+        self._temperature_edit = self._line(
+            "LLM_TEMPERATURE", "0.7", QDoubleValidator(0, 2, 2)
+        )
         self._temperature_edit.setMaxLength(4)
         form.addRow("采样温度:", self._temperature_edit)
 
-        self._tokens_interact_edit = self._line("LLM_MAX_TOKENS_INTERACT", "600", QIntValidator(100, 8000))
+        self._tokens_interact_edit = self._line(
+            "LLM_MAX_TOKENS_INTERACT", "600", QIntValidator(100, 8000)
+        )
         form.addRow("交互模式输出Token上限:", self._tokens_interact_edit)
-        self._tokens_chat_edit = self._line("LLM_MAX_TOKENS_CHAT", "1500", QIntValidator(100, 8000))
+        self._tokens_chat_edit = self._line(
+            "LLM_MAX_TOKENS_CHAT", "1500", QIntValidator(100, 8000)
+        )
         form.addRow("聊天模式输出Token上限:", self._tokens_chat_edit)
-        self._tokens_auto_edit = self._line("LLM_MAX_TOKENS_AUTONOMOUS", "2500", QIntValidator(100, 8000))
+        self._tokens_auto_edit = self._line(
+            "LLM_MAX_TOKENS_AUTONOMOUS", "2500", QIntValidator(100, 8000)
+        )
         form.addRow("自主模式输出Token上限:", self._tokens_auto_edit)
 
-        self._tool_rounds_edit = self._line("LLM_TOOL_MAX_ROUNDS", "5", QIntValidator(1, 20))
+        self._tool_rounds_edit = self._line(
+            "LLM_TOOL_MAX_ROUNDS", "5", QIntValidator(1, 20)
+        )
         form.addRow("工具调用最大轮次:", self._tool_rounds_edit)
 
         self._cache_check = self._check("LLM_CACHE_PROMPT", "Prompt 缓存")
@@ -489,11 +572,14 @@ class SettingsWindow(QWidget):
         self._test_output.setReadOnly(True)
         self._test_output.setMaximumHeight(60)
         self._test_output.setFont(QFont("Consolas", 9))
-        self._test_output.setStyleSheet(TEXTEDIT_QSS + f"""
+        self._test_output.setStyleSheet(
+            TEXTEDIT_QSS
+            + f"""
             QTextEdit {{
                 background: {_COLOR_BG};
             }}
-        """)
+        """
+        )
         inner.addWidget(self._test_output)
 
         # 模式切换联动
@@ -507,17 +593,29 @@ class SettingsWindow(QWidget):
 
     def _on_mode_changed(self, mode: str):
         """根据调用模式启用/禁用对应字段。"""
-        llm_fields = [self._url_edit, self._llm_key_edit, self._key_toggle,
-                      self._cache_check]
+        llm_fields = [
+            self._url_edit,
+            self._llm_key_edit,
+            self._key_toggle,
+            self._cache_check,
+        ]
         ollama_fields = [self._ollama_url_edit]
-        common_fields = [self._model_edit, self._btn_fetch_models,
-                         self._timeout_edit, self._retries_edit,
-                         self._retry_delay_edit, self._retry_max_delay_edit,
-                         self._temperature_edit,
-                         self._tokens_interact_edit, self._tokens_chat_edit,
-                         self._tokens_auto_edit,
-                         self._tool_rounds_edit,
-                         self._btn_test, self._label_test, self._test_output]
+        common_fields = [
+            self._model_edit,
+            self._btn_fetch_models,
+            self._timeout_edit,
+            self._retries_edit,
+            self._retry_delay_edit,
+            self._retry_max_delay_edit,
+            self._temperature_edit,
+            self._tokens_interact_edit,
+            self._tokens_chat_edit,
+            self._tokens_auto_edit,
+            self._tool_rounds_edit,
+            self._btn_test,
+            self._label_test,
+            self._test_output,
+        ]
 
         if mode == "local":
             for w in llm_fields + ollama_fields + common_fields:
@@ -544,7 +642,9 @@ class SettingsWindow(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setStyleSheet(f"QScrollArea {{ border: none; background: {_COLOR_BG}; }}" + SCROLLBAR_QSS)
+        scroll.setStyleSheet(
+            f"QScrollArea {{ border: none; background: {_COLOR_BG}; }}" + SCROLLBAR_QSS
+        )
         scroll.viewport().setStyleSheet(f"background: {_COLOR_BG};")
 
         content = QWidget()
@@ -557,10 +657,21 @@ class SettingsWindow(QWidget):
         sched_form = QFormLayout(sched_group)
         sched_form.setSpacing(8)
         sched_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-        sched_form.addRow("自主行动间隔(ms):", self._line("SCHEDULER_MID_MS", "300000", QIntValidator(60000, 3600000)))
-        sched_form.addRow("", self._check("SCHEDULER_AUTO_START_MID", "默认开启自动行动"))
-        sched_form.addRow("上下文最大条目数:", self._line("CONTEXT_MAX_ENTRIES", "30", QIntValidator(10, 100)))
-        sched_form.addRow("LLM历史消息条数:", self._line("CONTEXT_HISTORY_ENTRIES", "8", QIntValidator(1, 50)))
+        sched_form.addRow(
+            "自主行动间隔(ms):",
+            self._line("SCHEDULER_MID_MS", "300000", QIntValidator(60000, 3600000)),
+        )
+        sched_form.addRow(
+            "", self._check("SCHEDULER_AUTO_START_MID", "默认开启自动行动")
+        )
+        sched_form.addRow(
+            "上下文最大条目数:",
+            self._line("CONTEXT_MAX_ENTRIES", "30", QIntValidator(10, 100)),
+        )
+        sched_form.addRow(
+            "LLM历史消息条数:",
+            self._line("CONTEXT_HISTORY_ENTRIES", "8", QIntValidator(1, 50)),
+        )
         inner.addWidget(sched_group)
 
         # 视觉
@@ -568,8 +679,13 @@ class SettingsWindow(QWidget):
         vision_form = QFormLayout(vision_group)
         vision_form.setSpacing(8)
         vision_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-        vision_form.addRow("", self._check("VISION_ENABLED", "开启视觉理解（需要模型支持多模态）"))
-        vision_form.addRow("截图缩放比例(0.1~1.0):", self._line("VISION_SCALE", "1", QDoubleValidator(0.1, 1.0, 1)))
+        vision_form.addRow(
+            "", self._check("VISION_ENABLED", "开启视觉理解（需要模型支持多模态）")
+        )
+        vision_form.addRow(
+            "截图缩放比例(0.1~1.0):",
+            self._line("VISION_SCALE", "1", QDoubleValidator(0.1, 1.0, 1)),
+        )
         inner.addWidget(vision_group)
 
         # 理智
@@ -577,7 +693,10 @@ class SettingsWindow(QWidget):
         sanity_form = QFormLayout(sanity_group)
         sanity_form.setSpacing(8)
         sanity_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-        sanity_form.addRow("理智临界值:", self._line("SANITY_CRITICAL_THRESHOLD", "20", QIntValidator(0, 100)))
+        sanity_form.addRow(
+            "理智临界值:",
+            self._line("SANITY_CRITICAL_THRESHOLD", "20", QIntValidator(0, 100)),
+        )
         hint = QLabel("低于该值会导致异常行为")
         hint.setStyleSheet(f"color:{_COLOR_TEXT_MUTED}; font-size:11px;")
         sanity_form.addRow("", hint)
@@ -595,7 +714,10 @@ class SettingsWindow(QWidget):
         memory_form.setSpacing(8)
         memory_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
-        memory_form.addRow("API 地址:", self._line("EMBEDDING_URL", "https://open.bigmodel.cn/api/paas/v4"))
+        memory_form.addRow(
+            "API 地址:",
+            self._line("EMBEDDING_URL", "https://open.bigmodel.cn/api/paas/v4"),
+        )
 
         # API Key + toggle
         mem_key_row = self._secret_row("EMBEDDING_KEY")
@@ -609,9 +731,17 @@ class SettingsWindow(QWidget):
         self._btn_fetch_mem_models.clicked.connect(self._fetch_embedding_models)
         mem_model_row.addWidget(self._btn_fetch_mem_models)
         memory_form.addRow("模型名:", mem_model_row)
-        memory_form.addRow("向量维度:", self._line("EMBEDDING_DIM", "2048", QIntValidator(64, 8192)))
-        memory_form.addRow("记忆最大容量:", self._line("MEMORY_MAX_CAPACITY", "200", QIntValidator(50, 1000)))
-        memory_form.addRow("临时记忆过期(天):", self._line("MEMORY_L3_EXPIRE_DAYS", "3", QIntValidator(1, 30)))
+        memory_form.addRow(
+            "向量维度:", self._line("EMBEDDING_DIM", "2048", QIntValidator(64, 8192))
+        )
+        memory_form.addRow(
+            "记忆最大容量:",
+            self._line("MEMORY_MAX_CAPACITY", "200", QIntValidator(50, 1000)),
+        )
+        memory_form.addRow(
+            "临时记忆过期(天):",
+            self._line("MEMORY_L3_EXPIRE_DAYS", "3", QIntValidator(1, 30)),
+        )
         memory_layout.addLayout(memory_form)
 
         # 连接测试
@@ -631,16 +761,21 @@ class SettingsWindow(QWidget):
         self._mem_test_output.setReadOnly(True)
         self._mem_test_output.setMaximumHeight(60)
         self._mem_test_output.setFont(QFont("Consolas", 9))
-        self._mem_test_output.setStyleSheet(TEXTEDIT_QSS + f"""
+        self._mem_test_output.setStyleSheet(
+            TEXTEDIT_QSS
+            + f"""
             QTextEdit {{
                 background: {_COLOR_BG};
             }}
-        """)
+        """
+        )
         memory_layout.addWidget(self._mem_test_output)
 
         # 重启提示
         memory_hint = QLabel("修改记忆设置后需重启生效。")
-        memory_hint.setStyleSheet(f"color:{_COLOR_WARNING}; font-size:11px; font-weight:bold;")
+        memory_hint.setStyleSheet(
+            f"color:{_COLOR_WARNING}; font-size:11px; font-weight:bold;"
+        )
         memory_hint.setWordWrap(True)
         memory_layout.addWidget(memory_hint)
 
@@ -662,7 +797,9 @@ class SettingsWindow(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setStyleSheet(f"QScrollArea {{ border: none; background: {_COLOR_BG}; }}" + SCROLLBAR_QSS)
+        scroll.setStyleSheet(
+            f"QScrollArea {{ border: none; background: {_COLOR_BG}; }}" + SCROLLBAR_QSS
+        )
         scroll.viewport().setStyleSheet(f"background: {_COLOR_BG};")
 
         content = QWidget()
@@ -674,13 +811,22 @@ class SettingsWindow(QWidget):
 
         # 需重启提示
         restart_label = QLabel("以下设置需要重启后生效：")
-        restart_label.setStyleSheet(f"color:{_COLOR_WARNING}; font-size:11px; font-weight:bold;")
+        restart_label.setStyleSheet(
+            f"color:{_COLOR_WARNING}; font-size:11px; font-weight:bold;"
+        )
         form.addRow(restart_label)
 
         form.addRow("宠物宽度:", self._line("PET_WIDTH", "125", QIntValidator(50, 500)))
-        form.addRow("宠物高度:", self._line("PET_HEIGHT", "125", QIntValidator(50, 500)))
-        form.addRow("气泡最大宽度:", self._line("BUBBLE_MAX_WIDTH", "300", QIntValidator(100, 1000)))
-        form.addRow("气泡字号:", self._line("BUBBLE_FONT_SIZE", "14", QIntValidator(8, 48)))
+        form.addRow(
+            "宠物高度:", self._line("PET_HEIGHT", "125", QIntValidator(50, 500))
+        )
+        form.addRow(
+            "气泡最大宽度:",
+            self._line("BUBBLE_MAX_WIDTH", "300", QIntValidator(100, 1000)),
+        )
+        form.addRow(
+            "气泡字号:", self._line("BUBBLE_FONT_SIZE", "14", QIntValidator(8, 48))
+        )
         tools_edit = self._line("TOOLS_ENABLED", "*")
         tools_edit.setPlaceholderText("* 表示全部，多个用逗号分隔")
         form.addRow("启用工具:", tools_edit)
@@ -729,7 +875,9 @@ class SettingsWindow(QWidget):
         self._voice_btn_test.clicked.connect(self._on_test_voice_connection)
         test_row.addWidget(self._voice_btn_test)
         self._voice_label_test = QLabel("就绪")
-        self._voice_label_test.setStyleSheet(f"color:{_COLOR_TEXT_SEC}; font-size:11px;")
+        self._voice_label_test.setStyleSheet(
+            f"color:{_COLOR_TEXT_SEC}; font-size:11px;"
+        )
         test_row.addWidget(self._voice_label_test)
         test_row.addStretch()
         voice_layout.addLayout(test_row)
@@ -738,11 +886,14 @@ class SettingsWindow(QWidget):
         self._voice_test_output.setReadOnly(True)
         self._voice_test_output.setMaximumHeight(60)
         self._voice_test_output.setFont(QFont("Consolas", 9))
-        self._voice_test_output.setStyleSheet(TEXTEDIT_QSS + f"""
+        self._voice_test_output.setStyleSheet(
+            TEXTEDIT_QSS
+            + f"""
             QTextEdit {{
                 background: {_COLOR_BG};
             }}
-        """)
+        """
+        )
         voice_layout.addWidget(self._voice_test_output)
 
         inner.addWidget(voice_group)
@@ -763,7 +914,9 @@ class SettingsWindow(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setStyleSheet(f"QScrollArea {{ border: none; background: {_COLOR_BG}; }}" + SCROLLBAR_QSS)
+        scroll.setStyleSheet(
+            f"QScrollArea {{ border: none; background: {_COLOR_BG}; }}" + SCROLLBAR_QSS
+        )
         scroll.viewport().setStyleSheet(f"background: {_COLOR_BG};")
 
         content = QWidget()
@@ -781,9 +934,11 @@ class SettingsWindow(QWidget):
         form.addWidget(sep)
 
         form.addWidget(QLabel("交互提示词"))
-        for label, key in [("抓取", "INTERACT_GRABBED_PROMPT"),
-                           ("放下", "INTERACT_RELEASED_PROMPT"),
-                           ("窗口消失", "INTERACT_WINDOW_DISAPPEARED_PROMPT")]:
+        for label, key in [
+            ("抓取", "INTERACT_GRABBED_PROMPT"),
+            ("放下", "INTERACT_RELEASED_PROMPT"),
+            ("窗口消失", "INTERACT_WINDOW_DISAPPEARED_PROMPT"),
+        ]:
             form.addWidget(QLabel(label))
             ta = self._text_area(key)
             ta.setMinimumHeight(240)
@@ -831,7 +986,7 @@ class SettingsWindow(QWidget):
 
     def _is_dirty(self) -> bool:
         """比较当前控件值与上次快照，判断是否有未保存的修改。"""
-        if not hasattr(self, '_snapshot'):
+        if not hasattr(self, "_snapshot"):
             return False
         for key, widget in self._fields.items():
             if isinstance(widget, QLineEdit):
@@ -894,8 +1049,10 @@ class SettingsWindow(QWidget):
         values, invalid_keys = self._collect_values()
         if invalid_keys:
             bad_names = ", ".join(invalid_keys)
-            self._msg("输入有误",
-                      f"以下字段包含无效数值，未能保存：\n{bad_names}\n\n请检查数值型字段.")
+            self._msg(
+                "输入有误",
+                f"以下字段包含无效数值，未能保存：\n{bad_names}\n\n请检查数值型字段.",
+            )
             return
         needs_restart_keys = []
         needs_rebuild_client = False
@@ -918,14 +1075,15 @@ class SettingsWindow(QWidget):
         if "AUTO_START_ON_BOOT" in values:
             set_auto_start(values["AUTO_START_ON_BOOT"])
 
-        if needs_scheduler_update and self.agent and hasattr(self.agent, 'scheduler'):
+        if needs_scheduler_update and self.agent and hasattr(self.agent, "scheduler"):
             try:
                 self.agent.scheduler.update_config()
             except Exception as e:
                 logger.exception(f"[Settings] scheduler.update_config failed: {e}")
 
         # LLM 客户端重建（在后台线程执行，避免阻塞 GUI）
-        if needs_rebuild_client and self.agent and hasattr(self.agent, 'behavior'):
+        if needs_rebuild_client and self.agent and hasattr(self.agent, "behavior"):
+
             def _rebuild():
                 try:
                     self.agent.behavior.rebuild_client()
@@ -1074,7 +1232,11 @@ class SettingsWindow(QWidget):
         logger = logging.getLogger(__name__)
         logger.info(f"[Settings] captured key: {key!r}")
         try:
-            key_name = key.char.lower() if hasattr(key, 'char') and key.char else key.name.lower()
+            key_name = (
+                key.char.lower()
+                if hasattr(key, "char") and key.char
+                else key.name.lower()
+            )
         except Exception as e:
             logger.warning(f"[Settings] key name extraction failed: {e}")
             key_name = str(key).lower().replace("key.", "")
@@ -1097,13 +1259,27 @@ class SettingsWindow(QWidget):
 
     def _on_test_voice_connection(self):
         """从表单读取讯飞凭证并测试连接。"""
-        app_id = self._fields["XF_APPID"].text().strip() if "XF_APPID" in self._fields else ""
-        api_key = self._fields["XF_API_KEY"].text().strip() if "XF_API_KEY" in self._fields else ""
-        api_secret = self._fields["XF_API_SECRET"].text().strip() if "XF_API_SECRET" in self._fields else ""
+        app_id = (
+            self._fields["XF_APPID"].text().strip()
+            if "XF_APPID" in self._fields
+            else ""
+        )
+        api_key = (
+            self._fields["XF_API_KEY"].text().strip()
+            if "XF_API_KEY" in self._fields
+            else ""
+        )
+        api_secret = (
+            self._fields["XF_API_SECRET"].text().strip()
+            if "XF_API_SECRET" in self._fields
+            else ""
+        )
 
         if not app_id or not api_key or not api_secret:
             self._voice_test_output.clear()
-            self._voice_test_output.append("⚠ 请先填写讯飞 APPID、API Key 和 API Secret。")
+            self._voice_test_output.append(
+                "⚠ 请先填写讯飞 APPID、API Key 和 API Secret。"
+            )
             self._voice_label_test.setText("未配置")
             return
 
@@ -1144,9 +1320,17 @@ class SettingsWindow(QWidget):
             self._msg("提示", "当前为 local 模式，无需远程模型。")
             return
 
-        url = self._fields["LLM_URL"].text().strip() if "LLM_URL" in self._fields else ""
-        key = self._fields["LLM_KEY"].text().strip() if "LLM_KEY" in self._fields else ""
-        ollama_url = self._fields["OLLAMA_BASE_URL"].text().strip() if "OLLAMA_BASE_URL" in self._fields else ""
+        url = (
+            self._fields["LLM_URL"].text().strip() if "LLM_URL" in self._fields else ""
+        )
+        key = (
+            self._fields["LLM_KEY"].text().strip() if "LLM_KEY" in self._fields else ""
+        )
+        ollama_url = (
+            self._fields["OLLAMA_BASE_URL"].text().strip()
+            if "OLLAMA_BASE_URL" in self._fields
+            else ""
+        )
 
         if brain == "ollama":
             base_url = ollama_url or config.OLLAMA_BASE_URL
@@ -1160,6 +1344,7 @@ class SettingsWindow(QWidget):
             return
 
         from openai import OpenAI
+
         client = OpenAI(api_key=api_key, base_url=base_url, timeout=config.LLM_TIMEOUT)
 
         self._btn_fetch_models.setEnabled(False)
@@ -1189,7 +1374,9 @@ class SettingsWindow(QWidget):
         menu = QMenu(self)
         for mid in model_ids:
             action = menu.addAction(mid)
-            action.triggered.connect(lambda checked=False, m=mid: self._model_edit.setText(m))
+            action.triggered.connect(
+                lambda checked=False, m=mid: self._model_edit.setText(m)
+            )
 
         # 在按钮下方弹出
         pos = self._btn_fetch_models.mapToGlobal(
@@ -1211,6 +1398,7 @@ class SettingsWindow(QWidget):
             return
 
         from openai import OpenAI
+
         client = OpenAI(api_key=key, base_url=url, timeout=30.0)
 
         self._btn_fetch_mem_models.setEnabled(False)
@@ -1258,7 +1446,9 @@ class SettingsWindow(QWidget):
             box.setText("有修改尚未保存，是否保存？")
             box.setIcon(QMessageBox.Icon.NoIcon)
             btn_save = box.addButton("保存", QMessageBox.ButtonRole.AcceptRole)
-            btn_discard = box.addButton("不保存", QMessageBox.ButtonRole.DestructiveRole)
+            btn_discard = box.addButton(
+                "不保存", QMessageBox.ButtonRole.DestructiveRole
+            )
             btn_cancel = box.addButton("取消", QMessageBox.ButtonRole.RejectRole)
             box.setDefaultButton(btn_cancel)
             box.exec()

@@ -10,13 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 class LLMClient:
-
     def __init__(self):
         self._client: OpenAI | None = None
         self._model: str | None = None
         self._lock = threading.RLock()
         self._build()
-
 
     def _build(self):
         brain = config.BRAIN or "local"
@@ -59,7 +57,6 @@ class LLMClient:
             else f"{type(self._client).__name__}(model={self._model})"
         )
         logger.info(f"[LLMClient] rebuild: {client_type}")
-
 
     @property
     def client(self) -> OpenAI | None:

@@ -1,4 +1,4 @@
-﻿"""工具加载器 — 自动发现 + 自动安装依赖 + 配置选择性加载。
+"""工具加载器 — 自动发现 + 自动安装依赖 + 配置选择性加载。
 
 工具组织方式：每个工具是一个独立目录，位于 tools/ 下。
   tools/<tool_name>/__init__.py          — 必须定义 TOOL_NAME、TOOL_DESCRIPTION、register()
@@ -34,7 +34,9 @@ def _ensure_tool_config(tool_dir: Path):
     if example.is_file() and not target.is_file():
         try:
             shutil.copy2(example, target)
-            logger.info(f"[ToolLoader] Created config.json from example for {tool_dir.name}")
+            logger.info(
+                f"[ToolLoader] Created config.json from example for {tool_dir.name}"
+            )
         except OSError as e:
             logger.warning(f"[ToolLoader] Failed to copy config.example.json: {e}")
 
@@ -80,9 +82,7 @@ def _ensure_tool_deps(tool_dir: Path):
             f"{e.stderr.strip()}"
         )
     except subprocess.TimeoutExpired:
-        logger.warning(
-            f"[ToolLoader] Deps install timeout for {tool_dir.name}"
-        )
+        logger.warning(f"[ToolLoader] Deps install timeout for {tool_dir.name}")
     except OSError as e:
         logger.warning(f"[ToolLoader] Deps install OS error for {tool_dir.name}: {e}")
 

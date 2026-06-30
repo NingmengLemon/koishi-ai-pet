@@ -2,7 +2,14 @@
 
 import logging
 
-from PySide6.QtCore import QPoint, QTimer, QPropertyAnimation, QEasingCurve, QObject, Signal
+from PySide6.QtCore import (
+    QPoint,
+    QTimer,
+    QPropertyAnimation,
+    QEasingCurve,
+    QObject,
+    Signal,
+)
 from PySide6.QtWidgets import QWidget
 from pet.config import config
 from pet.action.gravity import GravitySystem
@@ -25,7 +32,7 @@ class PetActions(QObject):
         self.gravity = GravitySystem(window, animator, self._win_anims, parent=self)
 
         self._walking: bool = False
-        self._walk_sign: int = 1       # 1=右, -1=左
+        self._walk_sign: int = 1  # 1=右, -1=左
         self._walk_speed: float = 3.0  # px/tick（约 100px/s @ 30ms tick）
         self._walk_target_x: int = 0
         self._walk_start_x: int = 0
@@ -35,6 +42,7 @@ class PetActions(QObject):
     def _clamp_pos(self, pos: QPoint) -> QPoint:
         """将坐标限制在屏幕可用范围内。"""
         from PySide6.QtWidgets import QApplication
+
         screen = QApplication.primaryScreen()
         if not screen:
             return pos
@@ -45,8 +53,7 @@ class PetActions(QObject):
 
     def _cleanup_stopped_anims(self):
         self._win_anims[:] = [
-            a for a in self._win_anims
-            if a.state() == QPropertyAnimation.State.Running
+            a for a in self._win_anims if a.state() == QPropertyAnimation.State.Running
         ]
 
     def stop_all_anims(self):
@@ -76,7 +83,9 @@ class PetActions(QObject):
     def walk(self, direction: str = "right", distance: int = 400, bounce=25):
         """弹跳行走：每 50px 一跳，匀速，跳间留 250ms 供重力检测，悬空则自动取消。"""
         if direction not in ("left", "right"):
-            logger.warning(f"[PetActions] walk: invalid direction {direction!r}, fallback to 'right'")
+            logger.warning(
+                f"[PetActions] walk: invalid direction {direction!r}, fallback to 'right'"
+            )
             direction = "right"
 
         walk_action = f"walk_{direction}"
@@ -87,8 +96,8 @@ class PetActions(QObject):
         sign = 1 if direction == "right" else -1
         step_px = 50 * sign
         total_steps = max(1, distance // 50)
-        hop_ms = 150   # 每跳动画时长，固定保证匀速
-        gap_ms = 250   # 跳间停顿，供重力检测
+        hop_ms = 150  # 每跳动画时长，固定保证匀速
+        gap_ms = 250  # 跳间停顿，供重力检测
 
         sentinel = QPropertyAnimation(self._window, b"objectName")
         sentinel.setStartValue(self._window.objectName())
@@ -157,7 +166,9 @@ class PetActions(QObject):
     def drive(self, direction: str = "right", distance: int = 400):
         """骑小电驴"""
         if direction not in ("left", "right"):
-            logger.warning(f"[PetActions] drive: invalid direction {direction!r}, fallback to 'right'")
+            logger.warning(
+                f"[PetActions] drive: invalid direction {direction!r}, fallback to 'right'"
+            )
             direction = "right"
 
         walk_action = f"driving_{direction}"
@@ -173,8 +184,10 @@ class PetActions(QObject):
 
         self._walk_timer.timeout.connect(self._driving_tick)
         self._walk_timer.start()
-        logger.info(f"[PetActions] drive dir={direction} dist={distance} "
-                     f"from={self._walk_start_x} to={self._walk_target_x}")
+        logger.info(
+            f"[PetActions] drive dir={direction} dist={distance} "
+            f"from={self._walk_start_x} to={self._walk_target_x}"
+        )
         return "drive"
 
     def _stop_drive(self, switch_idle: bool = True):
@@ -197,7 +210,11 @@ class PetActions(QObject):
     def _driving_tick(self):
         """开车行驶 tick"""
         from PySide6.QtWidgets import QApplication
-        from pet.brain.window_detector import get_visible_windows, get_window_rect, is_window_occluded
+        from pet.brain.window_detector import (
+            get_visible_windows,
+            get_window_rect,
+            is_window_occluded,
+        )
 
         g = self.gravity
         cur_x = self._window.x()
@@ -208,9 +225,8 @@ class PetActions(QObject):
         step = self._walk_speed * self._walk_sign
         new_x = cur_x + step
 
-        reached_target = (
-            (self._walk_sign > 0 and new_x >= self._walk_target_x) or
-            (self._walk_sign < 0 and new_x <= self._walk_target_x)
+        reached_target = (self._walk_sign > 0 and new_x >= self._walk_target_x) or (
+            self._walk_sign < 0 and new_x <= self._walk_target_x
         )
         screen = QApplication.primaryScreen()
         if screen:
@@ -233,10 +249,15 @@ class PetActions(QObject):
 
         try:
             screen_bottom = screen.availableGeometry().bottom() - h if screen else cur_y
-            was_at_bottom = g._cached_effective_bottom is not None and cur_y >= g._cached_effective_bottom
+            was_at_bottom = (
+                g._cached_effective_bottom is not None
+                and cur_y >= g._cached_effective_bottom
+            )
             if was_at_bottom and g._standing_hwnd:
                 rect = get_window_rect(g._standing_hwnd)
-                if rect is None or is_window_occluded(g._standing_hwnd, skip_hwnd=int(self._window.winId())):
+                if rect is None or is_window_occluded(
+                    g._standing_hwnd, skip_hwnd=int(self._window.winId())
+                ):
                     # 站立窗口消失 → 停止行走，交由重力处理下落
                     lost_title = g._standing_title
                     g._standing_hwnd = 0
@@ -308,8 +329,12 @@ class PetActions(QObject):
                 found_title = ""
                 for win in get_visible_windows():
                     left, top, right, bottom = to_logical(win["rect"])
-                    if (left == pet_self[0] and top == pet_self[1]
-                            and right == pet_self[2] and bottom == pet_self[3]):
+                    if (
+                        left == pet_self[0]
+                        and top == pet_self[1]
+                        and right == pet_self[2]
+                        and bottom == pet_self[3]
+                    ):
                         continue
                     if feet_l >= right or feet_r <= left:
                         continue
@@ -367,11 +392,10 @@ class PetActions(QObject):
             anim.finished.connect(callback)
         anim.start()
         self._win_anims.append(anim)
-    
+
         # 15s 后若仍处于不可见状态，自动 fade_in 找回宠物
         QTimer.singleShot(15000, self._fade_in_safety_check)
         return anim
-    
 
     def bounce(self, direction="right", distance=0, height=150, duration=800):
         self._cleanup_stopped_anims()
@@ -383,6 +407,7 @@ class PetActions(QObject):
 
         # 限制不让弹跳弧线最高点超出屏幕上边界
         from PySide6.QtWidgets import QApplication
+
         screen = QApplication.primaryScreen()
         if screen:
             max_height = original_pos.y() - screen.availableGeometry().top()
@@ -439,12 +464,13 @@ class PetActions(QObject):
 
     def rotate(self, **_kw):
         self._anim.play("rotate")
-        
+
     def _fade_in_safety_check(self):
         try:
             if self._window.windowOpacity() < 0.1:
-                logger.warning("[PetActions] fade_out safety net triggered, forcing fade_in")
+                logger.warning(
+                    "[PetActions] fade_out safety net triggered, forcing fade_in"
+                )
                 self.fade_in()
         except RuntimeError:
-            pass    
-
+            pass

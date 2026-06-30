@@ -3,7 +3,17 @@
 from pathlib import Path
 
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLineEdit, QBoxLayout
-from PySide6.QtCore import Qt, QSize, QTimer, QPoint, Signal, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, QEvent
+from PySide6.QtCore import (
+    Qt,
+    QSize,
+    QTimer,
+    QPoint,
+    Signal,
+    QPropertyAnimation,
+    QEasingCurve,
+    QParallelAnimationGroup,
+    QEvent,
+)
 from PySide6.QtGui import QFont, QIcon
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -182,7 +192,9 @@ class ChatBubble(QWidget):
     def set_recording_icon(self, recording: bool):
         """切换按钮图标：录音中显示 audio_recording 图标。"""
         if recording:
-            self._btn.setIcon(QIcon(str(BASE_DIR / "assets" / "icon" / "audio_recording.png")))
+            self._btn.setIcon(
+                QIcon(str(BASE_DIR / "assets" / "icon" / "audio_recording.png"))
+            )
         else:
             self._btn.setIcon(QIcon(str(BASE_DIR / "assets" / "icon" / "chat.png")))
 
@@ -229,7 +241,10 @@ class ChatBubble(QWidget):
 
     def show_bubble(self):
         self.cancel_hide()
-        if self._hide_anim and self._hide_anim.state() == QPropertyAnimation.State.Running:
+        if (
+            self._hide_anim
+            and self._hide_anim.state() == QPropertyAnimation.State.Running
+        ):
             self._hide_anim.stop()
         if self.isVisible():
             return
@@ -272,7 +287,10 @@ class ChatBubble(QWidget):
     def hide_bubble(self):
         if not self.isVisible():
             return
-        if self._show_anim and self._show_anim.state() == QParallelAnimationGroup.State.Running:
+        if (
+            self._show_anim
+            and self._show_anim.state() == QParallelAnimationGroup.State.Running
+        ):
             self._show_anim.stop()
         self._follow_timer.stop()
         self._collapse()
@@ -319,7 +337,7 @@ class ChatBubble(QWidget):
             x = pet_geo.left() - bw + 20  # 左侧
             self._layout.setDirection(QBoxLayout.Direction.RightToLeft)
         else:
-            x = pet_geo.right() - 20      # 右侧
+            x = pet_geo.right() - 20  # 右侧
             self._layout.setDirection(QBoxLayout.Direction.LeftToRight)
         self.move(x, y)
 

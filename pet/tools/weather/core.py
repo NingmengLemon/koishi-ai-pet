@@ -7,7 +7,9 @@ from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
-_GEO_URL = "https://geocoding-api.open-meteo.com/v1/search?count=3&language=zh&name={city}"
+_GEO_URL = (
+    "https://geocoding-api.open-meteo.com/v1/search?count=3&language=zh&name={city}"
+)
 _WEATHER_URL = (
     "https://api.open-meteo.com/v1/forecast"
     "?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,"
@@ -17,11 +19,29 @@ _WEATHER_URL = (
 )
 
 _WMO_CODES: dict[int, str] = {
-    0: "晴天", 1: "大部晴朗", 2: "多云", 3: "阴天",
-    45: "雾", 48: "雾凇", 51: "小毛毛雨", 53: "毛毛雨", 55: "大毛毛雨",
-    61: "小雨", 63: "中雨", 65: "大雨", 71: "小雪", 73: "中雪", 75: "大雪",
-    80: "阵雨", 81: "中阵雨", 82: "大阵雨", 85: "小阵雪", 86: "大阵雪",
-    95: "雷暴", 96: "雷暴+小冰雹", 99: "雷暴+大冰雹",
+    0: "晴天",
+    1: "大部晴朗",
+    2: "多云",
+    3: "阴天",
+    45: "雾",
+    48: "雾凇",
+    51: "小毛毛雨",
+    53: "毛毛雨",
+    55: "大毛毛雨",
+    61: "小雨",
+    63: "中雨",
+    65: "大雨",
+    71: "小雪",
+    73: "中雪",
+    75: "大雪",
+    80: "阵雨",
+    81: "中阵雨",
+    82: "大阵雨",
+    85: "小阵雪",
+    86: "大阵雪",
+    95: "雷暴",
+    96: "雷暴+小冰雹",
+    99: "雷暴+大冰雹",
 }
 
 
@@ -57,9 +77,13 @@ def get_current(city: str = "Beijing") -> dict:
     if not city_info:
         return {"summary": f"未找到城市：{city}"}
 
-    data = _fetch_json(_WEATHER_URL.format(
-        lat=city_info["lat"], lon=city_info["lon"], days=3,
-    ))
+    data = _fetch_json(
+        _WEATHER_URL.format(
+            lat=city_info["lat"],
+            lon=city_info["lon"],
+            days=3,
+        )
+    )
     if not data or "current" not in data:
         return {"summary": f"获取 {city_info['name']} 天气失败"}
 
@@ -114,9 +138,13 @@ def get_forecast(city: str = "Beijing", days: int = 3) -> dict:
         return {"summary": f"未找到城市：{city}"}
 
     days = max(1, min(days, 7))
-    data = _fetch_json(_WEATHER_URL.format(
-        lat=city_info["lat"], lon=city_info["lon"], days=days,
-    ))
+    data = _fetch_json(
+        _WEATHER_URL.format(
+            lat=city_info["lat"],
+            lon=city_info["lon"],
+            days=days,
+        )
+    )
     if not data:
         return {"summary": f"获取 {city_info['name']} 预报失败"}
 
@@ -134,7 +162,9 @@ def get_forecast(city: str = "Beijing", days: int = 3) -> dict:
     for i, d in enumerate(dates):
         try:
             wcode = codes[i] if i < len(codes) else 0
-            precip = int(precips[i]) if i < len(precips) and precips[i] is not None else 0
+            precip = (
+                int(precips[i]) if i < len(precips) and precips[i] is not None else 0
+            )
             lines.append(
                 f"  {d}  {_weather_code_desc(wcode)}"
                 f"，{int(lows[i])}°C ~ {int(highs[i])}°C"

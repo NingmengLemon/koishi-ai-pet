@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 class LlmStats:
     """记录 LLM 累计调用次数，写入 pet.db。"""
 
-    _TABLE_SQL = "CREATE TABLE IF NOT EXISTS llm_stats (key TEXT PRIMARY KEY, value INTEGER)"
+    _TABLE_SQL = (
+        "CREATE TABLE IF NOT EXISTS llm_stats (key TEXT PRIMARY KEY, value INTEGER)"
+    )
 
     def __init__(self, db_path: str | None = None):
         if db_path is None:

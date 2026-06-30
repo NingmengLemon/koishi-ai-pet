@@ -12,7 +12,6 @@ class EmbeddingError(Exception):
 
 
 class EmbeddingClient:
-
     def __init__(self, url: str, key: str, model: str, dim: int):
         self._client = OpenAI(base_url=url, api_key=key, timeout=30)
         self._model = model

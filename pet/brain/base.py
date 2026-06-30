@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ContextEntry:
     """一条结构化的上下文记录。"""
-    role: str           # "user" | "assistant" | "system"
+
+    role: str  # "user" | "assistant" | "system"
     content: str
     timestamp: float = field(default_factory=time.time)
     is_summary: bool = False
@@ -112,7 +113,9 @@ class BrainMixin:
                 except Exception:
                     pass
 
-            logger.info(f"[BrainMixin] loaded {len(self._context)} context entries from DB")
+            logger.info(
+                f"[BrainMixin] loaded {len(self._context)} context entries from DB"
+            )
         except Exception as e:
             logger.warning(f"[BrainMixin] load context failed: {e}")
 
@@ -175,9 +178,13 @@ class BrainMixin:
 
     def add_context(self, role: str, content: str, is_summary: bool = False):
         with self._ctx_lock:
-            self._context.append(ContextEntry(
-                role=role, content=content, is_summary=is_summary,
-            ))
+            self._context.append(
+                ContextEntry(
+                    role=role,
+                    content=content,
+                    is_summary=is_summary,
+                )
+            )
             self._trim()
         if self._db_conn:
             self._save_context()
@@ -192,9 +199,9 @@ class BrainMixin:
         with self._ctx_lock:
             return len(self._context)
 
-    def get_multi_turn_messages(self, max_entries: int = 10,
-                                skip_last: int = 0,
-                                token_budget: int = 0) -> list[dict]:
+    def get_multi_turn_messages(
+        self, max_entries: int = 10, skip_last: int = 0, token_budget: int = 0
+    ) -> list[dict]:
         """构建多轮消息列表。
         返回 [{"role": "user"/"assistant", "content": "..."}, ...]
         system 角色条目合并到相邻的 user 消息中。"""
@@ -231,13 +238,17 @@ class BrainMixin:
                     if messages and messages[-1]["role"] == "assistant":
                         messages[-1]["content"] += f"\n[摘要] {e.content}"
                     else:
-                        messages.append({"role": "assistant", "content": f"[摘要] {e.content}"})
+                        messages.append(
+                            {"role": "assistant", "content": f"[摘要] {e.content}"}
+                        )
                 elif e.role == "system":
                     # system 合并到相邻 user
                     if messages and messages[-1]["role"] == "user":
                         messages[-1]["content"] += f"\n[系统] {e.content}"
                     else:
-                        messages.append({"role": "user", "content": f"[系统] {e.content}"})
+                        messages.append(
+                            {"role": "user", "content": f"[系统] {e.content}"}
+                        )
                 else:
                     messages.append({"role": e.role, "content": e.content})
 
@@ -271,7 +282,6 @@ class BrainMixin:
 
         return role_score + time_score + density_score
 
-
     def _trim(self):
         """超过上限时裁剪：低分条目压缩为摘要后保留，不完全丢弃。"""
         summaries = [e for e in self._context if e.is_summary]
@@ -280,16 +290,20 @@ class BrainMixin:
         if len(summaries) > self._MAX_SUMMARIES:
             summaries.sort(key=self._score_entry, reverse=True)
             # 被淘汰的摘要压缩为一条
-            evicted = summaries[self._MAX_SUMMARIES:]
+            evicted = summaries[self._MAX_SUMMARIES :]
             if evicted:
                 compressed = " | ".join(e.content[:50] for e in evicted)
-                summaries = summaries[:self._MAX_SUMMARIES]
-                summaries.append(ContextEntry(
-                    role="assistant", content=f"[历史摘要] {compressed}",
-                    timestamp=evicted[-1].timestamp, is_summary=True,
-                ))
+                summaries = summaries[: self._MAX_SUMMARIES]
+                summaries.append(
+                    ContextEntry(
+                        role="assistant",
+                        content=f"[历史摘要] {compressed}",
+                        timestamp=evicted[-1].timestamp,
+                        is_summary=True,
+                    )
+                )
             else:
-                summaries = summaries[:self._MAX_SUMMARIES]
+                summaries = summaries[: self._MAX_SUMMARIES]
 
         max_ordinary = self._MAX_ENTRIES - len(summaries)
         if len(ordinary) > max_ordinary:
@@ -299,9 +313,13 @@ class BrainMixin:
             if evicted:
                 compressed = " | ".join(e.content[:50] for e in evicted)
                 ordinary = ordinary[:max_ordinary]
-                summaries.append(ContextEntry(
-                    role="assistant", content=f"[历史摘要] {compressed}",
-                    timestamp=evicted[-1].timestamp, is_summary=True,
-                ))
+                summaries.append(
+                    ContextEntry(
+                        role="assistant",
+                        content=f"[历史摘要] {compressed}",
+                        timestamp=evicted[-1].timestamp,
+                        is_summary=True,
+                    )
+                )
 
         self._context = sorted(summaries + ordinary, key=lambda e: e.timestamp)

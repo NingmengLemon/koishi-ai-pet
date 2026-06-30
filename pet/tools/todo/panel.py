@@ -1,13 +1,22 @@
-﻿"""Todo 管理面板"""
+"""Todo 管理面板"""
 
 from __future__ import annotations
 
 import logging
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
-    QPushButton, QLabel, QMessageBox,
-    QDialog, QLineEdit, QFormLayout, QDialogButtonBox,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QLabel,
+    QMessageBox,
+    QDialog,
+    QLineEdit,
+    QFormLayout,
+    QDialogButtonBox,
 )
 from PySide6.QtCore import Qt
 
@@ -34,8 +43,7 @@ class TodoPanel(QWidget):
         self.resize(_W, _H)
         self.setFixedSize(_W, _H)
         self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
@@ -71,9 +79,7 @@ class TodoPanel(QWidget):
         title_row.setContentsMargins(0, 0, 0, 0)
 
         title = QLabel("📋 待办事项")
-        title.setStyleSheet(
-            "font-size: 16px; font-weight: bold; color: #333;"
-        )
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #333;")
         title_row.addWidget(title)
         title_row.addStretch()
 
@@ -109,27 +115,39 @@ class TodoPanel(QWidget):
         btn_row.setSpacing(6)
 
         for text, handler, extra_qss in [
-            ("➕ 添加", self._on_add, """
+            (
+                "➕ 添加",
+                self._on_add,
+                """
                 QPushButton:hover {
                     background: #4a90d9;
                     border-color: #4a90d9;
                     color: #fff;
                 }
-            """),
-            ("✓ 完成", self._on_toggle, """
+            """,
+            ),
+            (
+                "✓ 完成",
+                self._on_toggle,
+                """
                 QPushButton:hover {
                     background: #27ae60;
                     border-color: #27ae60;
                     color: #fff;
                 }
-            """),
-            ("✗ 删除", self._on_delete, """
+            """,
+            ),
+            (
+                "✗ 删除",
+                self._on_delete,
+                """
                 QPushButton:hover {
                     background: #e74c3c;
                     border-color: #e74c3c;
                     color: #fff;
                 }
-            """),
+            """,
+            ),
         ]:
             btn = QPushButton(text)
             btn.setStyleSheet(BUTTON_QSS + extra_qss)
@@ -197,8 +215,7 @@ class TodoPanel(QWidget):
         form.addRow("标题:", edt_title)
 
         btn_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         btn_box.accepted.connect(dlg.accept)
         btn_box.rejected.connect(dlg.reject)
@@ -225,8 +242,7 @@ class TodoPanel(QWidget):
         tid = self._current_id()
         if tid is None:
             return
-        reply = QMessageBox.question(
-            self, "确认删除", "确定要删除这个任务吗？")
+        reply = QMessageBox.question(self, "确认删除", "确定要删除这个任务吗？")
         if reply == QMessageBox.StandardButton.Yes:
             self._storage.delete(tid)
             self._refresh()

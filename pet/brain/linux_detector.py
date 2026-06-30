@@ -94,11 +94,14 @@ def _is_ignored_type(win) -> bool:
     win_types = _get_window_type(win)
     if not win_types:
         return False
-    ignored = [_get_atom(t) for t in (
-        _NET_WM_WINDOW_TYPE_DESKTOP,
-        _NET_WM_WINDOW_TYPE_DOCK,
-        _NET_WM_WINDOW_TYPE_TOOLBAR,
-    )]
+    ignored = [
+        _get_atom(t)
+        for t in (
+            _NET_WM_WINDOW_TYPE_DESKTOP,
+            _NET_WM_WINDOW_TYPE_DOCK,
+            _NET_WM_WINDOW_TYPE_TOOLBAR,
+        )
+    ]
     return any(t in ignored for t in win_types)
 
 
@@ -161,8 +164,10 @@ def _compute_occluded_area(
     xs: set[int] = set()
     ys: set[int] = set()
     for r in clipped:
-        xs.add(r[0]); xs.add(r[2])
-        ys.add(r[1]); ys.add(r[3])
+        xs.add(r[0])
+        xs.add(r[2])
+        ys.add(r[1])
+        ys.add(r[3])
     xs_sorted = sorted(xs)
     ys_sorted = sorted(ys)
 
@@ -179,7 +184,9 @@ def _compute_occluded_area(
     for i in range(len(xs_sorted) - 1):
         for j in range(len(ys_sorted) - 1):
             if grid[i][j]:
-                area += (xs_sorted[i + 1] - xs_sorted[i]) * (ys_sorted[j + 1] - ys_sorted[j])
+                area += (xs_sorted[i + 1] - xs_sorted[i]) * (
+                    ys_sorted[j + 1] - ys_sorted[j]
+                )
     return area
 
 
@@ -195,13 +202,16 @@ def _get_stacking_list() -> list[int]:
         return list(stacking)
     client_list = _get_property(root, _NET_CLIENT_LIST)
     if client_list:
-        logger.debug("[linux_detector] _NET_CLIENT_LIST_STACKING unavailable, "
-                     "falling back to _NET_CLIENT_LIST (mapping order, not Z-order)")
+        logger.debug(
+            "[linux_detector] _NET_CLIENT_LIST_STACKING unavailable, "
+            "falling back to _NET_CLIENT_LIST (mapping order, not Z-order)"
+        )
     return list(client_list) if client_list else []
 
 
-def is_window_occluded(window_id: int, threshold: float = OCCLUSION_THRESHOLD,
-                       skip_hwnd: int = 0) -> bool:
+def is_window_occluded(
+    window_id: int, threshold: float = OCCLUSION_THRESHOLD, skip_hwnd: int = 0
+) -> bool:
     """基于 Z 序的遮挡检测：收集目标窗口之上的所有可见窗口矩形，计算遮挡面积比例。
 
     skip_hwnd: 要跳过的窗口 ID（如宠物自身窗口）。
@@ -224,7 +234,7 @@ def is_window_occluded(window_id: int, threshold: float = OCCLUSION_THRESHOLD,
 
         dpy = _get_display()
         above_rects: list[tuple[int, int, int, int]] = []
-        for wid in stacking[target_idx + 1:]:
+        for wid in stacking[target_idx + 1 :]:
             if wid == skip_hwnd:
                 continue
             try:
@@ -282,10 +292,12 @@ def get_visible_windows() -> list[dict]:
             if not title:
                 continue
 
-            windows.append({
-                "hwnd": wid,
-                "title": title,
-                "rect": rect,
-            })
+            windows.append(
+                {
+                    "hwnd": wid,
+                    "title": title,
+                    "rect": rect,
+                }
+            )
 
         return windows

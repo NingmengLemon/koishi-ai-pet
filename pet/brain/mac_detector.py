@@ -59,7 +59,9 @@ def _find_window(window_id: int) -> dict | None:
     return None
 
 
-def _bounds_to_rect(bounds: dict, screen_height: float | None = None) -> tuple[int, int, int, int]:
+def _bounds_to_rect(
+    bounds: dict, screen_height: float | None = None
+) -> tuple[int, int, int, int]:
     """CG bounds → (left, top, right, bottom) 屏幕坐标。"""
     x = int(bounds.get("X", 0))
     y = int(bounds.get("Y", 0))
@@ -102,8 +104,10 @@ def _compute_occluded_area(
     xs: set[int] = set()
     ys: set[int] = set()
     for r in clipped:
-        xs.add(r[0]); xs.add(r[2])
-        ys.add(r[1]); ys.add(r[3])
+        xs.add(r[0])
+        xs.add(r[2])
+        ys.add(r[1])
+        ys.add(r[3])
     xs_sorted = sorted(xs)
     ys_sorted = sorted(ys)
 
@@ -120,7 +124,9 @@ def _compute_occluded_area(
     for i in range(len(xs_sorted) - 1):
         for j in range(len(ys_sorted) - 1):
             if grid[i][j]:
-                area += (xs_sorted[i + 1] - xs_sorted[i]) * (ys_sorted[j + 1] - ys_sorted[j])
+                area += (xs_sorted[i + 1] - xs_sorted[i]) * (
+                    ys_sorted[j + 1] - ys_sorted[j]
+                )
     return area
 
 
@@ -168,9 +174,11 @@ def get_visible_windows() -> list[dict]:
         name = win.get("kCGWindowName", "") or win.get("kCGWindowOwnerName", "")
         window_id = win["kCGWindowNumber"]
         rect = _bounds_to_rect(bounds, screen_height)
-        windows.append({
-            "hwnd": window_id,
-            "title": name,
-            "rect": rect,
-        })
+        windows.append(
+            {
+                "hwnd": window_id,
+                "title": name,
+                "rect": rect,
+            }
+        )
     return windows

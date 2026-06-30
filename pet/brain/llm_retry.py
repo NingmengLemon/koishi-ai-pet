@@ -3,23 +3,39 @@
 import logging
 from functools import wraps
 from tenacity import (
-    retry, stop_after_attempt, wait_exponential,
-    retry_if_exception, before_sleep_log, RetryError,
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception,
+    before_sleep_log,
+    RetryError,
 )
 from openai import (
-    APIConnectionError, APITimeoutError, RateLimitError,
-    InternalServerError, AuthenticationError, BadRequestError, NotFoundError,
+    APIConnectionError,
+    APITimeoutError,
+    RateLimitError,
+    InternalServerError,
+    AuthenticationError,
+    BadRequestError,
+    NotFoundError,
 )
 from pet.config import config
 
 logger = logging.getLogger(__name__)
 
 RETRYABLE_EXCEPTIONS = (
-    APIConnectionError, APITimeoutError, RateLimitError,
-    InternalServerError, ConnectionError, TimeoutError, OSError,
+    APIConnectionError,
+    APITimeoutError,
+    RateLimitError,
+    InternalServerError,
+    ConnectionError,
+    TimeoutError,
+    OSError,
 )
 NON_RETRYABLE_EXCEPTIONS = (
-    AuthenticationError, BadRequestError, NotFoundError,
+    AuthenticationError,
+    BadRequestError,
+    NotFoundError,
 )
 
 
@@ -34,6 +50,7 @@ def is_retryable(exception: BaseException) -> bool:
 
 def llm_retry(tag: str = "LLM"):
     """非流式 LLM 调用的重试装饰器。"""
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -56,7 +73,9 @@ def llm_retry(tag: str = "LLM"):
                     f"{e.last_attempt.exception()}"
                 )
                 raise e.last_attempt.exception() from e
+
         return wrapper
+
     return decorator
 
 
@@ -72,15 +91,16 @@ def llm_stream_with_retry(create_stream_fn, tag: str = "LLM"):
             if not is_retryable(e):
                 raise
             delay = min(
-                config.LLM_RETRY_DELAY * (2 ** attempt),
+                config.LLM_RETRY_DELAY * (2**attempt),
                 config.LLM_RETRY_MAX_DELAY,
             )
             logger.warning(
-                f"[{tag}] stream connect failed (attempt {attempt+1}/"
+                f"[{tag}] stream connect failed (attempt {attempt + 1}/"
                 f"{config.LLM_MAX_RETRIES}): {type(e).__name__}: {e}, "
                 f"retrying in {delay:.1f}s"
             )
             import time
+
             time.sleep(delay)
 
     raise last_exception

@@ -16,25 +16,25 @@ logger = logging.getLogger(__name__)
 _DB_PATH = get_db_path()
 
 
-
 @dataclass(frozen=True)
 class Thresholds:
     """各状态的触发阈值，方便集中调整。"""
-    satiety_hungry: float = 30.0    
-    satiety_starving: float = 10.0  
-    energy_tired: float = 30.0     
-    energy_exhausted: float = 10.0  
+
+    satiety_hungry: float = 30.0
+    satiety_starving: float = 10.0
+    energy_tired: float = 30.0
+    energy_exhausted: float = 10.0
 
 
 # 模拟 μ=1.5 σ≈0.8 的截断正态分布，值域 [0, 3]
 _DECAY_TABLE = [
-    (0.0,  5),   # P ≈ 5%
-    (0.5, 12),   # P ≈ 12%
-    (1.0, 25),   # P ≈ 25%  ← 峰值
-    (1.5, 28),   # P ≈ 28%  ← 峰值
-    (2.0, 18),   # P ≈ 18%
-    (2.5,  8),   # P ≈ 8%
-    (3.0,  2),   # P ≈ 2%
+    (0.0, 5),  # P ≈ 5%
+    (0.5, 12),  # P ≈ 12%
+    (1.0, 25),  # P ≈ 25%  ← 峰值
+    (1.5, 28),  # P ≈ 28%  ← 峰值
+    (2.0, 18),  # P ≈ 18%
+    (2.5, 8),  # P ≈ 8%
+    (3.0, 2),  # P ≈ 2%
 ]
 
 _DECAY_VALUES = [v for v, _ in _DECAY_TABLE]
@@ -48,17 +48,22 @@ def _sample_decay() -> float:
 
 # ── Vitals ────────────────────────────────────────────────
 
+
 class Vitals(QObject):
     """生理数值系统，由 Scheduler.slow_tick 驱动衰减，外部通过 modify 方法增减参数"""
 
-    hungry     = Signal()
-    starving   = Signal()
-    tired      = Signal()
-    exhausted  = Signal()
-    recovered  = Signal()
+    hungry = Signal()
+    starving = Signal()
+    tired = Signal()
+    exhausted = Signal()
+    recovered = Signal()
 
-    def __init__(self, db_path: Optional[str] = None,
-                 thresholds: Optional[Thresholds] = None, parent=None):
+    def __init__(
+        self,
+        db_path: Optional[str] = None,
+        thresholds: Optional[Thresholds] = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self._thresholds = thresholds or Thresholds()
 
@@ -70,14 +75,15 @@ class Vitals(QObject):
         self._load()
 
         # 信号防抖
-        self._was_hungry     = False
-        self._was_starving   = False
-        self._was_tired      = False
-        self._was_exhausted  = False
+        self._was_hungry = False
+        self._was_starving = False
+        self._was_tired = False
+        self._was_exhausted = False
         self._init_threshold_flags()
 
-        logger.info(f"[Vitals] 初始化完成 饱食度={self._satiety:.1f} 精力={self._energy:.1f}")
-
+        logger.info(
+            f"[Vitals] 初始化完成 饱食度={self._satiety:.1f} 精力={self._energy:.1f}"
+        )
 
     def _create_table(self):
         with self._lock:
@@ -90,25 +96,28 @@ class Vitals(QObject):
             """)
             row = self._conn.execute("SELECT COUNT(*) FROM vitals").fetchone()
             if row[0] == 0:
-                self._conn.execute("INSERT INTO vitals (id, satiety, energy) VALUES (1, 100.0, 100.0)")
+                self._conn.execute(
+                    "INSERT INTO vitals (id, satiety, energy) VALUES (1, 100.0, 100.0)"
+                )
             self._conn.commit()
 
     def _load(self):
         """从数据库加载当前数值。"""
         with self._lock:
-            row = self._conn.execute("SELECT satiety, energy FROM vitals WHERE id = 1").fetchone()
+            row = self._conn.execute(
+                "SELECT satiety, energy FROM vitals WHERE id = 1"
+            ).fetchone()
             self._satiety: float = row[0]
-            self._energy: float  = row[1]
+            self._energy: float = row[1]
 
     def save(self):
         """持久化当前数值到数据库。"""
         with self._lock:
             self._conn.execute(
                 "UPDATE vitals SET satiety=?, energy=? WHERE id = 1",
-                (self._satiety, self._energy)
+                (self._satiety, self._energy),
             )
             self._conn.commit()
-
 
     @property
     def satiety(self) -> float:
@@ -127,7 +136,6 @@ class Vitals(QObject):
 
     def is_tired(self) -> bool:
         return self._energy < self._thresholds.energy_tired
-
 
     def summary(self) -> str:
         """返回当前生理状态的人可读摘要，供 LLM prompt 使用。"""
@@ -156,11 +164,10 @@ class Vitals(QObject):
         """返回数值摘要，供规则系统使用。"""
         return {
             "satiety": round(self._satiety, 1),
-            "energy":  round(self._energy, 1),
-            "hungry":  self.is_hungry(),
-            "tired":   self.is_tired(),
+            "energy": round(self._energy, 1),
+            "hungry": self.is_hungry(),
+            "tired": self.is_tired(),
         }
-
 
     def modify_satiety(self, delta: float):
         old = self._satiety
@@ -180,26 +187,27 @@ class Vitals(QObject):
         self._energy = max(0.0, min(100.0, value))
         logger.info(f"[Vitals] 精力 直接设置 → {self._energy:.1f}")
 
-
     def reduce(self):
         """每次 slow tick 衰减饱食度和精力各 0~3（近似正态分布）。"""
         satiety_decay = _sample_decay()
-        energy_decay  = _sample_decay()
+        energy_decay = _sample_decay()
 
         old_s = self._satiety
         old_e = self._energy
         self._satiety = max(0.0, self._satiety - satiety_decay)
-        self._energy  = max(0.0, self._energy  - energy_decay)
+        self._energy = max(0.0, self._energy - energy_decay)
 
-        logger.debug(f"[Vitals] reduce 饱食度 -{satiety_decay:.1f}({old_s:.1f}→{self._satiety:.1f}) "
-                     f"精力 -{energy_decay:.1f}({old_e:.1f}→{self._energy:.1f})")
+        logger.debug(
+            f"[Vitals] reduce 饱食度 -{satiety_decay:.1f}({old_s:.1f}→{self._satiety:.1f}) "
+            f"精力 -{energy_decay:.1f}({old_e:.1f}→{self._energy:.1f})"
+        )
 
     def _init_threshold_flags(self):
         """启动时根据当前数值设置防抖标记，避免重复触发。"""
         t = self._thresholds
-        self._was_hungry   = self._satiety < t.satiety_hungry
+        self._was_hungry = self._satiety < t.satiety_hungry
         self._was_starving = self._satiety < t.satiety_starving
-        self._was_tired    = self._energy < t.energy_tired
+        self._was_tired = self._energy < t.energy_tired
         self._was_exhausted = self._energy < t.energy_exhausted
 
     def check_thresholds(self):
@@ -238,16 +246,22 @@ class Vitals(QObject):
             self._was_exhausted = False
 
         # 恢复信号
-        if (self._satiety > 50 and self._energy > 50
-                and (self._was_hungry or self._was_starving
-                     or self._was_tired or self._was_exhausted)):
+        if (
+            self._satiety > 50
+            and self._energy > 50
+            and (
+                self._was_hungry
+                or self._was_starving
+                or self._was_tired
+                or self._was_exhausted
+            )
+        ):
             self._was_hungry = False
             self._was_starving = False
             self._was_tired = False
             self._was_exhausted = False
             self.recovered.emit()
             logger.info("[Vitals] 恢复正常！")
-
 
     def close(self):
         self.save()

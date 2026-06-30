@@ -92,7 +92,8 @@ def register(registry):
     # ── LLM 方法 ──
 
     registry.add_method(
-        TOOL_NAME, "add",
+        TOOL_NAME,
+        "add",
         "添加新待办事项",
         handler=_add_with_notify,
         args={
@@ -101,18 +102,24 @@ def register(registry):
     )
 
     registry.add_method(
-        TOOL_NAME, "list",
+        TOOL_NAME,
+        "list",
         "查询任务列表",
         handler=_list_todos,
         args={
-            "status": {"type": "str", "required": False, "default": "pending",
-                       "desc": "状态: pending/done/all",
-                       "enum": ["pending", "done", "all"]},
+            "status": {
+                "type": "str",
+                "required": False,
+                "default": "pending",
+                "desc": "状态: pending/done/all",
+                "enum": ["pending", "done", "all"],
+            },
         },
     )
 
     registry.add_method(
-        TOOL_NAME, "toggle",
+        TOOL_NAME,
+        "toggle",
         "切换任务完成状态（已完成↔恢复待办）",
         handler=_complete_with_notify,
         args={
@@ -121,7 +128,8 @@ def register(registry):
     )
 
     registry.add_method(
-        TOOL_NAME, "delete",
+        TOOL_NAME,
+        "delete",
         "删除指定任务",
         handler=_delete,
         args={
@@ -130,7 +138,8 @@ def register(registry):
     )
 
     registry.add_method(
-        TOOL_NAME, "update",
+        TOOL_NAME,
+        "update",
         "修改已有任务的标题",
         handler=_update,
         args={

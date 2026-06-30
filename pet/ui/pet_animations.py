@@ -34,18 +34,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class PetAnimator(QObject):
-
     animation_finished = Signal(str)
     animation_interrupted = Signal(str)
     frame_changed = Signal(QPixmap)
 
     def __init__(self, pet_dir: str | None = None, parent=None):
         super().__init__(parent)
-        self._pet_dir = str(pet_dir) if pet_dir else str(BASE_DIR / "assets" / "actions")
+        self._pet_dir = (
+            str(pet_dir) if pet_dir else str(BASE_DIR / "assets" / "actions")
+        )
 
         self._frames: list[QPixmap] = []
-        self._tick_plan: list[int] = []       # 每帧停留 tick 数
-        self._tick_in_frame: int = 0           # 当前帧内已过 tick
+        self._tick_plan: list[int] = []  # 每帧停留 tick 数
+        self._tick_in_frame: int = 0  # 当前帧内已过 tick
         self._current_frame: int = 0
         self._current_action: str = ""
         self._loop: bool = True
@@ -57,7 +58,9 @@ class PetAnimator(QObject):
         self._duration_timer.setSingleShot(True)
         self._duration_timer.timeout.connect(self._on_duration_end)
 
-        self._cache: dict[str, dict] = {}      # action → {frames, tick_plan, loop, desc, note}
+        self._cache: dict[
+            str, dict
+        ] = {}  # action → {frames, tick_plan, loop, desc, note}
 
     # ── public API ──
 
@@ -137,7 +140,8 @@ class PetAnimator(QObject):
 
         action_dir = os.path.join(self._pet_dir, action)
         image_files = sorted(
-            f for f in os.listdir(action_dir)
+            f
+            for f in os.listdir(action_dir)
             if os.path.splitext(f)[1].lower() in _SUPPORTED_EXT
         )
         if not image_files:
@@ -149,7 +153,11 @@ class PetAnimator(QObject):
             if pixmap.isNull():
                 logger.warning(f"Failed to load image: {action}/{f}")
                 return None
-            dpr = QApplication.primaryScreen().devicePixelRatio() if QApplication.primaryScreen() else 1.0
+            dpr = (
+                QApplication.primaryScreen().devicePixelRatio()
+                if QApplication.primaryScreen()
+                else 1.0
+            )
             pixmap = pixmap.scaled(
                 int(config.PET_WIDTH * dpr),
                 int(config.PET_HEIGHT * dpr),

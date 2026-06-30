@@ -1,4 +1,4 @@
-﻿"""工具上下文 — 暴露宠物能力供工具主动调用。"""
+"""工具上下文 — 暴露宠物能力供工具主动调用。"""
 
 from __future__ import annotations
 
@@ -39,6 +39,7 @@ class ToolContext:
     def speech_random(self, texts: list[str], duration: int = 3000):
         """随机选择一条台词发射。"""
         import random
+
         self.speech(random.choice(texts), duration)
 
     def action(self, name: str, args: tuple = (), kwargs: dict = None):
@@ -49,11 +50,13 @@ class ToolContext:
         if self._check_agent():
             self._agent.behavior.add_context(role="system", content=text)
 
-    def request_interact(self, hint: str, delay_ms: int = 100,
-                         cooldown_ms: int = 15000):
+    def request_interact(
+        self, hint: str, delay_ms: int = 100, cooldown_ms: int = 15000
+    ):
         if self._check_agent():
-            self._agent.trigger("interact", hint=hint,
-                                delay_ms=delay_ms, cooldown_ms=cooldown_ms)
+            self._agent.trigger(
+                "interact", hint=hint, delay_ms=delay_ms, cooldown_ms=cooldown_ms
+            )
 
     def notify(self, title: str, message: str, duration: int = 5000):
         if self._check_agent():
@@ -63,8 +66,9 @@ class ToolContext:
         if self._check_agent():
             self._agent.scheduler.register(name, callback)
 
-    def register_alarm(self, timestamp_ms: int, callback: Callable[[], None],
-                       key: str | None = None) -> str | None:
+    def register_alarm(
+        self, timestamp_ms: int, callback: Callable[[], None], key: str | None = None
+    ) -> str | None:
         if self._check_agent():
             return self._agent.scheduler.schedule_at(timestamp_ms, callback, key=key)
         return None
@@ -74,8 +78,7 @@ class ToolContext:
         if self._check_agent():
             self._agent.scheduler.cancel_alarm_by_key(key)
 
-    def register_panel(self, tool_name: str,
-                       factory: Callable[[], object]):
+    def register_panel(self, tool_name: str, factory: Callable[[], object]):
         self._panels[tool_name] = factory
         logger.info(f"[ToolContext] panel registered: {tool_name}")
 
@@ -91,6 +94,7 @@ class ToolContext:
     def db_path(self) -> str:
         """返回数据库路径，供工具使用。"""
         from pet.db import get_db_path
+
         return get_db_path()
 
 

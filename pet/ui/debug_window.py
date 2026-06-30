@@ -1,9 +1,19 @@
 """调试面板"""
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QGroupBox, QTextEdit, QLabel, QLineEdit,
-    QFormLayout, QCheckBox, QFrame, QComboBox, QListWidget,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QPushButton,
+    QGroupBox,
+    QTextEdit,
+    QLabel,
+    QLineEdit,
+    QFormLayout,
+    QCheckBox,
+    QFrame,
+    QComboBox,
+    QListWidget,
     QGridLayout,
 )
 from datetime import datetime
@@ -11,12 +21,28 @@ from datetime import datetime
 from PySide6.QtCore import Qt, QPoint, QTimer, QSize
 from PySide6.QtGui import QFont, QIcon, QPainter, QPainterPath, QColor, QPen
 from pet.ui.styles import (
-    ICON_PATH, WINDOW_QSS, PANEL_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS,
-    BUTTON_DANGER_QSS, INPUT_HIGHLIGHT_QSS, COMBOBOX_QSS, TEXTEDIT_QSS,
-    LIST_QSS, CHECKBOX_QSS, LABEL_SECONDARY_QSS, LABEL_MONO_QSS,
+    ICON_PATH,
+    WINDOW_QSS,
+    PANEL_QSS,
+    BUTTON_QSS,
+    BUTTON_PRIMARY_QSS,
+    BUTTON_DANGER_QSS,
+    INPUT_HIGHLIGHT_QSS,
+    COMBOBOX_QSS,
+    TEXTEDIT_QSS,
+    LIST_QSS,
+    CHECKBOX_QSS,
+    LABEL_SECONDARY_QSS,
+    LABEL_MONO_QSS,
     SCROLLBAR_QSS,
-    _COLOR_BG, _COLOR_BORDER_DARK, _COLOR_TEXT_TITLE, _COLOR_TEXT_MUTED, _COLOR_DANGER,
-    make_minimize_button, make_close_button, ensure_taskbar_icon,
+    _COLOR_BG,
+    _COLOR_BORDER_DARK,
+    _COLOR_TEXT_TITLE,
+    _COLOR_TEXT_MUTED,
+    _COLOR_DANGER,
+    make_minimize_button,
+    make_close_button,
+    ensure_taskbar_icon,
 )
 
 from pet.ui.speech_bubble import SpeechBubble
@@ -27,7 +53,6 @@ from pet.config import config
 
 
 class DebugWindow(QWidget):
-
     def __init__(self, pet_window, agent=None, parent=None):
         super().__init__(parent)
         self.pet = pet_window
@@ -51,10 +76,7 @@ class DebugWindow(QWidget):
         self.resize(1000, 850)
 
         # 无边框 + 圆角
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.Window
-        )
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
         try:
@@ -64,9 +86,14 @@ class DebugWindow(QWidget):
 
         self._setup_ui()
         self.setStyleSheet(
-            PANEL_QSS + BUTTON_QSS + BUTTON_PRIMARY_QSS +
-            INPUT_HIGHLIGHT_QSS + COMBOBOX_QSS + TEXTEDIT_QSS + LIST_QSS +
-            CHECKBOX_QSS
+            PANEL_QSS
+            + BUTTON_QSS
+            + BUTTON_PRIMARY_QSS
+            + INPUT_HIGHLIGHT_QSS
+            + COMBOBOX_QSS
+            + TEXTEDIT_QSS
+            + LIST_QSS
+            + CHECKBOX_QSS
         )
 
         self._pos_timer = QTimer(self)
@@ -117,7 +144,9 @@ class DebugWindow(QWidget):
             pass
 
         title_lbl = QLabel("调试面板")
-        title_lbl.setStyleSheet(f"font-size:13px; color:{_COLOR_TEXT_TITLE}; font-weight:bold; background:transparent;")
+        title_lbl.setStyleSheet(
+            f"font-size:13px; color:{_COLOR_TEXT_TITLE}; font-weight:bold; background:transparent;"
+        )
         header_layout.addWidget(title_lbl)
         header_layout.addStretch()
 
@@ -159,7 +188,9 @@ class DebugWindow(QWidget):
                 self._pet_btns[action] = btn
             anim_layout.addLayout(btn_grid)
         else:
-            anim_layout.addWidget(QLabel("⚠ 未找到可用帧动画（assets/actions/ 下无帧图片）"))
+            anim_layout.addWidget(
+                QLabel("⚠ 未找到可用帧动画（assets/actions/ 下无帧图片）")
+            )
 
         ctrl_row = QHBoxLayout()
         ctrl_row.addWidget(QLabel("FPS:"))
@@ -347,8 +378,13 @@ class DebugWindow(QWidget):
         param_layout = QHBoxLayout(param_group)
 
         self._param_inputs: dict[str, QLineEdit] = {}
-        for key, label in (("satiety","饱食度"), ("energy","精力"),
-                           ("affection","好感度"), ("joy","愉悦度"), ("sanity","理智值")):
+        for key, label in (
+            ("satiety", "饱食度"),
+            ("energy", "精力"),
+            ("affection", "好感度"),
+            ("joy", "愉悦度"),
+            ("sanity", "理智值"),
+        ):
             col = QVBoxLayout()
             col.addWidget(QLabel(label))
             inp = QLineEdit("50")
@@ -400,7 +436,9 @@ class DebugWindow(QWidget):
         self.ctx_output.setReadOnly(True)
         self.ctx_output.setMaximumHeight(180)
         self.ctx_output.setFont(QFont("Consolas", 9))
-        self.ctx_output.setStyleSheet(f"QTextEdit {{ background: {_COLOR_BG}; }}" + SCROLLBAR_QSS)
+        self.ctx_output.setStyleSheet(
+            f"QTextEdit {{ background: {_COLOR_BG}; }}" + SCROLLBAR_QSS
+        )
         ctx_layout.addWidget(self.ctx_output)
 
         right.addWidget(ctx_group)
@@ -420,7 +458,9 @@ class DebugWindow(QWidget):
         self.log_output.setReadOnly(True)
         self.log_output.setMaximumHeight(150)
         self.log_output.setFont(QFont("Consolas", 9))
-        self.log_output.setStyleSheet(f"QTextEdit {{ background: {_COLOR_BG}; }}" + SCROLLBAR_QSS)
+        self.log_output.setStyleSheet(
+            f"QTextEdit {{ background: {_COLOR_BG}; }}" + SCROLLBAR_QSS
+        )
         log_layout.addWidget(self.log_output)
         left.addWidget(log_group)
 
@@ -430,7 +470,11 @@ class DebugWindow(QWidget):
 
     def _test_bounce(self):
         self.pet.show()
-        d, dist, h = self.bounce_dir.currentText(), int(self.bounce_dist.text()), int(self.bounce_height.text())
+        d, dist, h = (
+            self.bounce_dir.currentText(),
+            int(self.bounce_dist.text()),
+            int(self.bounce_height.text()),
+        )
         self._log(f"↩ enqueue bounce(direction={d}, distance={dist}, height={h})")
         self.pet.queue_enqueue("bounce", direction=d, distance=dist, height=h)
 
@@ -446,7 +490,9 @@ class DebugWindow(QWidget):
         self.pet.show()
         start = self.pet.pos()
         end = QPoint(int(self.move_x.text()), int(self.move_y.text()))
-        self._log(f"↩ enqueue move_to from ({start.x()},{start.y()}) → ({end.x()},{end.y()})")
+        self._log(
+            f"↩ enqueue move_to from ({start.x()},{start.y()}) → ({end.x()},{end.y()})"
+        )
         self.pet.queue_enqueue("move_to", start, end)
 
     def _test_walk(self):
@@ -528,7 +574,7 @@ class DebugWindow(QWidget):
     def _test_bubble(self):
         text = self.bubble_input.text().strip() or "调试中..."
         pet_center = self.pet.geometry().center()
-        self._log(f"bubble: \"{text[:30]}\"")
+        self._log(f'bubble: "{text[:30]}"')
         self.bubble.show_text(text, duration=4000, parent_pos=pet_center)
 
     def _on_agent_action(self, action: str, args=(), kwargs=None):
@@ -541,14 +587,14 @@ class DebugWindow(QWidget):
         self._log(f"Agent → action: {action}{params}")
 
     def _on_agent_speech(self, text: str, duration: int):
-        self._log(f"Agent → speech: \"{text[:50]}\"")
+        self._log(f'Agent → speech: "{text[:50]}"')
 
     def _on_agent_emotion(self, emotion: str, duration: int):
         self._log(f"Agent → emotion: {emotion} ({duration}ms)")
 
     def _test_emotion(self, emotion: str):
         pet_center = self.pet.geometry().center()
-        self._log(f"emotion: \"{emotion}\"")
+        self._log(f'emotion: "{emotion}"')
         self.emotion_bubble.show_emotion(emotion, duration=3000, parent_pos=pet_center)
 
     def _test_emotion_input(self):
@@ -572,7 +618,7 @@ class DebugWindow(QWidget):
             self._log("⚠ 参数设置失败：请输入有效整数")
 
     def _test_particle(self, effect: str):
-        self._log(f"particle: \"{effect}\"")
+        self._log(f'particle: "{effect}"')
         self.pet.particles.spawn(effect)
 
     def _refresh_context(self):
@@ -581,7 +627,7 @@ class DebugWindow(QWidget):
         prev_max = scroll_bar.maximum()
 
         self.ctx_output.clear()
-        if not self.agent or not hasattr(self.agent.behavior, '_context'):
+        if not self.agent or not hasattr(self.agent.behavior, "_context"):
             self.ctx_output.append("（无 agent 或 Behavior 不可用）")
             self.label_ctx_count.setText("共 0 条")
             return
@@ -590,11 +636,15 @@ class DebugWindow(QWidget):
         if not entries:
             self.ctx_output.append("（空）")
             return
-        now = __import__('time').time()
+        now = __import__("time").time()
         for i, e in enumerate(entries, 1):
             age = int(now - e.timestamp)
             age_str = f"{age}s" if age < 60 else f"{age // 60}m{age % 60}s"
-            score = self.agent.behavior._score_entry(e) if hasattr(self.agent.behavior, '_score_entry') else 0
+            score = (
+                self.agent.behavior._score_entry(e)
+                if hasattr(self.agent.behavior, "_score_entry")
+                else 0
+            )
             summary_flag = " [summary]" if e.is_summary else ""
             self.ctx_output.append(
                 f"#{i} role={e.role}{summary_flag} score={score:.1f} age={age_str} ts={e.timestamp:.0f}\n  {e.content}"
@@ -605,7 +655,7 @@ class DebugWindow(QWidget):
             scroll_bar.setValue(prev_scroll)
 
     def _clear_context(self):
-        if self.agent and hasattr(self.agent.behavior, 'clear_context'):
+        if self.agent and hasattr(self.agent.behavior, "clear_context"):
             self.agent.behavior.clear_context()
             self._refresh_context()
 
@@ -639,5 +689,5 @@ class DebugWindow(QWidget):
         event.ignore()  # 阻止真正关闭，仅隐藏
 
     def _refresh_llm_stats(self):
-        if hasattr(self.brain, 'llm_stats') and self.brain.llm_stats:
+        if hasattr(self.brain, "llm_stats") and self.brain.llm_stats:
             self.label_llm_calls.setText(f"累计调用: {self.brain.llm_stats.total} 次")

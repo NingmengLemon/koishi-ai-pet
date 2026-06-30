@@ -1,4 +1,4 @@
-﻿"""工具执行器 — 解析 LLM 输出中的 Tool JSON，路由执行，返回结果。"""
+"""工具执行器 — 解析 LLM 输出中的 Tool JSON，路由执行，返回结果。"""
 
 import json
 import logging
@@ -39,7 +39,6 @@ class ToolResult:
 
 
 class ToolExecutor:
-
     def execute(self, calls: list[ToolCall]) -> list[ToolResult]:
         results = []
         for call in calls:
@@ -50,7 +49,9 @@ class ToolExecutor:
         method = self._lookup_method(call.name)
         if method is None:
             logger.warning(f"[ToolExecutor] unknown tool: {call.name}")
-            return ToolResult(name=call.name, success=False, error=f"unknown tool: {call.name}")
+            return ToolResult(
+                name=call.name, success=False, error=f"unknown tool: {call.name}"
+            )
 
         validated_args, err = self._validate_args(call.args, method.args)
         if err:
@@ -73,8 +74,14 @@ class ToolExecutor:
 
             if worker.is_alive():
                 # 超时：守护线程仍在后台运行，不阻塞返回
-                logger.warning(f"[ToolExecutor] {call.name} timed out after {method.timeout}s")
-                return ToolResult(name=call.name, success=False, error=f"工具执行超时（{method.timeout}s）")
+                logger.warning(
+                    f"[ToolExecutor] {call.name} timed out after {method.timeout}s"
+                )
+                return ToolResult(
+                    name=call.name,
+                    success=False,
+                    error=f"工具执行超时（{method.timeout}s）",
+                )
 
             if "error" in box:
                 raise box["error"]
@@ -88,7 +95,14 @@ class ToolExecutor:
                 image_b64 = data.pop("__image__", None)
                 image_mime = data.pop("__image_mime__", "image/png")
                 context_brief = data.pop("__context__", "")
-            return ToolResult(name=call.name, success=True, data=data, image_b64=image_b64, image_mime=image_mime, context_brief=context_brief)
+            return ToolResult(
+                name=call.name,
+                success=True,
+                data=data,
+                image_b64=image_b64,
+                image_mime=image_mime,
+                context_brief=context_brief,
+            )
         except TypeError as e:
             logger.error(f"[ToolExecutor] {call.name} TypeError: {e}")
             return ToolResult(name=call.name, success=False, error=f"参数不匹配: {e}")
@@ -114,10 +128,16 @@ class ToolExecutor:
                 value = provided[key]
                 expected_type = _TYPE_MAP.get(type_name, object)
                 if expected_type is not object and not isinstance(value, expected_type):
-                    return {}, f"参数 {key!r} 类型错误，期望 {type_name}，实际 {type(value).__name__}"
+                    return (
+                        {},
+                        f"参数 {key!r} 类型错误，期望 {type_name}，实际 {type(value).__name__}",
+                    )
                 enum_values = spec.get("enum")
                 if enum_values and value not in enum_values:
-                    return {}, f"参数 {key!r} 值 {value!r} 不在允许范围 {enum_values} 内"
+                    return (
+                        {},
+                        f"参数 {key!r} 值 {value!r} 不在允许范围 {enum_values} 内",
+                    )
                 validated[key] = value
             elif required:
                 return {}, f"缺少必需参数 {key!r} ({type_name})"

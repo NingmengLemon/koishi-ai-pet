@@ -12,11 +12,11 @@ from pet.config import config
 
 # 动作时长参数定义：(名称, 最小秒数, 占调度间隔比例)
 _DURATION_ACTION_DEFS = {
-    "sit":          (10, 0.4),
-    "thinking":     ( 5, 0.2),
-    "sleep":        (10, 0.4),
-    "calling":      ( 5, 0.2),
-    "finger_heart": ( 1, 0.01),
+    "sit": (10, 0.4),
+    "thinking": (5, 0.2),
+    "sleep": (10, 0.4),
+    "calling": (5, 0.2),
+    "finger_heart": (1, 0.01),
 }
 
 # 动作序列总时长占调度间隔的比例
@@ -193,7 +193,7 @@ def generate_action_section(exclude: list[str] | None = None) -> str:
         # 示例去掉 "Action: " 前缀；无参数动作示例与动作名相同，省略
         ex = a.usage_example
         if ex.startswith("Action: "):
-            ex = ex[len("Action: "):]
+            ex = ex[len("Action: ") :]
         if ex and ex != a.name:
             entry += f" | 示例: {ex}"
         lines.append(entry)

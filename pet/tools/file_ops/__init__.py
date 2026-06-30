@@ -31,30 +31,49 @@ def register(registry):
     tool = registry.register(TOOL_NAME, TOOL_DESCRIPTION)
 
     registry.add_method(
-        TOOL_NAME, "list_dir",
+        TOOL_NAME,
+        "list_dir",
         "列出指定目录内容（限桌面/文档，分页每页50项）",
         handler=_list_dir,
         args={
-            "path": {"type": "str", "required": False, "default": "~/Desktop",
-                     "desc": "目录路径，默认桌面"},
-            "page": {"type": "int", "required": False, "default": 1,
-                     "desc": "页码，从1开始"},
+            "path": {
+                "type": "str",
+                "required": False,
+                "default": "~/Desktop",
+                "desc": "目录路径，默认桌面",
+            },
+            "page": {
+                "type": "int",
+                "required": False,
+                "default": 1,
+                "desc": "页码，从1开始",
+            },
         },
     )
     registry.add_method(
-        TOOL_NAME, "read_file",
+        TOOL_NAME,
+        "read_file",
         "读取文本文件（限桌面/文档，每次1000字符，支持 offset 翻页，最多读5000字符）",
         handler=_read_file,
         args={
             "path": {"type": "str", "required": True, "desc": "文件路径"},
-            "max_chars": {"type": "int", "required": False, "default": 1000,
-                          "desc": "本次读取最大字符数"},
-            "offset": {"type": "int", "required": False, "default": 0,
-                       "desc": "读取起始位置（字符偏移），从0开始，上限5000"},
+            "max_chars": {
+                "type": "int",
+                "required": False,
+                "default": 1000,
+                "desc": "本次读取最大字符数",
+            },
+            "offset": {
+                "type": "int",
+                "required": False,
+                "default": 0,
+                "desc": "读取起始位置（字符偏移），从0开始，上限5000",
+            },
         },
     )
     registry.add_method(
-        TOOL_NAME, "write_note",
+        TOOL_NAME,
+        "write_note",
         "在桌面创建一个文本笔记",
         handler=_write_note,
         args={
@@ -63,14 +82,19 @@ def register(registry):
         },
     )
     registry.add_method(
-        TOOL_NAME, "write_file",
+        TOOL_NAME,
+        "write_file",
         "写入/覆盖/追加文件内容（限桌面/文档。追加时 mode='a'，覆盖 mode='w'）",
         handler=_write_file,
         args={
             "path": {"type": "str", "required": True, "desc": "文件路径"},
             "content": {"type": "str", "required": True, "desc": "写入内容"},
-            "mode": {"type": "str", "required": False, "default": "w",
-                     "desc": "写入模式: w=覆盖, a=追加",
-                     "enum": ["w", "a"]},
+            "mode": {
+                "type": "str",
+                "required": False,
+                "default": "w",
+                "desc": "写入模式: w=覆盖, a=追加",
+                "enum": ["w", "a"],
+            },
         },
     )

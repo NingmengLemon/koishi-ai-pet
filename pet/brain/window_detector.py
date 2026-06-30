@@ -3,7 +3,7 @@
 import sys
 
 if sys.platform == "darwin":
-    from pet.brain.mac_detector import (       # noqa: F401
+    from pet.brain.mac_detector import (  # noqa: F401
         MIN_WINDOW_SIZE,
         OCCLUSION_THRESHOLD,
         is_window_alive,
@@ -12,7 +12,7 @@ if sys.platform == "darwin":
         get_visible_windows,
     )
 elif sys.platform.startswith("linux"):
-    from pet.brain.linux_detector import (     # noqa: F401
+    from pet.brain.linux_detector import (  # noqa: F401
         MIN_WINDOW_SIZE,
         OCCLUSION_THRESHOLD,
         is_window_alive,
@@ -21,7 +21,7 @@ elif sys.platform.startswith("linux"):
         get_visible_windows,
     )
 else:
-    from pet.brain.win_detector import (       # noqa: F401
+    from pet.brain.win_detector import (  # noqa: F401
         MIN_WINDOW_SIZE,
         OCCLUSION_THRESHOLD,
         is_window_alive,

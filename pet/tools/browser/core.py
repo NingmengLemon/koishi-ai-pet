@@ -29,6 +29,7 @@ if _cfg.get("browser"):
 def _get_playwright():
     try:
         from playwright.sync_api import sync_playwright
+
         return sync_playwright
     except ImportError:
         return None
@@ -42,8 +43,7 @@ class BrowserTool:
         except webbrowser.Error as e:
             logger.error(f"[BrowserTool] open_url failed: {e}")
             return {"error": f"无法打开浏览器: {e}", "url": url}
-        return {"status": "success", "url": url,
-                "__context__": f"打开网页 {url}"}
+        return {"status": "success", "url": url, "__context__": f"打开网页 {url}"}
 
     def search(self, query: str) -> dict:
         """用默认浏览器搜索。"""
@@ -53,15 +53,22 @@ class BrowserTool:
         except webbrowser.Error as e:
             logger.error(f"[BrowserTool] search failed: {e}")
             return {"error": f"无法打开浏览器: {e}", "query": query}
-        return {"status": "success", "query": query, "url": url,
-                "__context__": f"浏览器搜索「{query}」"}
+        return {
+            "status": "success",
+            "query": query,
+            "url": url,
+            "__context__": f"浏览器搜索「{query}」",
+        }
 
-    def screenshot_url(self, url: str, width: int = 1280, height: int = 800,
-                       wait_seconds: float = 3.0) -> dict:
+    def screenshot_url(
+        self, url: str, width: int = 1280, height: int = 800, wait_seconds: float = 3.0
+    ) -> dict:
         """用无头浏览器打开 URL 并截图，返回 base64 图片。"""
         sync_playwright = _get_playwright()
         if not sync_playwright:
-            return {"error": "playwright 未安装，请运行: pip install playwright && playwright install chromium"}
+            return {
+                "error": "playwright 未安装，请运行: pip install playwright && playwright install chromium"
+            }
 
         browser = None
         try:
@@ -70,12 +77,16 @@ class BrowserTool:
                 page = browser.new_page(viewport={"width": width, "height": height})
                 page.goto(url, timeout=20000, wait_until="domcontentloaded")
                 page.wait_for_timeout(int(wait_seconds * 1000))
-                screenshot_bytes = page.screenshot(full_page=False, type="jpeg", quality=80)
+                screenshot_bytes = page.screenshot(
+                    full_page=False, type="jpeg", quality=80
+                )
                 browser.close()
                 browser = None
 
                 img_b64 = base64.b64encode(screenshot_bytes).decode("ascii")
-                logger.info(f"[BrowserTool] screenshot_url: {url} → {len(screenshot_bytes)} bytes JPEG")
+                logger.info(
+                    f"[BrowserTool] screenshot_url: {url} → {len(screenshot_bytes)} bytes JPEG"
+                )
                 return {
                     "status": "success",
                     "url": url,
@@ -94,12 +105,15 @@ class BrowserTool:
                 except Exception:
                     pass
 
-    def read_url(self, url: str, max_chars: int = 8000,
-                 wait_seconds: float = 3.0) -> dict:
+    def read_url(
+        self, url: str, max_chars: int = 8000, wait_seconds: float = 3.0
+    ) -> dict:
         """用无头浏览器打开 URL 并提取页面正文文本"""
         sync_playwright = _get_playwright()
         if not sync_playwright:
-            return {"error": "playwright 未安装，请运行: pip install playwright && playwright install chromium"}
+            return {
+                "error": "playwright 未安装，请运行: pip install playwright && playwright install chromium"
+            }
 
         browser = None
         try:

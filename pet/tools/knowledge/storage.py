@@ -105,12 +105,15 @@ class KnowledgeStorage:
 
         # 2. 检查 embedding API 配置
         if not (url and key and model):
-            logger.info("[Knowledge] embedding API config not set, vector mode disabled")
+            logger.info(
+                "[Knowledge] embedding API config not set, vector mode disabled"
+            )
             return False
 
         # 3. 加载 sqlite-vec 扩展
         try:
             import sqlite_vec
+
             self._conn.enable_load_extension(True)
             sqlite_vec.load(self._conn)
         except Exception as e:
@@ -126,7 +129,7 @@ class KnowledgeStorage:
                 test_vec = sqlite_vec.serialize_float32([0.0] * dim)
                 self._conn.execute(
                     "INSERT INTO knowledge_vec (chunk_id, embedding) VALUES (-1, ?)",
-                    (test_vec,)
+                    (test_vec,),
                 )
                 self._conn.execute("DELETE FROM knowledge_vec WHERE chunk_id=-1")
                 self._conn.commit()
@@ -150,6 +153,7 @@ class KnowledgeStorage:
         # 6. 初始化 EmbeddingClient
         try:
             from pet.brain.embedding_client import EmbeddingClient
+
             self._embedder = EmbeddingClient(
                 url=url,
                 key=key,
@@ -165,8 +169,9 @@ class KnowledgeStorage:
 
     # ── 写入 ──
 
-    def add_document(self, title: str, content: str, tags: str = "",
-                     source: str = "manual") -> dict:
+    def add_document(
+        self, title: str, content: str, tags: str = "", source: str = "manual"
+    ) -> dict:
         """添加文档 → 分块 → 生成向量（如可用）→ 存储。"""
         from pet.tools.knowledge.chunker import chunk_text
 
@@ -178,14 +183,14 @@ class KnowledgeStorage:
             overlap=cfg["chunk_overlap"],
         )
         if not chunks:
-            chunks = [content[:cfg["chunk_size"]]]
+            chunks = [content[: cfg["chunk_size"]]]
 
         # Phase 1: 写入文档和分块（锁内，纯 DB 操作）
         with self._lock:
             cur = self._conn.execute(
                 "INSERT INTO knowledge_docs (title, content, tags, source, created_at, updated_at) "
                 "VALUES (?,?,?,?,?,?)",
-                (title, content, tags, source, now, now)
+                (title, content, tags, source, now, now),
             )
             doc_id = cur.lastrowid
 
@@ -194,7 +199,7 @@ class KnowledgeStorage:
                 cur2 = self._conn.execute(
                     "INSERT INTO knowledge_chunks (doc_id, chunk_index, content, created_at) "
                     "VALUES (?,?,?,?)",
-                    (doc_id, i, chunk, now)
+                    (doc_id, i, chunk, now),
                 )
                 chunk_ids.append(cur2.lastrowid)
             self._conn.commit()
@@ -205,11 +210,12 @@ class KnowledgeStorage:
                 vectors = self._embedder.embed(chunks)
                 with self._lock:
                     import sqlite_vec
+
                     for cid, vec in zip(chunk_ids, vectors):
                         vec_bytes = sqlite_vec.serialize_float32(vec)
                         self._conn.execute(
                             "INSERT INTO knowledge_vec (chunk_id, embedding) VALUES (?,?)",
-                            (cid, vec_bytes)
+                            (cid, vec_bytes),
                         )
                     self._conn.commit()
             except Exception as e:
@@ -219,22 +225,27 @@ class KnowledgeStorage:
                 except Exception:
                     pass
 
-        logger.info(f"[Knowledge] document added: id={doc_id}, title='{title}', chunks={len(chunks)}")
+        logger.info(
+            f"[Knowledge] document added: id={doc_id}, title='{title}', chunks={len(chunks)}"
+        )
         return {"id": doc_id, "title": title, "chunks": len(chunks), "source": source}
 
     def delete_document(self, doc_id: int) -> bool:
         """删除文档及其所有分块和向量。"""
         with self._lock:
             # 先查 chunk_ids 以清理向量表
-            chunk_ids = [r[0] for r in self._conn.execute(
-                "SELECT id FROM knowledge_chunks WHERE doc_id=?", (doc_id,)
-            ).fetchall()]
+            chunk_ids = [
+                r[0]
+                for r in self._conn.execute(
+                    "SELECT id FROM knowledge_chunks WHERE doc_id=?", (doc_id,)
+                ).fetchall()
+            ]
 
             if chunk_ids and self._vec_available:
                 placeholders = ",".join("?" * len(chunk_ids))
                 self._conn.execute(
                     f"DELETE FROM knowledge_vec WHERE chunk_id IN ({placeholders})",
-                    chunk_ids
+                    chunk_ids,
                 )
             self._conn.execute("DELETE FROM knowledge_chunks WHERE doc_id=?", (doc_id,))
             cur = self._conn.execute("DELETE FROM knowledge_docs WHERE id=?", (doc_id,))
@@ -258,13 +269,14 @@ class KnowledgeStorage:
                 vectors = self._embedder.embed(query)
                 query_vec = vectors[0]
                 import sqlite_vec
+
                 vec_bytes = sqlite_vec.serialize_float32(query_vec)
 
                 with self._lock:
                     hits = self._conn.execute(
                         "SELECT chunk_id, distance FROM knowledge_vec "
                         "WHERE embedding MATCH ? ORDER BY distance LIMIT ?",
-                        (vec_bytes, limit * 2)
+                        (vec_bytes, limit * 2),
                     ).fetchall()
 
                     if not hits:
@@ -277,7 +289,7 @@ class KnowledgeStorage:
                         f"FROM knowledge_chunks c "
                         f"JOIN knowledge_docs d ON c.doc_id = d.id "
                         f"WHERE c.id IN ({placeholders})",
-                        chunk_ids
+                        chunk_ids,
                     ).fetchall()
 
                 # 按 distance 升序排列（距离越小越相关）
@@ -314,7 +326,7 @@ class KnowledgeStorage:
                 f"FROM knowledge_chunks c "
                 f"JOIN knowledge_docs d ON c.doc_id = d.id "
                 f"WHERE {conditions} LIMIT ?",
-                params + [limit]
+                params + [limit],
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -334,7 +346,7 @@ class KnowledgeStorage:
                 "(SELECT COUNT(*) FROM knowledge_chunks c WHERE c.doc_id = d.id) as chunk_count "
                 "FROM knowledge_docs d "
                 "ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                (page_size, offset)
+                (page_size, offset),
             ).fetchall()
         return {
             "documents": [dict(r) for r in rows],

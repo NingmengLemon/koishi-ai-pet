@@ -5,21 +5,47 @@ import logging
 
 from PySide6.QtCore import Qt, QPoint, QTimer, QSize, QRect, QModelIndex
 from PySide6.QtGui import (
-    QFont, QTextCursor, QIcon, QPainter, QPainterPath, QColor, QPen,
-    QTextDocument, QAbstractTextDocumentLayout, QPalette
+    QFont,
+    QTextCursor,
+    QIcon,
+    QPainter,
+    QPainterPath,
+    QColor,
+    QPen,
+    QTextDocument,
+    QAbstractTextDocumentLayout,
+    QPalette,
 )
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QListWidget, QListWidgetItem,
-    QStyledItemDelegate, QStyleOptionViewItem
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QPushButton,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
 )
 
 from pet.brain.conversation_store import ConversationStore
 from pet.ui.styles import (
-    ICON_PATH, BUTTON_PRIMARY_QSS, TEXTEDIT_QSS, SCROLLBAR_QSS, LIST_QSS,
-    _COLOR_BG, _COLOR_TEXT_TITLE, TITLE_LABEL_QSS, WINDOW_RADIUS,
-    _COLOR_BUBBLE_USER, _COLOR_BUBBLE_USER_BORDER, _COLOR_BUBBLE_PET, _COLOR_BUBBLE_PET_BORDER,
-    make_minimize_button, make_close_button, ensure_taskbar_icon,
+    ICON_PATH,
+    BUTTON_PRIMARY_QSS,
+    TEXTEDIT_QSS,
+    SCROLLBAR_QSS,
+    LIST_QSS,
+    _COLOR_BG,
+    _COLOR_TEXT_TITLE,
+    TITLE_LABEL_QSS,
+    WINDOW_RADIUS,
+    _COLOR_BUBBLE_USER,
+    _COLOR_BUBBLE_USER_BORDER,
+    _COLOR_BUBBLE_PET,
+    _COLOR_BUBBLE_PET_BORDER,
+    make_minimize_button,
+    make_close_button,
+    ensure_taskbar_icon,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,7 +74,9 @@ class ChatBubbleDelegate(QStyledItemDelegate):
         self._spacing = 6
         self._bubble_radius = 8
 
-    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
+    def paint(
+        self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex
+    ):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -70,20 +98,22 @@ class ChatBubbleDelegate(QStyledItemDelegate):
         y = rect.y() + self._v_padding
 
         # 绘制时间和角色名
-        is_user = (role == "user")
+        is_user = role == "user"
         role_name = "用户" if is_user else "恋恋"
         time_text = f"{role_name}  {time_str}"
-        
+
         font_time = QFont("Microsoft YaHei", 8)
         painter.setFont(font_time)
         painter.setPen(QColor("#999999"))
-        time_rect = QRect(rect.left() + self._h_padding, y, rect.width() - 2 * self._h_padding, 16)
-        
+        time_rect = QRect(
+            rect.left() + self._h_padding, y, rect.width() - 2 * self._h_padding, 16
+        )
+
         if is_user:
             painter.drawText(time_rect, Qt.AlignmentFlag.AlignRight, time_text)
         else:
             painter.drawText(time_rect, Qt.AlignmentFlag.AlignLeft, time_text)
-        
+
         y += 16 + self._spacing
 
         # 准备文本测量
@@ -93,7 +123,7 @@ class ChatBubbleDelegate(QStyledItemDelegate):
 
         view_width = self.list_widget.viewport().width() - 2 * self._h_padding
         max_bubble_w = max(view_width * 0.65, 100)
-        
+
         text_width = min(doc.idealWidth(), max_bubble_w)
         doc.setTextWidth(text_width)
         text_height = doc.size().height()
@@ -110,8 +140,14 @@ class ChatBubbleDelegate(QStyledItemDelegate):
         bubble_rect = QRect(bubble_x, y, bubble_w, bubble_h)
 
         # 绘制气泡背景
-        bubble_color = QColor(_COLOR_BUBBLE_USER) if is_user else QColor(_COLOR_BUBBLE_PET)
-        border_color = QColor(_COLOR_BUBBLE_USER_BORDER) if is_user else QColor(_COLOR_BUBBLE_PET_BORDER)
+        bubble_color = (
+            QColor(_COLOR_BUBBLE_USER) if is_user else QColor(_COLOR_BUBBLE_PET)
+        )
+        border_color = (
+            QColor(_COLOR_BUBBLE_USER_BORDER)
+            if is_user
+            else QColor(_COLOR_BUBBLE_PET_BORDER)
+        )
 
         path = QPainterPath()
         path.addRoundedRect(bubble_rect, self._bubble_radius, self._bubble_radius)
@@ -122,7 +158,12 @@ class ChatBubbleDelegate(QStyledItemDelegate):
 
         # 绘制文本
         painter.setPen(QColor("#333333"))
-        text_rect = QRect(bubble_x + self._h_padding, y + self._v_padding, int(text_width), int(text_height))
+        text_rect = QRect(
+            bubble_x + self._h_padding,
+            y + self._v_padding,
+            int(text_width),
+            int(text_height),
+        )
 
         ctx = QAbstractTextDocumentLayout.PaintContext()
         ctx.palette.setColor(QPalette.ColorRole.Text, QColor("#333333"))
@@ -155,7 +196,9 @@ class ChatBubbleDelegate(QStyledItemDelegate):
         bubble_h = int(text_height) + 2 * self._v_padding
         total_h = self._v_padding + 16 + self._spacing + bubble_h + self._v_padding
 
-        return QSize(option.rect.width() if option.rect.width() > 0 else view_width, total_h)
+        return QSize(
+            option.rect.width() if option.rect.width() > 0 else view_width, total_h
+        )
 
 
 class ChatHistoryWindow(QWidget):
@@ -170,10 +213,7 @@ class ChatHistoryWindow(QWidget):
         self.resize(700, 500)
 
         # 无边框 + 透明背景（用于 paintEvent 画圆角）
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.Window
-        )
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
         self.setStyleSheet(_WINDOW_QSS)
@@ -222,27 +262,37 @@ class ChatHistoryWindow(QWidget):
         # 左侧日期列表
         self._date_list = QListWidget()
         self._date_list.setFixedWidth(120)
-        self._date_list.setStyleSheet(LIST_QSS + SCROLLBAR_QSS + f"""
+        self._date_list.setStyleSheet(
+            LIST_QSS
+            + SCROLLBAR_QSS
+            + f"""
             QListWidget {{
                 font-size: 12px;
                 background: {_COLOR_BG};
             }}
-        """)
+        """
+        )
         self._date_list.currentItemChanged.connect(self._on_date_changed)
         body.addWidget(self._date_list)
 
         # 右侧对话内容 (改用 QListWidget 支持自定义绘制)
         self._content_view = QListWidget()
-        self._content_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._content_view.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
         self._content_view.setSpacing(4)
-        self._content_view.setStyleSheet(TEXTEDIT_QSS + SCROLLBAR_QSS + f"""
+        self._content_view.setStyleSheet(
+            TEXTEDIT_QSS
+            + SCROLLBAR_QSS
+            + f"""
             QListWidget {{
                 background: {_COLOR_BG};
                 border: 1px solid #ddd;
                 border-radius: 8px;
                 outline: none;
             }}
-        """)
+        """
+        )
         self._bubble_delegate = ChatBubbleDelegate(self._content_view)
         self._content_view.setItemDelegate(self._bubble_delegate)
         body.addWidget(self._content_view)
@@ -336,7 +386,10 @@ class ChatHistoryWindow(QWidget):
 
         # 触发展示第一条，保持原阅读位置
         if self._date_list.currentItem():
-            self._refresh_content(self._date_list.currentItem().data(Qt.ItemDataRole.UserRole), preserve_scroll=True)
+            self._refresh_content(
+                self._date_list.currentItem().data(Qt.ItemDataRole.UserRole),
+                preserve_scroll=True,
+            )
 
     def _on_date_changed(self, current, previous):
         if current:
@@ -354,7 +407,7 @@ class ChatHistoryWindow(QWidget):
 
         self._content_view.clear()
         records = self._store.query_by_date(date_str)
-        
+
         if not records:
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, "info")
@@ -396,7 +449,9 @@ class ChatHistoryWindow(QWidget):
         """定时器回调：仅刷新当前选中日期的对话内容（不重建日期列表，不重置滚动条）。"""
         item = self._date_list.currentItem()
         if item:
-            self._refresh_content(item.data(Qt.ItemDataRole.UserRole), preserve_scroll=True)
+            self._refresh_content(
+                item.data(Qt.ItemDataRole.UserRole), preserve_scroll=True
+            )
 
     # ── 关闭即隐藏 ──
 

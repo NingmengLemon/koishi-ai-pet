@@ -54,8 +54,11 @@ def _search(query: str, limit: int = 3) -> dict:
     return {
         "summary": "\n".join(lines),
         "results": [
-            {"title": r.get("title", ""), "content": r["content"],
-             "score": r.get("score", 0)}
+            {
+                "title": r.get("title", ""),
+                "content": r["content"],
+                "score": r.get("score", 0),
+            }
             for r in results
         ],
         "count": len(results),
@@ -70,7 +73,12 @@ def _list(page: int = 1) -> dict:
     data = _instance.list_documents(page=page, page_size=20)
     docs = data["documents"]
     if not docs:
-        return {"summary": "知识库为空", "documents": [], "page": page, "total_pages": 0}
+        return {
+            "summary": "知识库为空",
+            "documents": [],
+            "page": page,
+            "total_pages": 0,
+        }
     total = (data["total_pages"] - 1) * 20 + len(docs)  # 近似总数
     lines = [f"共 {total} 条知识，第 {data['page']}/{data['total_pages']} 页:"]
     for d in docs:
@@ -78,7 +86,10 @@ def _list(page: int = 1) -> dict:
         lines.append(f"  #{d['id']} {d['title']}{tags_str}")
     return {
         "summary": "\n".join(lines),
-        "documents": [{"id": d["id"], "title": d["title"], "tags": d.get("tags", "")} for d in docs],
+        "documents": [
+            {"id": d["id"], "title": d["title"], "tags": d.get("tags", "")}
+            for d in docs
+        ],
         "page": data["page"],
         "total_pages": data["total_pages"],
         "has_next": data["has_next"],
@@ -99,26 +110,36 @@ def register(registry):
     # ── LLM 方法 ──
 
     registry.add_method(
-        TOOL_NAME, "search",
+        TOOL_NAME,
+        "search",
         "语义检索知识库，返回与查询最相关的知识片段。"
         "当用户询问你之前学过的知识、你录入的笔记、"
         "或你需要参考已存储的文档来回答问题时调用此工具。",
         handler=_search,
         args={
             "query": {"type": "str", "required": True, "desc": "搜索查询文本"},
-            "limit": {"type": "int", "required": False, "default": 3,
-                      "desc": "返回结果数量(1~10)"},
+            "limit": {
+                "type": "int",
+                "required": False,
+                "default": 3,
+                "desc": "返回结果数量(1~10)",
+            },
         },
         timeout=30.0,
     )
 
     registry.add_method(
-        TOOL_NAME, "list",
+        TOOL_NAME,
+        "list",
         "分页列出知识库中的条目。",
         handler=_list,
         args={
-            "page": {"type": "int", "required": False, "default": 1,
-                     "desc": "页码(从1开始)"},
+            "page": {
+                "type": "int",
+                "required": False,
+                "default": 1,
+                "desc": "页码(从1开始)",
+            },
         },
     )
 

@@ -20,8 +20,10 @@ def _is_cloaked(hwnd: int) -> bool:
     try:
         cloaked = ctypes.c_uint(0)
         hr = dwmapi.DwmGetWindowAttribute(
-            hwnd, DWMWA_CLOAKED,
-            ctypes.byref(cloaked), ctypes.sizeof(cloaked),
+            hwnd,
+            DWMWA_CLOAKED,
+            ctypes.byref(cloaked),
+            ctypes.sizeof(cloaked),
         )
         return hr == 0 and cloaked.value != 0
     except Exception:
@@ -65,8 +67,10 @@ def _compute_occluded_area(
     xs: set[int] = set()
     ys: set[int] = set()
     for r in clipped:
-        xs.add(r[0]); xs.add(r[2])
-        ys.add(r[1]); ys.add(r[3])
+        xs.add(r[0])
+        xs.add(r[2])
+        ys.add(r[1])
+        ys.add(r[3])
     xs_sorted = sorted(xs)
     ys_sorted = sorted(ys)
 
@@ -83,11 +87,15 @@ def _compute_occluded_area(
     for i in range(len(xs_sorted) - 1):
         for j in range(len(ys_sorted) - 1):
             if grid[i][j]:
-                area += (xs_sorted[i + 1] - xs_sorted[i]) * (ys_sorted[j + 1] - ys_sorted[j])
+                area += (xs_sorted[i + 1] - xs_sorted[i]) * (
+                    ys_sorted[j + 1] - ys_sorted[j]
+                )
     return area
 
 
-def is_window_occluded(hwnd: int, threshold: float = OCCLUSION_THRESHOLD, skip_hwnd: int = 0) -> bool:
+def is_window_occluded(
+    hwnd: int, threshold: float = OCCLUSION_THRESHOLD, skip_hwnd: int = 0
+) -> bool:
     """两阶段遮挡检测：快速上界 → 精确网格扫描。
 
     skip_hwnd: 要跳过的窗口句柄（如宠物自身窗口）。
@@ -106,10 +114,12 @@ def is_window_occluded(hwnd: int, threshold: float = OCCLUSION_THRESHOLD, skip_h
     current = user32.GetWindow(hwnd, GW_HWNDPREV)
 
     while current:
-        if (current != skip_hwnd
-                and user32.IsWindowVisible(current)
-                and not user32.IsIconic(current)
-                and not _is_cloaked(current)):
+        if (
+            current != skip_hwnd
+            and user32.IsWindowVisible(current)
+            and not user32.IsIconic(current)
+            and not _is_cloaked(current)
+        ):
             above_rect = wintypes.RECT()
             if user32.GetWindowRect(current, ctypes.byref(above_rect)):
                 ox1 = max(rect[0], above_rect.left)
@@ -160,11 +170,13 @@ def get_visible_windows() -> list[dict]:
             title = ctypes.create_unicode_buffer(256)
             user32.GetWindowTextW(hwnd, title, 256)
 
-            windows.append({
-                "hwnd": hwnd,
-                "title": title.value or "",
-                "rect": (rect.left, rect.top, rect.right, rect.bottom),
-            })
+            windows.append(
+                {
+                    "hwnd": hwnd,
+                    "title": title.value or "",
+                    "rect": (rect.left, rect.top, rect.right, rect.bottom),
+                }
+            )
         except Exception:
             pass
         return True

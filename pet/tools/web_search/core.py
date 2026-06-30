@@ -54,11 +54,14 @@ def _extract_text(url: str, max_chars: int = 2000) -> str:
         return ""
 
 
-
-def _search_searxng(query: str, count: int, language: str, cfg: dict, page: int = 1) -> dict:
+def _search_searxng(
+    query: str, count: int, language: str, cfg: dict, page: int = 1
+) -> dict:
     base_url = cfg.get("searxng_url", "").rstrip("/").removesuffix("/search")
     if not base_url:
-        return {"summary": "搜索失败：未配置 searxng_url，请在 web_search/config.json 中设置"}
+        return {
+            "summary": "搜索失败：未配置 searxng_url，请在 web_search/config.json 中设置"
+        }
 
     params = {
         "q": query,
@@ -100,16 +103,19 @@ def _search_searxng(query: str, count: int, language: str, cfg: dict, page: int 
         engine = item.get("engine", "")
         date_tag = f" [{date}]" if date else ""
         engine_tag = f" [{engine}]" if engine else ""
-        lines.append(f"  {i}. {title}{date_tag}{engine_tag}\n     {snippet}\n     {url}")
+        lines.append(
+            f"  {i}. {title}{date_tag}{engine_tag}\n     {snippet}\n     {url}"
+        )
 
     return {"summary": "\n".join(lines)}
-
 
 
 def _search_bing(query: str, count: int, market: str, cfg: dict, page: int = 1) -> dict:
     api_key = cfg.get("bing_search_key", "")
     if not api_key:
-        return {"summary": "搜索失败：未配置 bing_search_key，请在 web_search/config.json 中设置"}
+        return {
+            "summary": "搜索失败：未配置 bing_search_key，请在 web_search/config.json 中设置"
+        }
 
     count = max(1, min(count, 10))
     offset = (page - 1) * count
@@ -176,10 +182,16 @@ def check_connectivity() -> bool:
                 n = len(data.get("results", []))
                 unresponsive = data.get("unresponsive_engines", [])
                 if n > 0:
-                    logger.info(f"[web_search] ✓ SearXNG 连通正常 → {searxng_url} ({n} 条)")
+                    logger.info(
+                        f"[web_search] ✓ SearXNG 连通正常 → {searxng_url} ({n} 条)"
+                    )
                     any_ok = True
                 else:
-                    engines = ", ".join(e[0] for e in unresponsive[:5]) if unresponsive else "未知"
+                    engines = (
+                        ", ".join(e[0] for e in unresponsive[:5])
+                        if unresponsive
+                        else "未知"
+                    )
                     logger.warning(
                         f"[web_search] ✗ SearXNG 可达但无结果 → {searxng_url} "
                         f"(所有引擎不可用: {engines})"
@@ -190,9 +202,7 @@ def check_connectivity() -> bool:
                     f"(HTTP {resp.status_code})"
                 )
         except requests.RequestException as e:
-            logger.warning(
-                f"[web_search] ✗ SearXNG 无法连接 → {searxng_url} ({e})"
-            )
+            logger.warning(f"[web_search] ✗ SearXNG 无法连接 → {searxng_url} ({e})")
 
     # 检测 Bing
     bing_key = cfg.get("bing_search_key", "")
@@ -221,7 +231,6 @@ def check_connectivity() -> bool:
             logger.warning("[web_search] ⚠ 所有搜索后端均不可达")
 
     return any_ok
-
 
 
 def search(query: str, count: int = 5, language: str = "zh-CN", page: int = 1) -> dict:
@@ -265,8 +274,14 @@ def search(query: str, count: int = 5, language: str = "zh-CN", page: int = 1) -
     }
 
 
-def deep_search(query: str, count: int = 5, language: str = "zh-CN",
-                extract_top: int = 2, max_chars: int = 2000, page: int = 1) -> dict:
+def deep_search(
+    query: str,
+    count: int = 5,
+    language: str = "zh-CN",
+    extract_top: int = 2,
+    max_chars: int = 2000,
+    page: int = 1,
+) -> dict:
     """深度搜索 — 先搜索，再抓取前 N 条结果的正文摘要。
 
     相比 search() 只返回标题+snippet，deep_search 会访问搜索结果页面，
@@ -308,5 +323,7 @@ def deep_search(query: str, count: int = 5, language: str = "zh-CN",
     if extracted == 0:
         extra_lines.append("(未能提取任何页面正文，请参考搜索摘要)")
 
-    return {"summary": summary + "\n".join(extra_lines),
-            "__context__": f"深度搜索「{query}」（提取{extracted}条正文）"}
+    return {
+        "summary": summary + "\n".join(extra_lines),
+        "__context__": f"深度搜索「{query}」（提取{extracted}条正文）",
+    }

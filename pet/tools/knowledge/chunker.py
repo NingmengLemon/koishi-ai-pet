@@ -17,7 +17,7 @@ def chunk_text(text: str, max_chars: int = 500, overlap: int = 50) -> list[str]:
     # 防止 overlap >= max_chars 导致 range 步长为 0 或负数
     overlap = max(0, min(overlap, max_chars - 1))
 
-    paragraphs = re.split(r'\n\s*\n', text.strip())
+    paragraphs = re.split(r"\n\s*\n", text.strip())
     chunks = []
     current = ""
 
@@ -32,7 +32,7 @@ def chunk_text(text: str, max_chars: int = 500, overlap: int = 50) -> list[str]:
                 chunks.append(current)
                 current = ""
             for i in range(0, len(para), max_chars - overlap):
-                chunks.append(para[i:i + max_chars])
+                chunks.append(para[i : i + max_chars])
                 if i + max_chars >= len(para):
                     break
             continue

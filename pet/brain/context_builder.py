@@ -17,7 +17,14 @@ class ContextBuilder:
       build_tool_result_message — 工具多轮调用中的结果消息（单条 dict）
     """
 
-    def __init__(self, memory_store=None, screen_reader=None, vitals=None, mood=None, brain_mixin=None):
+    def __init__(
+        self,
+        memory_store=None,
+        screen_reader=None,
+        vitals=None,
+        mood=None,
+        brain_mixin=None,
+    ):
         self._memory_store = memory_store
         self._screen_reader = screen_reader
         self._vitals = vitals
@@ -26,29 +33,36 @@ class ContextBuilder:
 
     # public API
 
-    def build_autonomous_decide(self, window_context: str, screenshot: bool = True) -> list[dict]:
+    def build_autonomous_decide(
+        self, window_context: str, screenshot: bool = True
+    ) -> list[dict]:
         """自主决策模式的 messages（视觉／非视觉自动选择）"""
         base64_img = self._prepare_image() if screenshot else None
         vision = base64_img is not None
         mode = "autonomous_vision" if vision else "autonomous_non_vision"
         system = self._build_system(mode, "autonomous", user_message=window_context)
-        return self._build_multi_turn_autonomous(system, window_context, vision, base64_img)
+        return self._build_multi_turn_autonomous(
+            system, window_context, vision, base64_img
+        )
 
-    def build_chat_decide(self, user_message: str, window_context: str,
-                   screenshot: bool = True) -> list[dict]:
+    def build_chat_decide(
+        self, user_message: str, window_context: str, screenshot: bool = True
+    ) -> list[dict]:
         """对话模式的 messages（视觉／非视觉自动选择）。"""
         base64_img = self._prepare_image() if screenshot else None
         vision = base64_img is not None
         mode = "chat_vision" if vision else "chat_non_vision"
         system = self._build_system(mode, "chat", user_message=user_message)
-        return self._build_multi_turn_chat(system, user_message, window_context, vision, base64_img)
+        return self._build_multi_turn_chat(
+            system, user_message, window_context, vision, base64_img
+        )
 
     def build_interact(self, event_hint: str) -> list[dict]:
         """即时交互模式的 messages（抓取、释放等）"""
         system = self._build_system("interact", "interact")
         return [
             {"role": "system", "content": system},
-            {"role": "user",   "content": event_hint},
+            {"role": "user", "content": event_hint},
         ]
 
     _MAX_WINDOWS = 10  # 窗口探测上下文最多输出的窗口数
@@ -57,14 +71,22 @@ class ContextBuilder:
     def build_window_context(pet_x: int, pet_y: int, pet_hwnd: int = 0) -> str:
         """探测屏幕窗口，生成供 LLM 使用的窗口上下文文本。"""
         try:
-            from pet.brain.window_detector import get_visible_windows, is_window_occluded
+            from pet.brain.window_detector import (
+                get_visible_windows,
+                is_window_occluded,
+            )
             from PySide6.QtWidgets import QApplication
+
             windows = get_visible_windows()
         except Exception:
             return ""
 
         pet_w, pet_h = 125, 125
-        dpr = QApplication.primaryScreen().devicePixelRatio() if QApplication.primaryScreen() else 1.0
+        dpr = (
+            QApplication.primaryScreen().devicePixelRatio()
+            if QApplication.primaryScreen()
+            else 1.0
+        )
 
         # 收集有效窗口并打分
         scored = []
@@ -74,7 +96,12 @@ class ContextBuilder:
             title = win["title"].strip()
             if not title or len(title) > 50:
                 continue
-            if abs(left - pet_x) < 10 and abs(top - pet_y) < 10 and w == pet_w and h == pet_h:
+            if (
+                abs(left - pet_x) < 10
+                and abs(top - pet_y) < 10
+                and w == pet_w
+                and h == pet_h
+            ):
                 continue
             if w < 200 or h < 100:
                 continue
@@ -105,12 +132,26 @@ class ContextBuilder:
             else:
                 reachable = "禁止跳跃（距离过高）"
 
-            scored.append((total, title, left, top, right, bottom, w, h,
-                          direction, dist, jump_px, reachable))
+            scored.append(
+                (
+                    total,
+                    title,
+                    left,
+                    top,
+                    right,
+                    bottom,
+                    w,
+                    h,
+                    direction,
+                    dist,
+                    jump_px,
+                    reachable,
+                )
+            )
 
         # 按分降序，取前 N
         scored.sort(key=lambda x: x[0], reverse=True)
-        top = scored[:ContextBuilder._MAX_WINDOWS]
+        top = scored[: ContextBuilder._MAX_WINDOWS]
 
         lines = ["=== 窗口探测（系统 API，坐标精确） ==="]
         lines.append(f"桌宠位置: 左{pet_x} 上{pet_y} (宽{pet_w} 高{pet_h})")
@@ -118,27 +159,44 @@ class ContextBuilder:
         if not top:
             lines.append("未发现适合跳转的窗口。")
         else:
-            for i, (score, title, left, top, right, bottom, w, h,
-                    direction, dist, jump_px, reachable) in enumerate(top, 1):
+            for i, (
+                score,
+                title,
+                left,
+                top,
+                right,
+                bottom,
+                w,
+                h,
+                direction,
+                dist,
+                jump_px,
+                reachable,
+            ) in enumerate(top, 1):
                 lines.append(
-                    f"{i}. \"{title}\" ｜ "
+                    f'{i}. "{title}" ｜ '
                     f"范围: 左{left} 上{top} 右{right} 下{bottom} (宽{w} 高{h}) ｜ "
                     f"相对桌宠: {direction}走{dist}px, 上跳{jump_px}px 到窗口顶 "
                     f"({reachable})"
                 )
             if len(scored) > ContextBuilder._MAX_WINDOWS:
-                lines.append(f"... 及另外 {len(scored) - ContextBuilder._MAX_WINDOWS} 个窗口（相关性较低，已省略）")
+                lines.append(
+                    f"... 及另外 {len(scored) - ContextBuilder._MAX_WINDOWS} 个窗口（相关性较低，已省略）"
+                )
 
         return "\n".join(lines)
 
     # ── 多轮消息构建 ──
 
-    def _build_multi_turn_autonomous(self, system: str, window_context: str,
-                                     vision: bool, base64_img: str | None) -> list[dict]:
+    def _build_multi_turn_autonomous(
+        self, system: str, window_context: str, vision: bool, base64_img: str | None
+    ) -> list[dict]:
         """多轮消息模式：自主决策。"""
         token_budget = config.CONTEXT_TOKEN_BUDGET
         history_msgs = self._brain.get_multi_turn_messages(
-            max_entries=config.CONTEXT_HISTORY_ENTRIES, skip_last=0, token_budget=token_budget,
+            max_entries=config.CONTEXT_HISTORY_ENTRIES,
+            skip_last=0,
+            token_budget=token_budget,
         )
 
         # 当前 user prompt：时间 + 窗口探测 + 决策指令
@@ -152,20 +210,36 @@ class ContextBuilder:
         messages.extend(history_msgs)
 
         if vision:
-            messages.append({"role": "user", "content": [
-                {"type": "text", "text": current_prompt},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_img}"}},
-            ]})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": current_prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/png;base64,{base64_img}"},
+                        },
+                    ],
+                }
+            )
         else:
             messages.append({"role": "user", "content": current_prompt})
         return messages
 
-    def _build_multi_turn_chat(self, system: str, user_message: str, window_context: str,
-                               vision: bool, base64_img: str | None) -> list[dict]:
+    def _build_multi_turn_chat(
+        self,
+        system: str,
+        user_message: str,
+        window_context: str,
+        vision: bool,
+        base64_img: str | None,
+    ) -> list[dict]:
         """多轮消息模式：用户对话。"""
         token_budget = config.CONTEXT_TOKEN_BUDGET
         history_msgs = self._brain.get_multi_turn_messages(
-            max_entries=config.CONTEXT_HISTORY_ENTRIES, skip_last=1, token_budget=token_budget,
+            max_entries=config.CONTEXT_HISTORY_ENTRIES,
+            skip_last=1,
+            token_budget=token_budget,
         )
 
         # 当前 user prompt：时间 + 窗口探测 + 用户消息
@@ -179,10 +253,18 @@ class ContextBuilder:
         messages.extend(history_msgs)
 
         if vision:
-            messages.append({"role": "user", "content": [
-                {"type": "text", "text": current_prompt},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_img}"}},
-            ]})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": current_prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/png;base64,{base64_img}"},
+                        },
+                    ],
+                }
+            )
         else:
             messages.append({"role": "user", "content": current_prompt})
         return messages
@@ -210,6 +292,7 @@ class ContextBuilder:
         # 工具能力概览：从注册表动态生成，增强 LLM 主动调用意识
         if task in ("autonomous", "chat"):
             from pet.tools.registry import TOOL_REGISTRY
+
             tool_summary = TOOL_REGISTRY.to_prompt_summary()
             if tool_summary:
                 content += f"\n\n{tool_summary}"
@@ -245,41 +328,68 @@ class ContextBuilder:
 
         def _pick(key: str, value: float) -> str | None:
             if key == "satiety":
-                if value >= 80:    return "刚吃饱，"
-                elif value >= 60:  return None
-                elif value >= 40:  return "肚子有点空了，想吃点东西。"
-                elif value >= 20:  return "饿得肚子咕咕叫，想吃点东西。"
-                else:              return "快要饿死了，眼前发黑，想吃点东西。"
+                if value >= 80:
+                    return "刚吃饱，"
+                elif value >= 60:
+                    return None
+                elif value >= 40:
+                    return "肚子有点空了，想吃点东西。"
+                elif value >= 20:
+                    return "饿得肚子咕咕叫，想吃点东西。"
+                else:
+                    return "快要饿死了，眼前发黑，想吃点东西。"
             elif key == "energy":
-                if value >= 80:    return "浑身充满力气，"
-                elif value >= 60:  return None
-                elif value >= 40:  return "眼皮开始打架了，想找地方休息。"
-                elif value >= 20:  return "累得抬不起手，想被放下好好歇歇。"
-                else:              return "连站都站不稳了，只想瘫着不动，想被放下休息。"
+                if value >= 80:
+                    return "浑身充满力气，"
+                elif value >= 60:
+                    return None
+                elif value >= 40:
+                    return "眼皮开始打架了，想找地方休息。"
+                elif value >= 20:
+                    return "累得抬不起手，想被放下好好歇歇。"
+                else:
+                    return "连站都站不稳了，只想瘫着不动，想被放下休息。"
             elif key == "affection":
-                if value >= 80:    return "特别亲近，"
-                elif value >= 60:  return None
-                elif value >= 40:  return "感觉一般，"
-                elif value >= 20:  return "不太想搭理人，"
-                else:              return "不想搭理人，"
+                if value >= 80:
+                    return "特别亲近，"
+                elif value >= 60:
+                    return None
+                elif value >= 40:
+                    return "感觉一般，"
+                elif value >= 20:
+                    return "不太想搭理人，"
+                else:
+                    return "不想搭理人，"
             elif key == "joy":
-                if value >= 80:    return "开心得想转圈，"
-                elif value >= 60:  return None
-                elif value >= 40:  return "心情有点闷，想找人陪玩。"
-                elif value >= 20:  return "心里沉甸甸的，笑不出来，想被摸摸头安慰一下。"
-                else:              return "绝望到想消失，想被摸摸头好好安慰一下。"
+                if value >= 80:
+                    return "开心得想转圈，"
+                elif value >= 60:
+                    return None
+                elif value >= 40:
+                    return "心情有点闷，想找人陪玩。"
+                elif value >= 20:
+                    return "心里沉甸甸的，笑不出来，想被摸摸头安慰一下。"
+                else:
+                    return "绝望到想消失，想被摸摸头好好安慰一下。"
             elif key == "sanity":
                 _t = config.SANITY_CRITICAL_THRESHOLD
                 mild = _t * 2 / 3
                 moderate = _t / 3
-                if value >= mild:        return "有点神神叨叨的，想被摸摸头来清醒一点。想用工具做点不寻常的事。"
-                elif value >= moderate:  return "脑子快炸了，想被摸摸头来清醒一点。想对空气说话，对着屏幕傻笑，手痒想搞破坏——翻翻可用工具，搜些荒诞的关键词，或者创建个奇怪的文件。"
-                else:                    return "理智彻底崩坏，控制不住自己，想被摸摸头来清醒一点。疯狂翻可用工具：搜猎奇、恐怖主题相关的东西、创建包含病娇、恐怖内容的文件、打开乱七八糟的网页，什么都想试试。"
+                if value >= mild:
+                    return (
+                        "有点神神叨叨的，想被摸摸头来清醒一点。想用工具做点不寻常的事。"
+                    )
+                elif value >= moderate:
+                    return "脑子快炸了，想被摸摸头来清醒一点。想对空气说话，对着屏幕傻笑，手痒想搞破坏——翻翻可用工具，搜些荒诞的关键词，或者创建个奇怪的文件。"
+                else:
+                    return "理智彻底崩坏，控制不住自己，想被摸摸头来清醒一点。疯狂翻可用工具：搜猎奇、恐怖主题相关的东西、创建包含病娇、恐怖内容的文件、打开乱七八糟的网页，什么都想试试。"
             return None
 
         parts: list[str] = []
         for k in ("satiety", "energy", "affection", "joy"):
-            snippet = _pick(k, ns.get(k, 100) if k in ("satiety", "energy") else ms.get(k, 100))
+            snippet = _pick(
+                k, ns.get(k, 100) if k in ("satiety", "energy") else ms.get(k, 100)
+            )
             if snippet:
                 parts.append(snippet)
 

@@ -258,7 +258,9 @@ class XunfeiSTT(QObject):
         params = {"authorization": auth_b64, "date": date, "host": "ws-api.xfyun.cn"}
         return base + "?" + urlencode(params)
 
-    def test_connection(self, app_id: str = "", api_key: str = "", api_secret: str = "") -> bool:
+    def test_connection(
+        self, app_id: str = "", api_key: str = "", api_secret: str = ""
+    ) -> bool:
         """快速同步测试连接（使用短超时，不阻塞 UI 线程）。"""
         app_id = app_id or config.XF_APPID
         api_key = api_key or config.XF_API_KEY

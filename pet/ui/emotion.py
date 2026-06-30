@@ -6,22 +6,22 @@ from pet.config import config
 
 # 情绪名 → emoji 映射
 EMOTION_MAP = {
-    "happy":      "\U0001f60a",   # 😊
-    "excited":    "\U0001f929",   # 🤩
-    "sad":        "\U0001f622",   # 😢
-    "angry":      "\U0001f620",   # 😠
-    "surprised":  "\U0001f632",   # 😲
-    "thinking":   "\U0001f914",   # 🤔
-    "sleepy":     "\U0001f62a",   # 😪
-    "love":       "\u2764\ufe0f", # ❤️
-    "cool":       "\U0001f60e",   # 😎
-    "shy":        "\U0001f633",   # 😳
-    "scared":     "\U0001f631",   # 😱
-    "hungry":     "\U0001f35c",   # 🍜
-    "curious":    "\U0001f9d0",   # 🧐
-    "proud":      "\U0001f607",   # 😇
-    "bored":      "\U0001f634",   # 😴
-    "crazy":      "\U0001f92a",   # 🤪
+    "happy": "\U0001f60a",  # 😊
+    "excited": "\U0001f929",  # 🤩
+    "sad": "\U0001f622",  # 😢
+    "angry": "\U0001f620",  # 😠
+    "surprised": "\U0001f632",  # 😲
+    "thinking": "\U0001f914",  # 🤔
+    "sleepy": "\U0001f62a",  # 😪
+    "love": "\u2764\ufe0f",  # ❤️
+    "cool": "\U0001f60e",  # 😎
+    "shy": "\U0001f633",  # 😳
+    "scared": "\U0001f631",  # 😱
+    "hungry": "\U0001f35c",  # 🍜
+    "curious": "\U0001f9d0",  # 🧐
+    "proud": "\U0001f607",  # 😇
+    "bored": "\U0001f634",  # 😴
+    "crazy": "\U0001f92a",  # 🤪
 }
 
 VALID_EMOTIONS = set(EMOTION_MAP.keys())
@@ -41,10 +41,7 @@ class EmotionBubble(QLabel):
             | Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setStyleSheet(
-            "background: transparent;"
-            "font-size: 32px;"
-        )
+        self.setStyleSheet("background: transparent;font-size: 32px;")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setFixedSize(48, 48)
         self.setContentsMargins(2, 2, 2, 4)
@@ -118,6 +115,7 @@ class EmotionBubble(QLabel):
             x = target_pos.x() + config.PET_WIDTH // 2 - 16
             y = target_pos.y() - config.PET_HEIGHT // 2 - 8
         from PySide6.QtWidgets import QApplication
+
         screen = QApplication.primaryScreen()
         if screen:
             geo = screen.availableGeometry()

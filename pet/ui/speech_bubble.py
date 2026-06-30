@@ -1,7 +1,14 @@
 """桌宠对话气泡"""
 
 from PySide6.QtWidgets import QLabel, QWidget
-from PySide6.QtCore import Qt, QTimer, QPoint, QPropertyAnimation, QParallelAnimationGroup, QEasingCurve
+from PySide6.QtCore import (
+    Qt,
+    QTimer,
+    QPoint,
+    QPropertyAnimation,
+    QParallelAnimationGroup,
+    QEasingCurve,
+)
 from PySide6.QtGui import QPainter, QColor, QPen, QPolygon
 from pet.config import config
 from pet.ui.styles import _COLOR_BUBBLE_PET
@@ -19,9 +26,7 @@ class SpeechBubble(QLabel):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setStyleSheet(
-            "padding: 10px;"
-            f"font-size: {config.BUBBLE_FONT_SIZE}px;"
-            "color: #333;"
+            f"padding: 10px;font-size: {config.BUBBLE_FONT_SIZE}px;color: #333;"
         )
         self.setWordWrap(True)
         self.setMaximumWidth(config.BUBBLE_MAX_WIDTH)
@@ -47,7 +52,6 @@ class SpeechBubble(QLabel):
 
         self.hide()
 
-
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -66,11 +70,13 @@ class SpeechBubble(QLabel):
 
         cx = w // 2
         tail_top = body_h - 1
-        tail = QPolygon([
-            QPoint(cx - 6, tail_top),
-            QPoint(cx + 6, tail_top),
-            QPoint(cx,     h - 1),
-        ])
+        tail = QPolygon(
+            [
+                QPoint(cx - 6, tail_top),
+                QPoint(cx + 6, tail_top),
+                QPoint(cx, h - 1),
+            ]
+        )
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(bubble_color)
         painter.drawPolygon(tail)
@@ -83,7 +89,9 @@ class SpeechBubble(QLabel):
         self.setMinimumWidth(80)
         self.setMaximumWidth(config.BUBBLE_MAX_WIDTH)
         metrics = self.fontMetrics()
-        text_w = metrics.horizontalAdvance(text) + 20 + 5  # 20px CSS padding + 5px 缓冲（防 subpixel 舍入换行）
+        text_w = (
+            metrics.horizontalAdvance(text) + 20 + 5
+        )  # 20px CSS padding + 5px 缓冲（防 subpixel 舍入换行）
         w = text_w if text_w <= config.BUBBLE_MAX_WIDTH else config.BUBBLE_MAX_WIDTH
         w = max(w, self.minimumWidth())
         self.setFixedWidth(w)
@@ -100,7 +108,6 @@ class SpeechBubble(QLabel):
     def _start_tracking(self):
         self._follow_timer.start(50)
 
-
     def show_text(self, text: str, duration: int = 5000, parent_pos=None):
         """显示静态文本。若气泡正在使用中则入队。"""
         if self._is_active():
@@ -110,7 +117,9 @@ class SpeechBubble(QLabel):
 
     def start_stream(self, parent_pos=None):
         if self._is_active():
-            self._buffering = True  # 气泡忙则进入缓冲：收完所有 chunk 后以静态文本入队播放
+            self._buffering = (
+                True  # 气泡忙则进入缓冲：收完所有 chunk 后以静态文本入队播放
+            )
             self._incoming_chunks.clear()
             self._incoming_duration = 5000
             return
@@ -134,7 +143,9 @@ class SpeechBubble(QLabel):
 
     def append_stream(self, chunk: str):
         """追加流式文本片段。"""
-        chunk = chunk.replace("\r", "").replace("\n", "")  # 去掉换行符（某些 API 会发送 \r\n）
+        chunk = chunk.replace("\r", "").replace(
+            "\n", ""
+        )  # 去掉换行符（某些 API 会发送 \r\n）
         if not chunk:
             return
         if self._buffering:
@@ -169,7 +180,9 @@ class SpeechBubble(QLabel):
     def _is_active(self) -> bool:
         """气泡当前是否正在使用（显示中或打字中）。"""
         return self.isVisible() and (
-            self._type_timer.isActive() or self._stream_ending or self._hide_timer.isActive()
+            self._type_timer.isActive()
+            or self._stream_ending
+            or self._hide_timer.isActive()
         )
 
     def _enqueue(self, text: str, duration: int):
@@ -180,7 +193,9 @@ class SpeechBubble(QLabel):
         """播放队列中下一条，若无则隐藏。"""
         if self._speech_queue:
             item = self._speech_queue.pop(0)
-            QTimer.singleShot(300, lambda: self._play_text(item["text"], item["duration"]))
+            QTimer.singleShot(
+                300, lambda: self._play_text(item["text"], item["duration"])
+            )
         else:
             self._hide_bubble()
 
@@ -231,7 +246,6 @@ class SpeechBubble(QLabel):
         self._stream_ending = True
         self._type_timer.start(self._type_interval)
 
-
     def _type_next_char(self):
         if self._char_queue:
             char = self._char_queue.pop(0)
@@ -264,7 +278,6 @@ class SpeechBubble(QLabel):
             self._anim_group.deleteLater()
             self._anim_group = None
         super().hide()
-
 
     def _head_position(self, target_pos: QPoint) -> QPoint:
         pet_top = target_pos.y() - config.PET_HEIGHT // 2

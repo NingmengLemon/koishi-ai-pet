@@ -5,7 +5,11 @@ import logging
 from PySide6.QtCore import QTimer, QObject, Signal, QPropertyAnimation, QPoint
 from PySide6.QtWidgets import QWidget, QApplication
 
-from pet.brain.window_detector import get_visible_windows, get_window_rect, is_window_occluded
+from pet.brain.window_detector import (
+    get_visible_windows,
+    get_window_rect,
+    is_window_occluded,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -14,15 +18,15 @@ class GravitySystem(QObject):
     """定时检测桌宠是否悬空并模拟下落，甩出投掷物理。"""
 
     falling_started = Signal()  # 进入下落状态时发出
-    landed = Signal()           # 落地时发出
-    standing_lost = Signal(str) # 站立的窗口消失/被遮挡，附带窗口标题
+    landed = Signal()  # 落地时发出
+    standing_lost = Signal(str)  # 站立的窗口消失/被遮挡，附带窗口标题
 
-    _GRAVITY_ACCEL  = 1.5   # px/tick²
-    _FRICTION       = 0.99
-    _MAX_SPEED      = 25.0  # px/tick
-    _FALL_TERMINAL  = 8.0   # px/tick
-    _WALL_BOUNCE    = -0.4
-    _IMPULSE_SCALE  = 0.05  # px/s → px/tick (30ms)
+    _GRAVITY_ACCEL = 1.5  # px/tick²
+    _FRICTION = 0.99
+    _MAX_SPEED = 25.0  # px/tick
+    _FALL_TERMINAL = 8.0  # px/tick
+    _WALL_BOUNCE = -0.4
+    _IMPULSE_SCALE = 0.05  # px/s → px/tick (30ms)
 
     def __init__(self, window: QWidget, animator, win_anims: list, parent=None):
         super().__init__(parent)
@@ -69,7 +73,9 @@ class GravitySystem(QObject):
             self._falling = True
             self.falling_started.emit()
             self._play_once("falling")
-        logger.info(f"[Gravity] apply_impulse vx={self._vx:.1f} vy={self._vy:.1f} px/tick")
+        logger.info(
+            f"[Gravity] apply_impulse vx={self._vx:.1f} vy={self._vy:.1f} px/tick"
+        )
 
     @property
     def falling(self) -> bool:
@@ -116,12 +122,20 @@ class GravitySystem(QObject):
 
     def _to_logical(self, physical_val: float) -> float:
         """将 Win32 物理坐标转换为 Qt 逻辑坐标。"""
-        dpr = QApplication.primaryScreen().devicePixelRatio() if QApplication.primaryScreen() else 1.0
+        dpr = (
+            QApplication.primaryScreen().devicePixelRatio()
+            if QApplication.primaryScreen()
+            else 1.0
+        )
         return physical_val / dpr
 
     def _to_logical_rect(self, rect: tuple) -> tuple:
         """将 Win32 物理矩形转换为 Qt 逻辑矩形。"""
-        dpr = QApplication.primaryScreen().devicePixelRatio() if QApplication.primaryScreen() else 1.0
+        dpr = (
+            QApplication.primaryScreen().devicePixelRatio()
+            if QApplication.primaryScreen()
+            else 1.0
+        )
         return tuple(v / dpr for v in rect)
 
     def _tick(self):
@@ -148,7 +162,10 @@ class GravitySystem(QObject):
             h = self._window.height()
             screen_bottom = screen.availableGeometry().bottom() - h
 
-            was_at_bottom = self._cached_effective_bottom is not None and old_y >= self._cached_effective_bottom
+            was_at_bottom = (
+                self._cached_effective_bottom is not None
+                and old_y >= self._cached_effective_bottom
+            )
             if was_at_bottom:
                 if self._standing_hwnd and (
                     self._scan_tick % self._ALIVE_CHECK_INTERVAL == 0
@@ -157,14 +174,20 @@ class GravitySystem(QObject):
                     self._force_standing_check = False
                     rect = get_window_rect(self._standing_hwnd)
                     if rect is None:
-                        logger.debug(f"[Gravity] standing window gone (hwnd={self._standing_hwnd})")
+                        logger.debug(
+                            f"[Gravity] standing window gone (hwnd={self._standing_hwnd})"
+                        )
                         lost_title = self._standing_title
                         self._standing_hwnd = 0
                         self._standing_title = ""
                         self._cached_effective_bottom = None
                         self.standing_lost.emit(lost_title)
-                    elif is_window_occluded(self._standing_hwnd, skip_hwnd=int(self._window.winId())):
-                        logger.debug(f"[Gravity] standing window occluded (hwnd={self._standing_hwnd})")
+                    elif is_window_occluded(
+                        self._standing_hwnd, skip_hwnd=int(self._window.winId())
+                    ):
+                        logger.debug(
+                            f"[Gravity] standing window occluded (hwnd={self._standing_hwnd})"
+                        )
                         lost_title = self._standing_title
                         self._standing_hwnd = 0
                         self._standing_title = ""
@@ -177,9 +200,14 @@ class GravitySystem(QObject):
                         pet_w = self._window.width()
                         feet_l = pet_x + pet_w // 3
                         feet_r = pet_x + (2 * pet_w) // 3
-                        if (feet_l >= l_rect[2] or feet_r <= l_rect[0]
-                                or new_top != self._cached_effective_bottom + h):
-                            logger.debug(f"[Gravity] standing window moved (hwnd={self._standing_hwnd})")
+                        if (
+                            feet_l >= l_rect[2]
+                            or feet_r <= l_rect[0]
+                            or new_top != self._cached_effective_bottom + h
+                        ):
+                            logger.debug(
+                                f"[Gravity] standing window moved (hwnd={self._standing_hwnd})"
+                            )
                             lost_title = self._standing_title
                             self._standing_hwnd = 0
                             self._standing_title = ""
@@ -207,8 +235,12 @@ class GravitySystem(QObject):
             feet_r = pet_x + (2 * w) // 3
             for win in get_visible_windows():
                 left, top, right, bottom = self._to_logical_rect(win["rect"])
-                if (left == pet_self[0] and top == pet_self[1]
-                        and right == pet_self[2] and bottom == pet_self[3]):
+                if (
+                    left == pet_self[0]
+                    and top == pet_self[1]
+                    and right == pet_self[2]
+                    and bottom == pet_self[3]
+                ):
                     continue
                 if feet_l >= right or feet_r <= left:
                     continue
@@ -220,7 +252,7 @@ class GravitySystem(QObject):
                         effective_bottom = landing
                         found_hwnd = win["hwnd"]
                         found_title = win["title"][:30]
-                        logger.debug(f"[Gravity] land on: \"{found_title}\" top={top}")
+                        logger.debug(f'[Gravity] land on: "{found_title}" top={top}')
             self._cached_effective_bottom = effective_bottom
             if found_hwnd:
                 self._standing_hwnd = found_hwnd
@@ -234,7 +266,11 @@ class GravitySystem(QObject):
             logger.exception("[Gravity] _tick scan failed")
             if self._cached_effective_bottom is None:
                 s = QApplication.primaryScreen()
-                fb = s.availableGeometry().bottom() - self._window.height() if s else new_y
+                fb = (
+                    s.availableGeometry().bottom() - self._window.height()
+                    if s
+                    else new_y
+                )
                 self._cached_effective_bottom = fb
                 effective_bottom = fb
             else:
@@ -258,7 +294,9 @@ class GravitySystem(QObject):
                 self._play_once("idle")
         elif not at_bottom and not self._falling:
             self._falling = True
-            logger.debug(f"[Gravity] falling started at y={old_y}, bottom={effective_bottom}")
+            logger.debug(
+                f"[Gravity] falling started at y={old_y}, bottom={effective_bottom}"
+            )
             self.falling_started.emit()
             self._play_once("falling")
 

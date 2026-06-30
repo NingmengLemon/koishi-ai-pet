@@ -62,26 +62,36 @@ def register(registry):
     tool = registry.register(TOOL_NAME, TOOL_DESCRIPTION)
 
     registry.add_method(
-        TOOL_NAME, "set",
+        TOOL_NAME,
+        "set",
         "设置一个倒计时定时器。当用户说「提醒我X分钟后Y」「X分钟后喊我」时调用。",
         handler=_set,
         args={
-            "duration": {"type": "int", "required": True,
-                         "desc": "倒计时秒数(1~86400)"},
-            "label": {"type": "str", "required": False, "default": "时间到",
-                      "desc": "提醒内容标题"},
+            "duration": {
+                "type": "int",
+                "required": True,
+                "desc": "倒计时秒数(1~86400)",
+            },
+            "label": {
+                "type": "str",
+                "required": False,
+                "default": "时间到",
+                "desc": "提醒内容标题",
+            },
         },
         timeout=5.0,
     )
 
     registry.add_method(
-        TOOL_NAME, "list",
+        TOOL_NAME,
+        "list",
         "查看当前所有活跃的定时器。",
         handler=_list,
     )
 
     registry.add_method(
-        TOOL_NAME, "cancel",
+        TOOL_NAME,
+        "cancel",
         "取消指定定时器。",
         handler=_cancel,
         args={
@@ -90,7 +100,8 @@ def register(registry):
     )
 
     registry.add_method(
-        TOOL_NAME, "cancel_all",
+        TOOL_NAME,
+        "cancel_all",
         "取消所有活跃的定时器。",
         handler=_cancel_all,
     )

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 SAMPLE_RATE = 16000
 CHANNELS = 1
 DTYPE = "int16"
-FRAME_SAMPLES = 4000       # 每帧采样数，对应约 0.25s
+FRAME_SAMPLES = 4000  # 每帧采样数，对应约 0.25s
 FRAME_BYTES = FRAME_SAMPLES * 2  # 16bit = 2 bytes/sample → 8000 bytes/帧
 
 
@@ -26,7 +26,7 @@ class MicCapture(QObject):
     - 主线程 QTimer 周期性 drain deque 并 emit
     """
 
-    audio_chunk = Signal(bytes)   # 每帧 PCM 数据
+    audio_chunk = Signal(bytes)  # 每帧 PCM 数据
     started = Signal()
     stopped = Signal()
     error_occurred = Signal(str)

@@ -14,16 +14,28 @@ logger = logging.getLogger(__name__)
 
 # ── 粒子数据 ──
 
+
 class Particle:
     __slots__ = (
-        "x", "y", "vx", "vy", "gravity",
-        "lifetime", "age", "size", "color", "shape", "text",
+        "x",
+        "y",
+        "vx",
+        "vy",
+        "gravity",
+        "lifetime",
+        "age",
+        "size",
+        "color",
+        "shape",
+        "text",
     )
 
     def __init__(
         self,
-        x: float, y: float,
-        vx: float = 0, vy: float = 0,
+        x: float,
+        y: float,
+        vx: float = 0,
+        vy: float = 0,
         gravity: float = 0,
         lifetime: int = 800,
         size: float = 4,
@@ -41,7 +53,7 @@ class Particle:
         self.size = size
         self.color = color
         self.shape = shape  # circle / star / text
-        self.text = text    # shape=="text" 时使用
+        self.text = text  # shape=="text" 时使用
 
     @property
     def alive(self) -> bool:
@@ -64,6 +76,7 @@ class Particle:
 
 # ── 特效预设 ──
 
+
 def _spawn_dust(cx: float, cy: float) -> list[Particle]:
     """落地灰尘：从脚底向上喷射后受重力下落。"""
     particles = []
@@ -72,16 +85,23 @@ def _spawn_dust(cx: float, cy: float) -> list[Particle]:
         speed = random.uniform(1.5, 3.5)
         vx = math.cos(angle) * speed
         vy = math.sin(angle) * speed
-        particles.append(Particle(
-            x=cx + random.uniform(-8, 8),
-            y=cy + random.uniform(-2, 2),
-            vx=vx, vy=vy,
-            gravity=0.8,
-            lifetime=random.randint(400, 700),
-            size=random.uniform(2, 4),
-            color=QColor(random.randint(180, 220), random.randint(160, 200), random.randint(120, 160)),
-            shape="circle",
-        ))
+        particles.append(
+            Particle(
+                x=cx + random.uniform(-8, 8),
+                y=cy + random.uniform(-2, 2),
+                vx=vx,
+                vy=vy,
+                gravity=0.8,
+                lifetime=random.randint(400, 700),
+                size=random.uniform(2, 4),
+                color=QColor(
+                    random.randint(180, 220),
+                    random.randint(160, 200),
+                    random.randint(120, 160),
+                ),
+                shape="circle",
+            )
+        )
     return particles
 
 
@@ -93,16 +113,19 @@ def _spawn_stars(cx: float, cy: float) -> list[Particle]:
         speed = random.uniform(0.8, 2.0)
         vx = math.cos(angle) * speed
         vy = -abs(math.sin(angle)) * speed - 0.5  # 始终有上飘分量
-        particles.append(Particle(
-            x=cx + random.uniform(-10, 10),
-            y=cy + random.uniform(-10, 10),
-            vx=vx, vy=vy,
-            gravity=-0.02,  # 微弱上飘
-            lifetime=random.randint(600, 1000),
-            size=random.uniform(4, 7),
-            color=QColor(255, random.randint(200, 255), random.randint(50, 100)),
-            shape="star",
-        ))
+        particles.append(
+            Particle(
+                x=cx + random.uniform(-10, 10),
+                y=cy + random.uniform(-10, 10),
+                vx=vx,
+                vy=vy,
+                gravity=-0.02,  # 微弱上飘
+                lifetime=random.randint(600, 1000),
+                size=random.uniform(4, 7),
+                color=QColor(255, random.randint(200, 255), random.randint(50, 100)),
+                shape="star",
+            )
+        )
     return particles
 
 
@@ -111,18 +134,20 @@ def _spawn_zzz(cx: float, cy: float) -> list[Particle]:
     particles = []
     for i in range(3):
         size = 8 + i * 4
-        particles.append(Particle(
-            x=cx + i * 12,
-            y=cy - i * 8,
-            vx=0.6,
-            vy=-0.4,
-            gravity=-0.01,
-            lifetime=random.randint(1500, 2000),
-            size=size,
-            color=QColor(200, 200, 255, 200),
-            shape="text",
-            text="Z",
-        ))
+        particles.append(
+            Particle(
+                x=cx + i * 12,
+                y=cy - i * 8,
+                vx=0.6,
+                vy=-0.4,
+                gravity=-0.01,
+                lifetime=random.randint(1500, 2000),
+                size=size,
+                color=QColor(200, 200, 255, 200),
+                shape="text",
+                text="Z",
+            )
+        )
     return particles
 
 
@@ -131,18 +156,25 @@ def _spawn_notes(cx: float, cy: float) -> list[Particle]:
     particles = []
     for i in range(3):
         note = random.choice(["♪", "♫"])
-        particles.append(Particle(
-            x=cx + random.uniform(-10, 10),
-            y=cy + random.uniform(-5, 5),
-            vx=random.uniform(0.3, 0.8),
-            vy=-random.uniform(0.5, 1.0),
-            gravity=-0.01,
-            lifetime=random.randint(1200, 1800),
-            size=random.randint(10, 14),
-            color=QColor(random.randint(255, 255), random.randint(180, 220), random.randint(100, 160), 220),
-            shape="text",
-            text=note,
-        ))
+        particles.append(
+            Particle(
+                x=cx + random.uniform(-10, 10),
+                y=cy + random.uniform(-5, 5),
+                vx=random.uniform(0.3, 0.8),
+                vy=-random.uniform(0.5, 1.0),
+                gravity=-0.01,
+                lifetime=random.randint(1200, 1800),
+                size=random.randint(10, 14),
+                color=QColor(
+                    random.randint(255, 255),
+                    random.randint(180, 220),
+                    random.randint(100, 160),
+                    220,
+                ),
+                shape="text",
+                text=note,
+            )
+        )
     return particles
 
 
@@ -150,17 +182,19 @@ def _spawn_hearts(cx: float, cy: float) -> list[Particle]:
     """爱心粒子：从头顶上飘。"""
     particles = []
     for _ in range(4):
-        particles.append(Particle(
-            x=cx + random.uniform(-12, 12),
-            y=cy + random.uniform(-5, 5),
-            vx=random.uniform(-0.3, 0.3),
-            vy=-random.uniform(0.8, 1.5),
-            gravity=-0.02,
-            lifetime=random.randint(800, 1200),
-            size=random.uniform(5, 8),
-            color=QColor(255, random.randint(80, 120), random.randint(80, 120)),
-            shape="heart",
-        ))
+        particles.append(
+            Particle(
+                x=cx + random.uniform(-12, 12),
+                y=cy + random.uniform(-5, 5),
+                vx=random.uniform(-0.3, 0.3),
+                vy=-random.uniform(0.8, 1.5),
+                gravity=-0.02,
+                lifetime=random.randint(800, 1200),
+                size=random.uniform(5, 8),
+                color=QColor(255, random.randint(80, 120), random.randint(80, 120)),
+                shape="heart",
+            )
+        )
     return particles
 
 
@@ -168,22 +202,32 @@ def _spawn_dark_hearts(cx: float, cy: float) -> list[Particle]:
     """黑色心型粒子：随机漂浮上升，理智低落时散发。"""
     particles = []
     for _ in range(random.randint(3, 5)):
-        particles.append(Particle(
-            x=cx + random.uniform(-14, 14),
-            y=cy + random.uniform(-8, 8),
-            vx=random.uniform(-0.5, 0.5),
-            vy=-random.uniform(0.4, 1.0),
-            gravity=-0.01,
-            lifetime=random.randint(1000, 1800),
-            size=random.uniform(6, 10),
-            color=QColor(random.randint(30, 60), random.randint(30, 60), random.randint(30, 60)),
-            shape="heart",
-        ))
+        particles.append(
+            Particle(
+                x=cx + random.uniform(-14, 14),
+                y=cy + random.uniform(-8, 8),
+                vx=random.uniform(-0.5, 0.5),
+                vy=-random.uniform(0.4, 1.0),
+                gravity=-0.01,
+                lifetime=random.randint(1000, 1800),
+                size=random.uniform(6, 10),
+                color=QColor(
+                    random.randint(30, 60),
+                    random.randint(30, 60),
+                    random.randint(30, 60),
+                ),
+                shape="heart",
+            )
+        )
     return particles
+
 
 # ── 粒子绘制 ──
 
-def _draw_star(painter: QPainter, x: float, y: float, size: float, color: QColor, alpha: float):
+
+def _draw_star(
+    painter: QPainter, x: float, y: float, size: float, color: QColor, alpha: float
+):
     """绘制五角星。"""
     c = QColor(color)
     c.setAlphaF(alpha)
@@ -199,7 +243,9 @@ def _draw_star(painter: QPainter, x: float, y: float, size: float, color: QColor
     painter.drawPolygon(polygon)
 
 
-def _draw_heart(painter: QPainter, x: float, y: float, size: float, color: QColor, alpha: float):
+def _draw_heart(
+    painter: QPainter, x: float, y: float, size: float, color: QColor, alpha: float
+):
     """绘制心形。"""
     c = QColor(color)
     c.setAlphaF(alpha)
@@ -208,13 +254,21 @@ def _draw_heart(painter: QPainter, x: float, y: float, size: float, color: QColo
     s = size
     path = QPainterPath()
     path.moveTo(QPointF(x, y + s * 0.3))
-    path.cubicTo(QPointF(x, y - s * 0.3), QPointF(x - s, y - s * 0.3), QPointF(x - s, y + s * 0.1))
-    path.cubicTo(QPointF(x - s, y + s * 0.6), QPointF(x, y + s), QPointF(x, y + s * 0.8))
-    path.cubicTo(QPointF(x, y + s), QPointF(x + s, y + s * 0.6), QPointF(x + s, y + s * 0.1))
-    path.cubicTo(QPointF(x + s, y - s * 0.3), QPointF(x, y - s * 0.3), QPointF(x, y + s * 0.3))
+    path.cubicTo(
+        QPointF(x, y - s * 0.3),
+        QPointF(x - s, y - s * 0.3),
+        QPointF(x - s, y + s * 0.1),
+    )
+    path.cubicTo(
+        QPointF(x - s, y + s * 0.6), QPointF(x, y + s), QPointF(x, y + s * 0.8)
+    )
+    path.cubicTo(
+        QPointF(x, y + s), QPointF(x + s, y + s * 0.6), QPointF(x + s, y + s * 0.1)
+    )
+    path.cubicTo(
+        QPointF(x + s, y - s * 0.3), QPointF(x, y - s * 0.3), QPointF(x, y + s * 0.3)
+    )
     painter.drawPath(path)
-
-
 
 
 def _draw_particle(painter: QPainter, p: Particle):
@@ -229,7 +283,9 @@ def _draw_particle(painter: QPainter, p: Particle):
     if p.shape == "circle":
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(c)
-        painter.drawEllipse(int(p.x - p.size), int(p.y - p.size), int(p.size * 2), int(p.size * 2))
+        painter.drawEllipse(
+            int(p.x - p.size), int(p.y - p.size), int(p.size * 2), int(p.size * 2)
+        )
     elif p.shape == "star":
         _draw_star(painter, p.x, p.y, p.size, p.color, alpha)
     elif p.shape == "heart":
@@ -245,6 +301,7 @@ def _draw_particle(painter: QPainter, p: Particle):
 
 # 粒子窗口比宠物大一圈，留出特效扩散空间
 _MARGIN = 100
+
 
 class ParticleWidget(QWidget):
     """粒子特效浮窗 —— 在宠物周围绘制粒子动画。"""
@@ -280,6 +337,7 @@ class ParticleWidget(QWidget):
 
     def eventFilter(self, obj, event):
         from PySide6.QtCore import QEvent
+
         if obj is self._pet and event.type() in (
             QEvent.Type.Move,
             QEvent.Type.Resize,
@@ -290,12 +348,12 @@ class ParticleWidget(QWidget):
     # ── 默认播放位置（相对于宠物区域的偏移像素，0=宠物顶部） ──
 
     _DEFAULT_Y = {
-        "dust":   -1,         # 特殊: 脚底
-        "stars":  1 / 4,      # 头部附近
-        "notes":       1 / 4,  # 头部附近
-        "hearts":      1 / 4,  # 头部附近
+        "dust": -1,  # 特殊: 脚底
+        "stars": 1 / 4,  # 头部附近
+        "notes": 1 / 4,  # 头部附近
+        "hearts": 1 / 4,  # 头部附近
         "dark_hearts": 1 / 4,  # 头部附近
-        "zzz":         1 / 2,  # 窗口中部
+        "zzz": 1 / 2,  # 窗口中部
     }
 
     def spawn(self, effect: str, cx: float | None = None, cy: float | None = None):
@@ -310,13 +368,17 @@ class ParticleWidget(QWidget):
             "dark_hearts": _spawn_dark_hearts,
         }.get(effect)
         if spawner is None:
-            logger.warning(f"Unknown particle effect: {effect!r}, expected one of dust/stars/zzz/notes/hearts")
+            logger.warning(
+                f"Unknown particle effect: {effect!r}, expected one of dust/stars/zzz/notes/hearts"
+            )
             return
 
         # ── cx/cy 校验 ──
         if cx is not None:
             if not isinstance(cx, (int, float)):
-                logger.warning(f"spawn({effect!r}): cx must be number, got {type(cx).__name__}")
+                logger.warning(
+                    f"spawn({effect!r}): cx must be number, got {type(cx).__name__}"
+                )
                 return
             if not (0 <= cx <= 10000):
                 logger.warning(f"spawn({effect!r}): cx={cx} out of range [0, 10000]")
@@ -324,7 +386,9 @@ class ParticleWidget(QWidget):
 
         if cy is not None:
             if not isinstance(cy, (int, float)):
-                logger.warning(f"spawn({effect!r}): cy must be number, got {type(cy).__name__}")
+                logger.warning(
+                    f"spawn({effect!r}): cy must be number, got {type(cy).__name__}"
+                )
                 return
             if not (0 <= cy <= 10000):
                 logger.warning(f"spawn({effect!r}): cy={cy} out of range [0, 10000]")

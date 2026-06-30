@@ -1,4 +1,4 @@
-﻿"""工具注册表 — 自动发现、注册、描述可用工具。"""
+"""工具注册表 — 自动发现、注册、描述可用工具。"""
 
 import logging
 from dataclasses import dataclass, field
@@ -25,7 +25,6 @@ class ToolDef:
 
 
 class ToolRegistry:
-
     def __init__(self):
         self._tools: dict[str, ToolDef] = {}
         self._disabled: set[str] = set()
@@ -35,18 +34,25 @@ class ToolRegistry:
         self._tools[tool_name] = tool
         return tool
 
-    def add_method(self, tool_name: str, method_name: str,
-                   description: str, handler: Callable, args: dict = None,
-                   timeout: float = None):
+    def add_method(
+        self,
+        tool_name: str,
+        method_name: str,
+        description: str,
+        handler: Callable,
+        args: dict = None,
+        timeout: float = None,
+    ):
         tool = self._tools[tool_name]
         tool.methods[method_name] = ToolMethod(
-            name=method_name, description=description,
-            args=args or {}, handler=handler,
+            name=method_name,
+            description=description,
+            args=args or {},
+            handler=handler,
             timeout=timeout if timeout is not None else 30.0,
         )
 
-    def add_menu_action(self, tool_name: str, label: str,
-                        handler: Callable):
+    def add_menu_action(self, tool_name: str, label: str, handler: Callable):
         """注册一个工具右键子菜单项。handler 在点击时调用。"""
         tool = self._tools[tool_name]
         tool.menu_items.append({"label": label, "handler": handler})
@@ -123,18 +129,20 @@ class ToolRegistry:
                     properties[arg_name] = prop
                     if spec.get("required"):
                         required.append(arg_name)
-                tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": f"{tool.name}.{method_name}",
-                        "description": method.description,
-                        "parameters": {
-                            "type": "object",
-                            "properties": properties,
-                            "required": required,
+                tools.append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": f"{tool.name}.{method_name}",
+                            "description": method.description,
+                            "parameters": {
+                                "type": "object",
+                                "properties": properties,
+                                "required": required,
+                            },
                         },
-                    },
-                })
+                    }
+                )
         return tools
 
     def to_prompt_summary(self) -> str:

@@ -38,7 +38,8 @@ class TodoStorage:
         with self._lock:
             cur = self._conn.execute(
                 "INSERT INTO todos (title, created_at) VALUES (?, ?)",
-                (title.strip(), now))
+                (title.strip(), now),
+            )
             self._conn.commit()
             row = self._conn.execute(
                 "SELECT * FROM todos WHERE id = ?", (cur.lastrowid,)
@@ -51,7 +52,7 @@ class TodoStorage:
             if status is not None:
                 rows = self._conn.execute(
                     "SELECT * FROM todos WHERE status=? ORDER BY created_at DESC",
-                    (status,)
+                    (status,),
                 ).fetchall()
             else:
                 rows = self._conn.execute(
@@ -69,7 +70,8 @@ class TodoStorage:
                 return None
             new_status = "done" if row["status"] == "pending" else "pending"
             self._conn.execute(
-                "UPDATE todos SET status=? WHERE id=?", (new_status, todo_id))
+                "UPDATE todos SET status=? WHERE id=?", (new_status, todo_id)
+            )
             self._conn.commit()
             row = self._conn.execute(
                 "SELECT * FROM todos WHERE id=?", (todo_id,)
@@ -82,7 +84,8 @@ class TodoStorage:
             return None
         with self._lock:
             self._conn.execute(
-                "UPDATE todos SET title=? WHERE id=?", (title.strip(), todo_id))
+                "UPDATE todos SET title=? WHERE id=?", (title.strip(), todo_id)
+            )
             self._conn.commit()
             row = self._conn.execute(
                 "SELECT * FROM todos WHERE id=?", (todo_id,)

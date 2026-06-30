@@ -19,6 +19,7 @@ def _get_idle_ms() -> int:
     if sys.platform == "darwin":
         import ctypes
         import ctypes.util
+
         cg = ctypes.cdll.LoadLibrary(ctypes.util.find_library("CoreGraphics"))
         seconds = cg.CGEventSourceSecondsSinceLastEventType(
             ctypes.c_int(1),  # kCGEventSourceStateCombinedSessionState
@@ -41,6 +42,7 @@ def _get_idle_ms() -> int:
         # Linux：尝试 X11 XScreenSaver，不可用（如 Wayland）时返回 0
         try:
             import ctypes
+
             libx11 = ctypes.cdll.LoadLibrary("libX11.so.6")
             libxss = ctypes.cdll.LoadLibrary("libXss.so.1")
 
@@ -58,7 +60,9 @@ def _get_idle_ms() -> int:
             libx11.XOpenDisplay.restype = ctypes.c_void_p
             libx11.XDefaultRootWindow.restype = ctypes.c_ulong
             libxss.XScreenSaverQueryInfo.argtypes = [
-                ctypes.c_void_p, ctypes.c_ulong, ctypes.POINTER(_XScreenSaverInfo)
+                ctypes.c_void_p,
+                ctypes.c_ulong,
+                ctypes.POINTER(_XScreenSaverInfo),
             ]
 
             dpy = libx11.XOpenDisplay(None)  # None = NULL = 默认 DISPLAY
@@ -98,12 +102,14 @@ class Scheduler(QObject):
         self._alarm_signal.connect(self._on_alarm, Qt.ConnectionType.QueuedConnection)
         logger.debug("[Scheduler] Created")
 
-    # 注册 / 注销 
+    # 注册 / 注销
 
     def register(self, name: str, callback: Callable[[], None]):
         """注册一个回调到指定 tick（fast/mid/slow），同一回调重复注册会被忽略。"""
         if name not in self._VALID_NAMES:
-            raise ValueError(f"Invalid tick name '{name}', must be one of {self._VALID_NAMES}")
+            raise ValueError(
+                f"Invalid tick name '{name}', must be one of {self._VALID_NAMES}"
+            )
         if callback not in self._callbacks[name]:
             self._callbacks[name].append(callback)
             logger.debug(f"[Scheduler] registered {callback.__name__} -> {name}_tick")
@@ -111,10 +117,14 @@ class Scheduler(QObject):
     def unregister(self, name: str, callback: Callable[[], None]):
         """注销指定 tick 上的回调。"""
         if name not in self._VALID_NAMES:
-            raise ValueError(f"Invalid tick name '{name}', must be one of {self._VALID_NAMES}")
+            raise ValueError(
+                f"Invalid tick name '{name}', must be one of {self._VALID_NAMES}"
+            )
         try:
             self._callbacks[name].remove(callback)
-            logger.debug(f"[Scheduler] unregistered {callback.__name__} from {name}_tick")
+            logger.debug(
+                f"[Scheduler] unregistered {callback.__name__} from {name}_tick"
+            )
         except ValueError:
             pass
 
@@ -124,11 +134,15 @@ class Scheduler(QObject):
             try:
                 cb()
             except Exception:
-                logger.exception(f"[Scheduler] {name}_tick callback {cb.__name__} error")
+                logger.exception(
+                    f"[Scheduler] {name}_tick callback {cb.__name__} error"
+                )
 
-    # 生命周期 
+    # 生命周期
 
-    def init(self, auto_fast: bool = True, auto_mid: bool = True, auto_slow: bool = True):
+    def init(
+        self, auto_fast: bool = True, auto_mid: bool = True, auto_slow: bool = True
+    ):
         for t in self._timers.values():
             t.stop()
             t.deleteLater()
@@ -175,7 +189,6 @@ class Scheduler(QObject):
         self.init(auto_fast=auto_fast, auto_mid=auto_mid, auto_slow=auto_slow)
         logger.info("[Scheduler] config updated — timers rebuilt")
 
-
     def stop(self):
         self._idle_check.stop()
         self._pending_alarms.clear()
@@ -203,7 +216,9 @@ class Scheduler(QObject):
                 t.stop()
             self._idle_paused = True
             self.idle_paused.emit(True)
-            logger.info(f"[Scheduler] idle {idle_ms // 1000}s >= {self._idle_timeout_ms // 1000}s — paused")
+            logger.info(
+                f"[Scheduler] idle {idle_ms // 1000}s >= {self._idle_timeout_ms // 1000}s — paused"
+            )
         elif idle_ms < self._idle_timeout_ms and self._idle_paused:
             for name, t in self._timers.items():
                 if self.is_paused(name):
@@ -216,13 +231,17 @@ class Scheduler(QObject):
     def is_idle_paused(self) -> bool:
         return self._idle_paused
 
-    # 手动暂停 / 恢复 
+    # 手动暂停 / 恢复
 
     def pause(self, name: str):
         if name not in self._VALID_NAMES:
-            raise ValueError(f"Invalid timer name '{name}', must be one of {self._VALID_NAMES}")
+            raise ValueError(
+                f"Invalid timer name '{name}', must be one of {self._VALID_NAMES}"
+            )
         if name not in self._timers:
-            logger.warning(f"[Scheduler] pause('{name}') ignored — scheduler not initialized")
+            logger.warning(
+                f"[Scheduler] pause('{name}') ignored — scheduler not initialized"
+            )
             return
         t = self._timers[name]
         if t.isActive():
@@ -232,9 +251,13 @@ class Scheduler(QObject):
 
     def resume(self, name: str):
         if name not in self._VALID_NAMES:
-            raise ValueError(f"Invalid timer name '{name}', must be one of {self._VALID_NAMES}")
+            raise ValueError(
+                f"Invalid timer name '{name}', must be one of {self._VALID_NAMES}"
+            )
         if name not in self._timers:
-            logger.warning(f"[Scheduler] resume('{name}') ignored — scheduler not initialized")
+            logger.warning(
+                f"[Scheduler] resume('{name}') ignored — scheduler not initialized"
+            )
             return
         t = self._timers[name]
         if not t.isActive():
@@ -244,7 +267,9 @@ class Scheduler(QObject):
 
     def is_paused(self, name: str) -> bool:
         if name not in self._VALID_NAMES:
-            raise ValueError(f"Invalid timer name '{name}', must be one of {self._VALID_NAMES}")
+            raise ValueError(
+                f"Invalid timer name '{name}', must be one of {self._VALID_NAMES}"
+            )
         return name in self._manually_paused
 
     def pause_mid(self):
@@ -256,8 +281,9 @@ class Scheduler(QObject):
     def is_mid_paused(self) -> bool:
         return self.is_paused("mid")
 
-    def schedule_at(self, timestamp_ms: int, callback: Callable[[], None],
-                    key: str | None = None) -> str:
+    def schedule_at(
+        self, timestamp_ms: int, callback: Callable[[], None], key: str | None = None
+    ) -> str:
         """在指定绝对时间戳（ms）精准触发一次性回调。
 
         同 ID 重复注册会覆盖旧的。通过 Signal 投递到主线程创建 QTimer，

@@ -33,24 +33,22 @@ class ScreenReader:
         try:
             monitor_index = 0 if all_screens else 1
             sct_img = sct.grab(sct.monitors[monitor_index])
-            return Image.frombytes(
-                "RGB", sct_img.size, sct_img.bgra, "raw", "BGRX"
-            )
+            return Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
         except Exception as e:
             logger.error(f"截图失败：{e}")
             return None
         finally:
             sct.close()
 
-    def capture_area(self, x: int, y: int, width: int, height: int) -> Optional[Image.Image]:
+    def capture_area(
+        self, x: int, y: int, width: int, height: int
+    ) -> Optional[Image.Image]:
         if not self._enabled:
             return None
         sct = mss.mss()
         try:
             sct_img = sct.grab({"top": y, "left": x, "width": width, "height": height})
-            return Image.frombytes(
-                "RGB", sct_img.size, sct_img.bgra, "raw", "BGRX"
-            )
+            return Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
         except Exception as e:
             logger.error(f"区域截图失败：{e}")
             return None
@@ -73,7 +71,9 @@ class ScreenReader:
             if max(new_w, new_h) < min_px:
                 ratio = min_px / max(new_w, new_h)
                 new_w, new_h = int(new_w * ratio), int(new_h * ratio)
-            logger.info(f"[ScreenReader] resize {w}x{h} (scale={vision_scale}) → {new_w}x{new_h}")
+            logger.info(
+                f"[ScreenReader] resize {w}x{h} (scale={vision_scale}) → {new_w}x{new_h}"
+            )
             image = image.resize((new_w, new_h), Image.LANCZOS)
         buf = io.BytesIO()
         image.save(buf, format="PNG")

@@ -128,22 +128,32 @@ class ActionQueue(QObject):
         # 时间驱动：监听 PetAnimator.animation_finished
         self._actions._anim.animation_finished.connect(self._on_action_done)
         self._waiting_anim_finished = True
-        self._actions.gravity.suppress_idle = True  # 防止重力 tick 覆盖 sleep/sit/thinking
+        self._actions.gravity.suppress_idle = (
+            True  # 防止重力 tick 覆盖 sleep/sit/thinking
+        )
         timeout_ms = max(1000, int(getattr(config, "ACTION_TIMEOUT_MS", 15000)))
         self._timeout_timer.start(timeout_ms)
 
     def _on_action_done(self, *args):
         self._disconnect_active()
-        self._actions.gravity._tick()   #立即调用一次tick，防止队列执行下一个动作
+        self._actions.gravity._tick()  # 立即调用一次tick，防止队列执行下一个动作
         if self._actions.gravity.falling:
             return  # PetWindow 的 falling_started→pause + landed→resume 会继续队列
         self._run_next()
 
     def _on_action_timeout(self):
         """动作超时保护"""
-        if not self._waiting_anim_finished and self._active_anim is None and not self._waiting_gravity_walk:
+        if (
+            not self._waiting_anim_finished
+            and self._active_anim is None
+            and not self._waiting_gravity_walk
+        ):
             return
-        cur = self._queue[self._cursor - 1] if 0 < self._cursor <= len(self._queue) else None
+        cur = (
+            self._queue[self._cursor - 1]
+            if 0 < self._cursor <= len(self._queue)
+            else None
+        )
         name = cur[0] if cur else "<unknown>"
         logger.warning(
             f"[ActionQueue] ⚠ action '{name}' timed out after "
@@ -201,7 +211,11 @@ class ActionQueue(QObject):
         if name == "drive" or name == "walk":
             parts.append(f"{args[0]} {args[1]}px" if len(args) >= 2 else "")
         elif name == "move_to":
-            parts.append(f"({args[0].x()},{args[0].y()})→({args[1].x()},{args[1].y()})" if len(args) >= 2 else "")
+            parts.append(
+                f"({args[0].x()},{args[0].y()})→({args[1].x()},{args[1].y()})"
+                if len(args) >= 2
+                else ""
+            )
         elif name == "bounce":
             d = kwargs.get("direction", "right")
             dist = kwargs.get("distance", 0)

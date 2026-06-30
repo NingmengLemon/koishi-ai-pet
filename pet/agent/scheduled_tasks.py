@@ -41,7 +41,9 @@ class ScheduledTasks:
     def _autonomous(self):
         ts = datetime.now().strftime("%H:%M:%S")
         if not self._agent.state_machine.try_transition(PetState.AUTONOMOUS):
-            logger.info(f"[{ts}] [PetAgent] [mid_tick] skipped (state={self._agent.state_machine.state.value})")
+            logger.info(
+                f"[{ts}] [PetAgent] [mid_tick] skipped (state={self._agent.state_machine.state.value})"
+            )
             return
 
         pet_x, pet_y = 0, 0

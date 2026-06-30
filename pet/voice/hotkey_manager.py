@@ -61,7 +61,7 @@ class HotkeyManager(QObject):
         key_name = self._key_name(key)
 
         # 回车拦截（语音输入完成后的提交）
-        if self._intercept_enter and key_name == 'enter':
+        if self._intercept_enter and key_name == "enter":
             if not self._enter_handled:
                 self._enter_handled = True
                 logger.info("[HotkeyManager] enter pressed → submit")
@@ -82,7 +82,7 @@ class HotkeyManager(QObject):
         key_name = self._key_name(key)
 
         # 回车释放时重置防连发标记
-        if key_name == 'enter':
+        if key_name == "enter":
             self._enter_handled = False
             return
 
@@ -98,6 +98,10 @@ class HotkeyManager(QObject):
     @staticmethod
     def _key_name(key) -> str:
         try:
-            return key.char.lower() if hasattr(key, 'char') and key.char else key.name.lower()
+            return (
+                key.char.lower()
+                if hasattr(key, "char") and key.char
+                else key.name.lower()
+            )
         except Exception:
             return ""

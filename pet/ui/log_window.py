@@ -4,20 +4,47 @@ import logging
 from collections import deque
 
 from PySide6.QtCore import Qt, Signal, QObject, QPoint
-from PySide6.QtGui import QFont, QTextCursor, QIcon, QPainter, QPainterPath, QColor, QPen
+from PySide6.QtGui import (
+    QFont,
+    QTextCursor,
+    QIcon,
+    QPainter,
+    QPainterPath,
+    QColor,
+    QPen,
+)
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout,
-    QTextEdit, QPushButton, QLabel, QComboBox,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QTextEdit,
+    QPushButton,
+    QLabel,
+    QComboBox,
 )
 from pet.ui.styles import (
-    ICON_PATH, TEXTEDIT_QSS, BUTTON_QSS, BUTTON_PRIMARY_QSS, BUTTON_DANGER_QSS, COMBOBOX_QSS, SCROLLBAR_QSS,
-    _COLOR_BG, _COLOR_BORDER_DARK, _COLOR_TEXT_TITLE, _COLOR_TEXT_MUTED, _COLOR_DANGER,
-    TITLE_LABEL_QSS, WINDOW_RADIUS,
-    make_minimize_button, make_close_button, ensure_taskbar_icon,
+    ICON_PATH,
+    TEXTEDIT_QSS,
+    BUTTON_QSS,
+    BUTTON_PRIMARY_QSS,
+    BUTTON_DANGER_QSS,
+    COMBOBOX_QSS,
+    SCROLLBAR_QSS,
+    _COLOR_BG,
+    _COLOR_BORDER_DARK,
+    _COLOR_TEXT_TITLE,
+    _COLOR_TEXT_MUTED,
+    _COLOR_DANGER,
+    TITLE_LABEL_QSS,
+    WINDOW_RADIUS,
+    make_minimize_button,
+    make_close_button,
+    ensure_taskbar_icon,
 )
 
 
 # ── 跨线程日志桥接 ──
+
 
 class _LogRelay(QObject):
     """跨线程日志桥接器"""
@@ -68,16 +95,19 @@ class _LogRelay(QObject):
 
 # ── 自定义 Handler ──
 
+
 class LogWindowHandler(logging.Handler):
     """自定义 logging.Handler — 仅 INFO 及以上，格式化后经由 _LogRelay 进入 GUI。"""
 
     def __init__(self, relay: _LogRelay, level=logging.INFO):
         super().__init__(level=level)
         self._relay = relay
-        self.setFormatter(logging.Formatter(
-            "[%(asctime)s] [%(levelname)-5s] [%(name)s] %(message)s",
-            datefmt="%H:%M:%S",
-        ))
+        self.setFormatter(
+            logging.Formatter(
+                "[%(asctime)s] [%(levelname)-5s] [%(name)s] %(message)s",
+                datefmt="%H:%M:%S",
+            )
+        )
 
     def emit(self, record: logging.LogRecord):
         try:
@@ -105,6 +135,7 @@ _MAX_BLOCK_COUNT = 5000
 
 # ── LogWindow ──
 
+
 class LogWindow(QWidget):
     """INFO 日志查看窗口"""
 
@@ -116,10 +147,7 @@ class LogWindow(QWidget):
         self.resize(620, 440)
 
         # 无边框 + 透明背景（用于 paintEvent 画圆角）
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.Window
-        )
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
         self.setStyleSheet(_WINDOW_QSS)
@@ -184,11 +212,15 @@ class LogWindow(QWidget):
         self._log_view.setReadOnly(True)
         self._log_view.setUndoRedoEnabled(False)  # 防止 undo stack 随 trim 无限增长
         self._log_view.setFont(QFont("Consolas", 10))
-        self._log_view.setStyleSheet(TEXTEDIT_QSS + SCROLLBAR_QSS + f"""
+        self._log_view.setStyleSheet(
+            TEXTEDIT_QSS
+            + SCROLLBAR_QSS
+            + f"""
             QTextEdit {{
                 background: {_COLOR_BG};
             }}
-        """)
+        """
+        )
 
         # ── 组装 ──
         root = QVBoxLayout(self)
@@ -258,7 +290,8 @@ class LogWindow(QWidget):
         cursor = QTextCursor(doc.firstBlock())
         cursor.movePosition(
             QTextCursor.MoveOperation.NextBlock,
-            QTextCursor.MoveMode.KeepAnchor, excess - 1
+            QTextCursor.MoveMode.KeepAnchor,
+            excess - 1,
         )
         cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
         cursor.removeSelectedText()

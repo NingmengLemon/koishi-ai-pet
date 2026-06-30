@@ -1,11 +1,15 @@
 """系统提示词分层组装"""
 
-from pet.action.registry import generate_action_section, target_sequence_duration, min_action_count, default_duration
+from pet.action.registry import (
+    generate_action_section,
+    target_sequence_duration,
+    min_action_count,
+    default_duration,
+)
 from pet.config import config
 
 # context_builder._build_system 用于注入感受描述的错点标记
 FEELING_MARKER = "<<FEELING>>"
-
 
 
 _MEMORY_GUIDE = """=== 记忆存储指导 ===
@@ -50,22 +54,35 @@ _CHAT_INTRO = """=== 对话模式 ===
 - 无具体动作指令时，可自由选择 1-2 个配合语境的动作
 - 涉及方向/距离的指令，参考窗口探测数据精确执行"""
 
+
 class _Lazy:
     """延迟求值包装器，避免 lambda 闭包陷阱，首次求值后缓存。"""
+
     def __init__(self, fn):
         self.fn = fn
         self._cached = None
+
     def __str__(self):
         if self._cached is None:
             self._cached = self.fn()
         return self._cached
 
+
 _PERCEPTION_SECTIONS = {
-    "autonomous_vision":     [_VISION_INTRO, _WINDOW_GUIDE, _Lazy(generate_action_section)],
-    "autonomous_non_vision": [_NON_VISION_INTRO, _WINDOW_GUIDE, _Lazy(generate_action_section)],
-    "chat_vision":           [_CHAT_INTRO, _VISION_INTRO, _WINDOW_GUIDE, _Lazy(generate_action_section)],
-    "chat_non_vision":       [_CHAT_INTRO, _WINDOW_GUIDE, _Lazy(generate_action_section)],
-    "interact":   [_Lazy(generate_action_section)],
+    "autonomous_vision": [_VISION_INTRO, _WINDOW_GUIDE, _Lazy(generate_action_section)],
+    "autonomous_non_vision": [
+        _NON_VISION_INTRO,
+        _WINDOW_GUIDE,
+        _Lazy(generate_action_section),
+    ],
+    "chat_vision": [
+        _CHAT_INTRO,
+        _VISION_INTRO,
+        _WINDOW_GUIDE,
+        _Lazy(generate_action_section),
+    ],
+    "chat_non_vision": [_CHAT_INTRO, _WINDOW_GUIDE, _Lazy(generate_action_section)],
+    "interact": [_Lazy(generate_action_section)],
 }
 
 
@@ -189,12 +206,15 @@ def _interact_task() -> list[str]:
 
 
 _TASK_SECTIONS = {
-    "autonomous":  _autonomous_task,
-    "chat":        _chat_task,
-    "interact":    _interact_task,
+    "autonomous": _autonomous_task,
+    "chat": _chat_task,
+    "interact": _interact_task,
 }
 
-def build_system_prompt(mode: str, task: str, include_feeling_marker: bool = True) -> str:
+
+def build_system_prompt(
+    mode: str, task: str, include_feeling_marker: bool = True
+) -> str:
     """分层组装 system prompt。
 
     Args:
@@ -203,9 +223,13 @@ def build_system_prompt(mode: str, task: str, include_feeling_marker: bool = Tru
         include_feeling_marker: 是否注入 <<FEELING>> 锚点
     """
     if mode not in _PERCEPTION_SECTIONS:
-        raise ValueError(f"Unknown mode: {mode!r}, expected one of {list(_PERCEPTION_SECTIONS)}")
+        raise ValueError(
+            f"Unknown mode: {mode!r}, expected one of {list(_PERCEPTION_SECTIONS)}"
+        )
     if task not in _TASK_SECTIONS:
-        raise ValueError(f"Unknown task: {task!r}, expected one of {list(_TASK_SECTIONS)}")
+        raise ValueError(
+            f"Unknown task: {task!r}, expected one of {list(_TASK_SECTIONS)}"
+        )
 
     _VALID_COMBOS = {
         ("autonomous_vision", "autonomous"),
@@ -237,6 +261,7 @@ def build_system_prompt(mode: str, task: str, include_feeling_marker: bool = Tru
         pass  # 工具详细 schema 通过 API tools 参数传递；简短概览由 context_builder 动态注入
 
     return "\n\n".join(sections)
+
 
 def autonomous_vision_user_prompt(context: str) -> str:
     return (
@@ -295,8 +320,6 @@ def chat_non_vision_user_prompt(user_message: str, context: str) -> str:
     )
 
 
-
-
 INTERACT_GRABBED = config.INTERACT_GRABBED_PROMPT or (
     "用户正用鼠标把你抓起来，用一句话（≤15字）根据你的人格表达被抓住的反应"
 )
@@ -308,6 +331,7 @@ INTERACT_RELEASED = config.INTERACT_RELEASED_PROMPT or (
 INTERACT_WINDOW_DISAPPEARED = config.INTERACT_WINDOW_DISAPPEARED_PROMPT or (
     "你刚才站在的窗口消失了（关闭/最小化/被遮挡），用一句话（≤20字）根据你的人格表达反应"
 )
+
 
 def interact_fed_prompt(food: str) -> str:
     template = config.INTERACT_FED_PROMPT or (

@@ -18,7 +18,9 @@ class ConversationStore:
         self._conn: sqlite3.Connection | None = None
         self._lock = threading.Lock()
         try:
-            self._conn = sqlite3.connect(self._db_path, check_same_thread=False, timeout=5.0)
+            self._conn = sqlite3.connect(
+                self._db_path, check_same_thread=False, timeout=5.0
+            )
             self._conn.row_factory = sqlite3.Row
             self._conn.execute("PRAGMA busy_timeout=5000")
             self._create_table()
@@ -51,7 +53,7 @@ class ConversationStore:
         if not self._conn:
             return
         try:
-            cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+            cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
             with self._lock:
                 self._conn.execute(
                     "DELETE FROM chat_history WHERE date(created_at) < ?",

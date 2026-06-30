@@ -14,7 +14,9 @@ class TimerTool:
     """倒计时定时器，到时间后主动说话 + 弹通知。"""
 
     def __init__(self):
-        self._timers: dict[str, dict] = {}  # timer_id → {key, label, duration_s, fire_at}
+        self._timers: dict[
+            str, dict
+        ] = {}  # timer_id → {key, label, duration_s, fire_at}
         self._lock = threading.Lock()
 
     # ── 公开方法 ──
@@ -42,7 +44,10 @@ class TimerTool:
         # 先写字典再注册 alarm：防止极短定时器在 _timers 写入前就触发回调
         with self._lock:
             self._timers[timer_id] = {
-                "key": key, "label": label, "duration_s": duration, "fire_at": fire_at,
+                "key": key,
+                "label": label,
+                "duration_s": duration,
+                "fire_at": fire_at,
             }
         try:
             TOOL_CTX.register_alarm(round(fire_at * 1000), _on_fire, key=key)
@@ -69,11 +74,14 @@ class TimerTool:
         items = []
         for tid, t in snapshot:
             remain = max(0, int(t["fire_at"] - now_s))
-            items.append({
-                "id": tid, "label": t["label"],
-                "remaining_s": remain,
-                "remaining_str": self._format_duration(remain),
-            })
+            items.append(
+                {
+                    "id": tid,
+                    "label": t["label"],
+                    "remaining_s": remain,
+                    "remaining_str": self._format_duration(remain),
+                }
+            )
 
         lines = [f"共 {len(items)} 个活跃定时器:"]
         for item in items:
@@ -115,8 +123,11 @@ class TimerTool:
             result = self.cancel_timer(tid)
             if "cancelled" in result:
                 cancelled += 1
-        return {"cancelled": cancelled, "total": len(ids),
-                "summary": f"已取消 {cancelled}/{len(ids)} 个定时器"}
+        return {
+            "cancelled": cancelled,
+            "total": len(ids),
+            "summary": f"已取消 {cancelled}/{len(ids)} 个定时器",
+        }
 
     def close(self):
         with self._lock:
